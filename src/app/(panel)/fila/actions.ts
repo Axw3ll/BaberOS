@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
-import { joinQueue, QueueError, syncQueueMessages } from "@/lib/queue";
+import { barbersNow, joinQueue, QueueError, syncQueueMessages } from "@/lib/queue";
+import { timeLabel } from "@/lib/time";
 import { book, BookingError } from "@/lib/booking";
 import { baseUrl } from "@/lib/messages";
 import * as v from "@/lib/validate";
@@ -63,6 +64,19 @@ export async function serveEntry(_: ActionResult, data: FormData): Promise<Actio
   const serviceId = String(data.get("serviceId") || "") || e.serviceId;
   if (!staffId) return { error: "Elige qué barbero lo atiende." };
   if (!serviceId) return { error: "Elige el servicio." };
+
+  // ¿Le alcanza el tiempo a ese barbero antes de su siguiente cita?
+  const [who, svc] = await Promise.all([
+    barbersNow(shop).then((l) => l.find((b) => b.id === staffId)),
+    prisma.service.findFirst({ where: { id: serviceId, shopId: shop.id }, select: { name: true, minutes: true } }),
+  ]);
+  if (!who) return { error: "Ese barbero no está disponible." };
+  if (!svc) return { error: "Elige el servicio." };
+  const first = who.name.split(" ")[0];
+  if (who.state === "busy") return { error: `${first} está atendiendo hasta las ${timeLabel(who.until!, shop.timezone)}. Elige otro barbero o espera.` };
+  if (who.state === "free" && who.nextAppt && who.freeMinutes < svc.minutes) {
+    return { error: `A ${first} solo le quedan ${who.freeMinutes} min antes de su cita de las ${timeLabel(who.nextAppt, shop.timezone)} y ${svc.name} dura ${svc.minutes}. Elige otro barbero o pásalo cuando termine esa cita.` };
+  }
 
   if (!e.phone) {
     await prisma.queueEntry.update({ where: { id: e.id }, data: { status: "DONE", finishedAt: new Date(), staffId } });

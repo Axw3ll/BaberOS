@@ -3,7 +3,8 @@ import QRCode from "qrcode";
 import { Clock, MessageCircle, Smartphone, UserRound } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
-import { activeQueue, withEstimates } from "@/lib/queue";
+import { activeQueue, barbersNow, withEstimates } from "@/lib/queue";
+import { timeLabel } from "@/lib/time";
 import { baseUrl } from "@/lib/messages";
 import { whatsappUrl } from "@/lib/crm";
 import { Empty, Field, PageHeader, SectionTitle } from "@/components/ui";
@@ -23,10 +24,18 @@ export default async function FilaPage() {
   const [queue, services, staff, qr] = await Promise.all([
     activeQueue(shop.id).then((q) => withEstimates(shop, q)),
     prisma.service.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ position: "asc" }, { name: "asc" }], select: { id: true, name: true } }),
-    prisma.staff.findMany({ where: { shopId: shop.id, active: true, takesAppointments: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    barbersNow(shop),
     QRCode.toString(link, { type: "svg", margin: 0, errorCorrectionLevel: "M" }),
   ]);
   const since = (d: Date) => Math.max(0, Math.round((Date.now() - d.getTime()) / 60_000));
+  const tz = shop.timezone;
+  const hm = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}` : `${m} min`);
+  // Texto corto del estado de cada barbero, para la lista y para el selector
+  const statusText = (b: (typeof staff)[number]) =>
+    b.state === "busy" ? `atendiendo hasta las ${timeLabel(b.until!, tz)}`
+      : b.state === "off" ? "fuera de turno"
+      : b.nextAppt ? `libre ${hm(b.freeMinutes)} (cita a las ${timeLabel(b.nextAppt, tz)})`
+      : `libre hasta las ${timeLabel(b.until!, tz)}`;
 
   return (
     <>
@@ -65,7 +74,7 @@ export default async function FilaPage() {
                     <input type="hidden" name="id" value={e.id} />
                     <select name="staffId" defaultValue={e.staffId ?? ""} className="field w-auto py-1.5 text-sm" aria-label="Barbero">
                       <option value="">¿Quién lo atiende?</option>
-                      {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      {staff.map((s) => <option key={s.id} value={s.id}>{s.name.split(" ")[0]} · {statusText(s)}</option>)}
                     </select>
                     <select name="serviceId" defaultValue={e.serviceId ?? ""} className="field w-auto py-1.5 text-sm" aria-label="Servicio">
                       <option value="">Servicio…</option>
@@ -80,6 +89,19 @@ export default async function FilaPage() {
         </section>
 
         <aside className="space-y-6">
+          <section className="print:hidden">
+            <SectionTitle>Barberos ahora</SectionTitle>
+            <ul className="space-y-2.5 text-sm">
+              {staff.map((b) => (
+                <li key={b.id} className="flex items-start gap-2.5">
+                  <span className={`mt-1.5 size-2 shrink-0 rounded-full ${b.state === "busy" ? "bg-warning" : b.state === "off" ? "bg-line" : b.freeMinutes >= 30 ? "bg-success" : "bg-warning"}`} aria-hidden />
+                  <span><span className="font-medium">{b.name.split(" ")[0]}</span> <span className="text-muted">{statusText(b)}</span></span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-faint">Al pasar a alguien a la silla se revisa que su servicio termine antes de la siguiente cita del barbero.</p>
+          </section>
+
           <section className="print:hidden">
             <SectionTitle>Agregar a la fila</SectionTitle>
             <ActionForm action={addToQueue} resetOnOk className="space-y-3">

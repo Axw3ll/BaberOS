@@ -21,7 +21,7 @@ export function activeQueue(shopId: string) {
 }
 
 /** Barberos que trabajan en este momento (según su horario de hoy). Al menos 1 para no dividir entre cero. */
-async function barbersNow(shop: Barbershop) {
+async function barbersWorking(shop: Barbershop) {
   const tz = shop.timezone, minute = toLocalMinute(new Date(), tz), wd = weekday(today(tz));
   const n = await prisma.staff.count({
     where: { shopId: shop.id, active: true, takesAppointments: true, schedule: { some: { weekday: wd, startMinute: { lte: minute }, endMinute: { gt: minute } } } },
@@ -32,7 +32,7 @@ async function barbersNow(shop: Barbershop) {
 /** Lugar y minutos estimados de cada persona en la fila. */
 export async function withEstimates(shop: Barbershop, entries: Awaited<ReturnType<typeof activeQueue>>) {
   const services = new Map((await prisma.service.findMany({ where: { shopId: shop.id }, select: { id: true, minutes: true, name: true } })).map((s) => [s.id, s]));
-  const barbers = await barbersNow(shop);
+  const barbers = await barbersWorking(shop);
   let ahead = 0;
   return entries.map((e, i) => {
     const minutes = (e.serviceId && services.get(e.serviceId)?.minutes) || 30;
@@ -85,4 +85,41 @@ export async function syncQueueMessages(shop: Barbershop, base: string) {
       skipDuplicates: true,
     });
   }
+}
+
+export type BarberNow = {
+  id: string; name: string;
+  /** busy: atendiendo; free: libre ahora; off: fuera de su turno */
+  state: "busy" | "free" | "off";
+  /** busy: hasta cuándo; free: hasta su siguiente cita o fin de turno */
+  until: Date | null;
+  freeMinutes: number;
+  /** La cita que limita su tiempo libre (si la hay) */
+  nextAppt: Date | null;
+};
+
+/** Cómo está cada barbero en este momento: para saber a quién pasar a un cliente de la fila. */
+export async function barbersNow(shop: Barbershop): Promise<BarberNow[]> {
+  const tz = shop.timezone, now = Date.now(), day = today(tz), wd = weekday(day), minute = toLocalMinute(new Date(now), tz);
+  const staff = await prisma.staff.findMany({
+    where: { shopId: shop.id, active: true, takesAppointments: true },
+    include: {
+      schedule: { where: { weekday: wd } },
+      appointments: {
+        where: { status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] }, endsAt: { gt: new Date(now) }, startsAt: { lt: new Date(now + 24 * 3_600_000) } },
+        orderBy: { startsAt: "asc" }, select: { startsAt: true, endsAt: true },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+  return staff.map((s) => {
+    const shift = s.schedule.find((b) => b.startMinute <= minute && b.endMinute > minute);
+    const current = s.appointments.find((a) => a.startsAt.getTime() <= now);
+    if (current) return { id: s.id, name: s.name, state: "busy", until: current.endsAt, freeMinutes: 0, nextAppt: null };
+    if (!shift) return { id: s.id, name: s.name, state: "off", until: null, freeMinutes: 0, nextAppt: null };
+    const shiftEnd = now + (shift.endMinute - minute) * 60_000;
+    const next = s.appointments[0]?.startsAt ?? null;
+    const until = next && next.getTime() < shiftEnd ? next.getTime() : shiftEnd;
+    return { id: s.id, name: s.name, state: "free", until: new Date(until), freeMinutes: Math.floor((until - now) / 60_000), nextAppt: next && next.getTime() < shiftEnd ? next : null };
+  });
 }
