@@ -27,7 +27,8 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
   });
   if (error) return { error: error.message.includes("registered") ? "Ese email ya tiene cuenta. Inicia sesión." : "No se pudo crear la cuenta. Revisa el email." };
   if (!res.session) return { ok: "Te enviamos un correo para confirmar tu cuenta. Ábrelo y vuelve a entrar." };
-  redirect("/onboarding");
+  // /hoy decide: si ya lo agregaron a un equipo entra directo; si no, lo manda a registrar su barbería
+  redirect("/hoy");
 }
 
 export async function signOut() {

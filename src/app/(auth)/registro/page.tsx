@@ -5,14 +5,17 @@ import { signUp } from "../actions";
 
 export const metadata = { title: "Crear cuenta" };
 
-export default function SignUpPage() {
+export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ email?: string }> }) {
+  const { email } = await searchParams;
   return (
     <>
       <h1 className="font-display text-3xl">Crear cuenta</h1>
-      <p className="mt-2 text-muted">Si te invitaron a una barbería, usa el mismo email de la invitación.</p>
+      <p className="mt-2 text-muted">
+        {email ? "Te agregaron a un equipo. Crea tu cuenta con este correo y entrarás directo a tu agenda." : "Si te agregaron a una barbería, usa el mismo email que dio el dueño."}
+      </p>
       <ActionForm action={signUp} className="mt-10 space-y-5">
         <Field label="Tu nombre"><input name="name" required autoComplete="name" className="field" /></Field>
-        <Field label="Email"><input name="email" type="email" required autoComplete="email" className="field" /></Field>
+        <Field label="Email"><input name="email" type="email" required autoComplete="email" defaultValue={email ?? ""} className="field" /></Field>
         <Field label="Contraseña" hint="Mínimo 8 caracteres">
           <input name="password" type="password" required minLength={8} autoComplete="new-password" className="field" />
         </Field>

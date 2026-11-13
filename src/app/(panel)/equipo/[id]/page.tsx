@@ -1,3 +1,7 @@
+import { headers } from "next/headers";
+import { MailQuestion, MessageCircle } from "lucide-react";
+import { CopyButton } from "@/components/copy-button";
+import { whatsappUrl } from "@/lib/crm";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSection, ROLE_LABEL } from "@/lib/auth";
@@ -22,18 +26,43 @@ export default async function StaffPage({ params }: { params: Promise<{ id: stri
     prisma.service.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ position: "asc" }, { name: "asc" }] }),
   ]);
   if (!s) notFound();
+  // Dominio para el enlace de registro: el configurado, o el de esta misma petición
+  const h = await headers();
+  const origin = (process.env.NEXT_PUBLIC_APP_URL || `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`).replace(/\/$/, "");
   const locked = s.role === "OWNER" && me.role !== "OWNER";
   const pct = (v: { toString(): string }) => Math.round(Number(v.toString()) * 100);
 
   return (
     <>
       <PageHeader back={{ href: "/equipo", label: "Equipo" }} title={s.name}
-        subtitle={`${ROLE_LABEL[s.role]}${s.userId ? "" : s.email ? `. Invitación pendiente para ${s.email}` : ". Sin cuenta"}`}
+        subtitle={`${ROLE_LABEL[s.role]}${s.userId ? "" : s.email ? `. Falta que cree su cuenta con ${s.email}` : ". Sin cuenta para entrar"}`}
         actions={s.role !== "OWNER" && s.id !== me.id && (
           <form action={toggleStaff}><input type="hidden" name="id" value={s.id} />
             <button className={s.active ? "btn-ghost text-danger" : "btn-quiet"}>{s.active ? "Dar de baja" : "Reactivar"}</button>
           </form>
         )} />
+
+      {!s.userId && s.email && !locked && (() => {
+        const signup = `${origin}/registro?email=${encodeURIComponent(s.email)}`;
+        const msg = `Hola ${s.name.split(" ")[0]}, te agregué al equipo de ${shop.name} en BarberOS. Crea tu cuenta con este correo (${s.email}) aquí: ${signup}`;
+        return (
+          <div className="mb-6 max-w-2xl rounded-2xl border border-warning/30 bg-warning/5 p-5">
+            <p className="flex items-center gap-2 font-semibold"><MailQuestion className="size-5 text-warning" aria-hidden />Todavía no tiene cuenta</p>
+            <p className="mt-1.5 text-sm text-muted">
+              BarberOS no manda correos de invitación. Pásale este enlace: en cuanto se registre con <strong className="text-fg">{s.email}</strong>,
+              queda ligado a tu equipo y entra directo a su agenda. Si se registró con otro correo, cambia aquí el email por el que usó.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <CopyButton text={signup} label="Copiar enlace" />
+              {s.phone && (
+                <a href={whatsappUrl(s.phone, msg)} target="_blank" rel="noopener" className="btn border border-success/25 bg-success/10 text-success hover:bg-success/15">
+                  <MessageCircle className="size-4" aria-hidden />Mandar por WhatsApp
+                </a>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {locked ? <p className="text-muted">Solo el dueño puede editar este perfil.</p> : (
         <div className="space-y-6">

@@ -26,7 +26,7 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
       {nuevo && (
         <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">
           <h2 className="font-display text-xl">Nueva persona</h2>
-          <p className="mt-1 mb-6 text-sm text-muted">Si escribes su email, podrá entrar con su propia cuenta al registrarse con ese mismo email.</p>
+          <p className="mt-1 mb-6 text-sm text-muted">Si escribes su email, podrá entrar con su propia cuenta: solo tiene que registrarse en BarberOS con ese mismo email. No se manda correo; te damos un enlace para compartirle.</p>
           <ActionForm action={addStaff}>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Nombre"><input name="name" required className="field" /></Field>
@@ -57,7 +57,7 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
                 {s.takesAppointments ? `. ${summarize(s.schedule)}. ${s._count.services} servicios` : ". No atiende en agenda"}
               </span>
             </span>
-            <span className="hidden text-sm text-faint sm:block">{s.userId ? "Con cuenta" : s.email ? "Invitación pendiente" : "Sin cuenta"}</span>
+            <span className="hidden text-sm text-faint sm:block">{s.userId ? "Con cuenta" : s.email ? "Falta crear su cuenta" : "Sin cuenta"}</span>
           </RowLink>
         ))}
       </Rows>

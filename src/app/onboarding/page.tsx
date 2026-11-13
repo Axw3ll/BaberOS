@@ -1,12 +1,17 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { ActionForm, Submit } from "@/components/action-form";
 import { Field } from "@/components/ui";
 import { createShop } from "./actions";
 
 export const metadata = { title: "Tu barbería" };
 
-export default async function Onboarding() {
+export default async function Onboarding({ searchParams }: { searchParams: Promise<{ nueva?: string }> }) {
   const user = await requireUser();
+  // Quien ya está en un equipo (por ejemplo, un barbero invitado) no tiene que crear barbería
+  const { nueva } = await searchParams;
+  if (!nueva && (await prisma.staff.count({ where: { userId: user.id, active: true } })) > 0) redirect("/hoy");
   return (
     <main className="mx-auto max-w-lg px-6 py-20">
       <span className="font-display text-lg text-muted">BarberOS</span>
