@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
-import { MailQuestion, MessageCircle } from "lucide-react";
+import { Mail, MailQuestion, MessageCircle } from "lucide-react";
+import { canEmailInvites } from "@/lib/supabase/admin";
 import { CopyButton } from "@/components/copy-button";
 import { whatsappUrl } from "@/lib/crm";
 import { notFound } from "next/navigation";
@@ -11,12 +12,13 @@ import { minutesLabel } from "@/lib/format";
 import { Field, PageHeader, SectionTitle } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
-import { addTimeOff, removeTimeOff, saveStaffSchedule, saveStaffServices, toggleStaff, updateStaff } from "../actions";
+import { addTimeOff, removeTimeOff, resendInvite, saveStaffSchedule, saveStaffServices, toggleStaff, updateStaff } from "../actions";
 
 export const metadata = { title: "Equipo" };
 
-export default async function StaffPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function StaffPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ invitacion?: string }> }) {
   const { id } = await params;
+  const { invitacion } = await searchParams;
   const { shop, me } = await requireSection("equipo");
   const [s, services] = await Promise.all([
     prisma.staff.findFirst({
@@ -49,10 +51,17 @@ export default async function StaffPage({ params }: { params: Promise<{ id: stri
           <div className="mb-6 max-w-2xl rounded-2xl border border-warning/30 bg-warning/5 p-5">
             <p className="flex items-center gap-2 font-semibold"><MailQuestion className="size-5 text-warning" aria-hidden />Todavía no tiene cuenta</p>
             <p className="mt-1.5 text-sm text-muted">
-              BarberOS no manda correos de invitación. Pásale este enlace: en cuanto se registre con <strong className="text-fg">{s.email}</strong>,
+              {canEmailInvites() ? "Mándale la invitación por correo o comparte el enlace" : "Comparte este enlace"}: en cuanto se registre con <strong className="text-fg">{s.email}</strong>,
               queda ligado a tu equipo y entra directo a su agenda. Si se registró con otro correo, cambia aquí el email por el que usó.
             </p>
+            {invitacion === "enviada" && <p className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Le enviamos el correo de invitación a {s.email}.</p>}
+            {invitacion === "error" && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">No se pudo enviar el correo. Comparte el enlace por WhatsApp.</p>}
             <div className="mt-4 flex flex-wrap gap-2">
+              {canEmailInvites() && (
+                <form action={resendInvite}><input type="hidden" name="id" value={s.id} />
+                  <button className="btn-primary"><Mail className="size-4" />{invitacion === "enviada" ? "Reenviar correo" : "Enviar invitación por correo"}</button>
+                </form>
+              )}
               <CopyButton text={signup} label="Copiar enlace" />
               {s.phone && (
                 <a href={whatsappUrl(s.phone, msg)} target="_blank" rel="noopener" className="btn border border-success/25 bg-success/10 text-success hover:bg-success/15">

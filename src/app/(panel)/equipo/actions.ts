@@ -6,6 +6,8 @@ import { requireSection } from "@/lib/auth";
 import { readSchedule } from "@/lib/schedule";
 import { localToUtc, parseHHMM } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { baseUrl } from "@/lib/messages";
 import type { Role } from "@/generated/prisma/enums";
 
 const ROLES: Role[] = ["MANAGER", "BARBER", "RECEPTIONIST"];
@@ -47,7 +49,27 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
     },
   });
   revalidatePath("/equipo");
-  redirect(`/equipo/${s.id}`);
+  const sent = email && !existingUser ? await sendInvite(email, name) : null;
+  redirect(`/equipo/${s.id}${sent === null ? "" : sent ? "?invitacion=enviada" : "?invitacion=error"}`);
+}
+
+/** Correo de invitación de Supabase. Devuelve null si no está configurado. */
+async function sendInvite(email: string, name: string) {
+  const admin = supabaseAdmin();
+  if (!admin) return null;
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { name }, redirectTo: `${await baseUrl()}/auth/confirm`,
+  });
+  // Si ya tenía cuenta en Supabase, basta con que entre: se liga solo al equipo
+  return !error || /already|registered|exists/i.test(error.message);
+}
+
+export async function resendInvite(data: FormData) {
+  const { shop } = await requireSection("equipo");
+  const s = await prisma.staff.findFirst({ where: { id: String(data.get("id")), shopId: shop.id, userId: null } });
+  if (!s?.email) return;
+  const sent = await sendInvite(s.email, s.name);
+  redirect(`/equipo/${s.id}?invitacion=${sent ? "enviada" : "error"}`);
 }
 
 export async function updateStaff(_: ActionResult, data: FormData): Promise<ActionResult> {

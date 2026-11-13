@@ -37,3 +37,12 @@ export async function signOut() {
   await sb.auth.signOut();
   redirect("/login");
 }
+
+export async function requestReset(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const email = String(data.get("email") ?? "").trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Escribe un email válido." };
+  const sb = await supabaseServer();
+  await sb.auth.resetPasswordForEmail(email, { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/auth/confirm?next=/cuenta/contrasena` });
+  // Misma respuesta exista o no la cuenta: no revela qué correos están registrados
+  return { ok: "Si ese correo tiene cuenta, te llegará un enlace en unos minutos." };
+}

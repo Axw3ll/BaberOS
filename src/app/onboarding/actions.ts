@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { requireUser, SHOP_COOKIE } from "@/lib/auth";
 import { slugify } from "@/lib/format";
+import { SERVICE_TEMPLATES } from "@/lib/templates";
 import type { ActionResult } from "@/components/action-form";
 
 export async function createShop(_: ActionResult, data: FormData): Promise<ActionResult> {
@@ -17,7 +18,7 @@ export async function createShop(_: ActionResult, data: FormData): Promise<Actio
   const days = [1, 2, 3, 4, 5, 6]; // lunes a sábado
   const open = 10 * 60, close = 20 * 60;
   const works = data.get("works") === "on";
-  const starter = data.get("starter") === "on";
+  const picked = SERVICE_TEMPLATES.filter((t) => data.getAll("tpl").includes(t.key));
 
   const shop = await prisma.$transaction(async (tx) => {
     const shop = await tx.barbershop.create({
@@ -34,17 +35,13 @@ export async function createShop(_: ActionResult, data: FormData): Promise<Actio
         schedule: works ? { create: days.map((weekday) => ({ weekday, startMinute: open, endMinute: close })) } : undefined,
       },
     });
-    if (starter) {
-      const list = [
-        { name: "Corte de cabello", minutes: 40, price: 180 },
-        { name: "Arreglo de barba", minutes: 30, price: 120 },
-        { name: "Corte y barba", minutes: 60, price: 270 },
-      ];
-      for (const [i, s] of list.entries()) {
-        await tx.service.create({
-          data: { ...s, shopId: shop.id, position: i, ...(works && { staff: { create: { staffId: me.id } } }) },
-        });
-      }
+    for (const [i, t] of picked.entries()) {
+      await tx.service.create({
+        data: {
+          shopId: shop.id, name: t.name, minutes: t.minutes, price: t.price, description: t.description, position: i,
+          ...(works && { staff: { create: { staffId: me.id } } }),
+        },
+      });
     }
     return shop;
   });

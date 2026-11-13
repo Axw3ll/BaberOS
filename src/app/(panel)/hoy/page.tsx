@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GettingStarted } from "@/components/getting-started";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock, MessageCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
@@ -80,6 +81,8 @@ export default async function HoyPage() {
         )}
         {pending > 0 && <Figure value={pending} label="Por confirmar" icon={Clock} tone="warning" />}
       </div>
+
+      {canAccess(me.role, "ajustes") && <GettingStarted shop={shop} />}
 
       {outbox > 0 && (
         <Link href="/seguimiento/mensajes" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
