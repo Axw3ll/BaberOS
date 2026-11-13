@@ -8,7 +8,8 @@ const D = (v: number | string | Prisma.Decimal) => new Prisma.Decimal(v);
 
 export type CartLine =
   | { kind: "SERVICE"; serviceId: string; staffId: string; quantity: number }
-  | { kind: "PRODUCT"; productId: string; staffId?: string | null; quantity: number };
+  | { kind: "PRODUCT"; productId: string; staffId?: string | null; quantity: number }
+  | { kind: "PACKAGE"; packageId: string; staffId?: string | null; quantity: number };
 
 /**
  * Cobra un ticket: renglones con precio y comisión copiados, IVA incluido desglosado,
@@ -21,6 +22,8 @@ export async function checkout(input: {
   received?: number | null;
   /** Descuento manual máximo, en % del subtotal (según el rol de quien cobra). null = sin tope. */
   maxDiscountPct?: number | null;
+  /** Usar los paquetes o membresías vigentes del cliente para los servicios que cubren. */
+  usePackages?: boolean;
 }) {
   // Validación estricta: nada se corrige en silencio
   if (!Array.isArray(input.lines) || input.lines.length === 0) throw new SaleError("Agrega al menos un servicio o producto.");
@@ -31,6 +34,7 @@ export async function checkout(input: {
     if (!Number.isInteger(l.quantity) || l.quantity < 1) throw new SaleError("Las cantidades deben ser números enteros de 1 en adelante.");
     if (l.quantity > 99) throw new SaleError("La cantidad de un renglón no puede pasar de 99.");
     if (l.kind === "SERVICE" && l.quantity !== 1) throw new SaleError("Cada servicio va en su propio renglón.");
+    if (l.kind === "PACKAGE" && l.quantity !== 1) throw new SaleError("Cada paquete va en su propio renglón.");
   }
   if (!isMoney(input.discount)) throw new SaleError("El descuento no es un monto válido (máximo 2 decimales).");
   if (input.discount < 0) throw new SaleError("El descuento no puede ser negativo.");
@@ -61,6 +65,11 @@ export async function checkout(input: {
             const total = s.price.mul(qty);
             items.push({ kind: "SERVICE", serviceId: s.id, staffId: who?.id, name: s.name, quantity: qty,
               unitPrice: s.price, total, commission: who ? total.mul(who.serviceCommission).toDecimalPlaces(2) : 0 });
+          } else if (l.kind === "PACKAGE") {
+            const pk = await tx.package.findFirst({ where: { id: l.packageId, shopId: shop.id, active: true } });
+            if (!pk) throw new SaleError("Paquete no válido.");
+            if (!input.customerId) throw new SaleError("Para vender un paquete registra al cliente (su teléfono).");
+            items.push({ kind: "PACKAGE", packageId: pk.id, staffId: who?.id, name: pk.name, quantity: 1, unitPrice: pk.price, total: pk.price, commission: 0 });
           } else {
             const p = await tx.product.findFirst({ where: { id: l.productId, shopId: shop.id, active: true } });
             if (!p) throw new SaleError("Producto no válido.");
@@ -96,6 +105,33 @@ export async function checkout(input: {
             discount = discount.plus(shop.loyaltyPesoPerPoint.mul(pointsUsed)).toDecimalPlaces(2);
             discount = Prisma.Decimal.min(discount, subtotal);
           }
+        }
+
+        // Paquetes y membresías: cada servicio cubierto consume un uso (los paquetes que se compran en este ticket no aplican aquí)
+        const packageUses: { customerPackageId: string; serviceId: string; value: Prisma.Decimal }[] = [];
+        if (input.usePackages && input.customerId) {
+          const owned = await tx.customerPackage.findMany({
+            where: { customerId: input.customerId, shopId: shop.id, status: "ACTIVE", expiresAt: { gt: new Date() }, OR: [{ usesLeft: null }, { usesLeft: { gt: 0 } }] },
+            orderBy: { expiresAt: "asc" }, // se usa primero el que vence antes
+          });
+          const left = new Map(owned.map((o) => [o.id, o.usesLeft]));
+          for (const it of items) {
+            if (it.kind !== "SERVICE" || !it.serviceId) continue;
+            const pkg = owned.find((o) => o.serviceIds.includes(it.serviceId!) && (left.get(o.id) === null || left.get(o.id)! > 0));
+            if (!pkg) continue;
+            if (left.get(pkg.id) !== null) left.set(pkg.id, left.get(pkg.id)! - 1);
+            packageUses.push({ customerPackageId: pkg.id, serviceId: it.serviceId, value: D(String(it.unitPrice)) });
+          }
+          if (!packageUses.length) throw new SaleError("El cliente no tiene un paquete vigente que cubra estos servicios.");
+          for (const u of packageUses) {
+            const ok = await tx.customerPackage.updateMany({
+              where: { id: u.customerPackageId, OR: [{ usesLeft: null }, { usesLeft: { gt: 0 } }] },
+              data: owned.find((o) => o.id === u.customerPackageId)!.usesLeft === null ? {} : { usesLeft: { decrement: 1 } },
+            });
+            if (ok.count === 0) throw new SaleError("El paquete ya no tiene usos disponibles.");
+          }
+          const value = packageUses.reduce((a, u) => a.plus(u.value), D(0));
+          discount = Prisma.Decimal.min(subtotal, discount.plus(value));
         }
 
         // Tarjeta de sellos: canjear el premio ganado
@@ -161,6 +197,20 @@ export async function checkout(input: {
           }
         }
 
+        if (packageUses.length) {
+          await tx.packageUse.createMany({ data: packageUses.map((u) => ({ ...u, saleId: sale.id })) });
+        }
+        for (const it of items.filter((i) => i.kind === "PACKAGE")) {
+          const pk = await tx.package.findUniqueOrThrow({ where: { id: it.packageId! }, include: { services: true } });
+          await tx.customerPackage.create({
+            data: {
+              shopId: shop.id, customerId: input.customerId!, packageId: pk.id, saleId: sale.id, name: pk.name, kind: pk.kind,
+              usesTotal: pk.kind === "BUNDLE" ? pk.uses : null, usesLeft: pk.kind === "BUNDLE" ? pk.uses : null,
+              serviceIds: pk.services.map((x) => x.serviceId), expiresAt: new Date(Date.now() + pk.days * 86_400_000),
+            },
+          });
+        }
+
         // Sellos: uno por visita con servicio y gasto mínimo. La visita en la que usa su premio no suma sello.
         if (input.customerId && shop.loyaltyMode === "STAMPS") {
           if (rewardUsed) {
@@ -208,6 +258,14 @@ export async function voidSale(shopId: string, saleId: string) {
         data: { shopId, productId: p.id, type: "ADJUSTMENT", quantity: i.quantity, stockAfter: p.stock, saleId, note: `Venta #${sale.folio} cancelada` },
       });
     }
+    // Paquetes: regresa los usos consumidos y anula los paquetes que se vendieron en este ticket
+    const uses = await tx.packageUse.findMany({ where: { saleId }, include: { customerPackage: true } });
+    for (const u of uses) {
+      if (u.customerPackage.usesLeft !== null) await tx.customerPackage.update({ where: { id: u.customerPackageId }, data: { usesLeft: { increment: 1 } } });
+    }
+    await tx.packageUse.deleteMany({ where: { saleId } });
+    await tx.customerPackage.updateMany({ where: { saleId }, data: { status: "VOIDED" } });
+
     // Regresa los puntos canjeados y quita los ganados (sin dejar saldo negativo).
     const moves = await tx.loyaltyMovement.findMany({ where: { saleId, kind: { in: ["EARN", "REDEEM"] } } });
     for (const m of moves) {

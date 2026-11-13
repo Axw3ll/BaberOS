@@ -20,6 +20,7 @@ export default async function MyPage({ params }: { params: Promise<{ token: stri
     include: {
       shop: true,
       appointments: { include: { services: true, staff: true }, orderBy: { startsAt: "desc" }, take: 40 },
+      packages: { where: { status: "ACTIVE", expiresAt: { gt: new Date() } }, orderBy: { expiresAt: "asc" } },
     },
   });
   if (!c) notFound();
@@ -50,6 +51,17 @@ export default async function MyPage({ params }: { params: Promise<{ token: stri
             <p className="mt-3 text-sm text-muted">Ganas un sello en cada visita. Al juntar {shop.stampsRequired}, tu siguiente visita tiene {stampRewardLabel(shop)}.</p>
           </section>
         )}
+        {c.packages.filter((p) => p.usesLeft === null || p.usesLeft > 0).map((p) => (
+          <section key={p.id} className="card flex items-center gap-4 p-5">
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-soft text-2xl">🎟</span>
+            <span>
+              <span className="block font-semibold">{p.name}</span>
+              <span className="text-sm text-muted">
+                {p.usesLeft === null ? "Ilimitado" : `Te quedan ${p.usesLeft} de ${p.usesTotal}`} · vence el {dateLabel(toLocalDate(p.expiresAt, tz), { day: "numeric", month: "long" })}
+              </span>
+            </span>
+          </section>
+        ))}
         {shop.loyaltyMode === "POINTS" && Number(shop.loyaltyPointsPerPeso) > 0 && (
           <section className="card flex items-center gap-4 p-5">
             <span className="grid size-12 place-items-center rounded-2xl bg-warning/10 text-warning"><Star className="size-6" /></span>

@@ -6,7 +6,7 @@ import { previewStampDiscount } from "@/lib/loyalty";
 import { money } from "@/lib/validate";
 
 export type PosLine = {
-  key: string; kind: "SERVICE" | "PRODUCT"; refId: string; name: string; price: number; quantity: number; staffId: string | null;
+  key: string; kind: "SERVICE" | "PRODUCT" | "PACKAGE"; refId: string; name: string; price: number; quantity: number; staffId: string | null;
 };
 type Method = "CASH" | "CARD" | "TRANSFER";
 const METHODS: { id: Method; label: string }[] = [
@@ -17,9 +17,10 @@ type Loyalty = {
   mode: "OFF" | "POINTS" | "STAMPS"; pesoPerPoint: number;
   stamps: { required: number; reward: string; value: number; min: number; label: string };
 };
-type CustomerLoyalty = { points: number; stamps: number; rewards: number };
+type OwnedPackage = { id: string; name: string; usesLeft: number | null; expiresAt: string; serviceIds: string[] };
+type CustomerLoyalty = { points: number; stamps: number; rewards: number; packages?: OwnedPackage[] };
 
-export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerLoyalty, initialCustomer, maxDiscountPct = null }: {
+export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerLoyalty, initialCustomer, maxDiscountPct = null, packages = [] }: {
   services: { id: string; name: string; price: number }[];
   products: { id: string; name: string; brand: string | null; price: number; stock: number }[];
   staff: { id: string; name: string }[];
@@ -27,8 +28,10 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   loyalty: Loyalty; customerLoyalty: CustomerLoyalty | null;
   initialCustomer?: { phone: string; name: string } | null;
   maxDiscountPct?: number | null;
+  packages?: { id: string; name: string; price: number; sub: string }[];
 }) {
-  const [tab, setTab] = useState<"SERVICE" | "PRODUCT">(initial.length ? "PRODUCT" : "SERVICE");
+  const [tab, setTab] = useState<"SERVICE" | "PRODUCT" | "PACKAGE">(initial.length ? "PRODUCT" : "SERVICE");
+  const [usePkg, setUsePkg] = useState(true);
   const [q, setQ] = useState("");
   const [lines, setLines] = useState<PosLine[]>(initial);
   const [discount, setDiscount] = useState("");
@@ -92,7 +95,21 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
     : 0;
   const willStamp = stampMode && Boolean(cl || phone.replace(/\D/g, "").length >= 10) && !rewardValue && servicePrices.length > 0
     && subtotal - disc >= loyalty.stamps.min;
-  const total = subtotal - disc - pointsValue - rewardValue + (Number(tip) || 0);
+  // Paquetes del cliente: cada servicio cubierto consume un uso (igual que en el servidor)
+  const owned = cl?.packages ?? [];
+  const pkgPlan = (() => {
+    const left = new Map(owned.map((o) => [o.id, o.usesLeft]));
+    let value = 0; const used: string[] = [];
+    for (const l of lines.filter((x) => x.kind === "SERVICE")) {
+      const p = owned.find((o) => o.serviceIds.includes(l.refId) && (left.get(o.id) === null || left.get(o.id)! > 0));
+      if (!p) continue;
+      if (left.get(p.id) !== null) left.set(p.id, left.get(p.id)! - 1);
+      value += l.price; used.push(p.name);
+    }
+    return { value, used };
+  })();
+  const pkgValue = usePkg ? Math.min(pkgPlan.value, Math.max(0, subtotal - disc - pointsValue - rewardValue)) : 0;
+  const total = subtotal - disc - pointsValue - rewardValue - pkgValue + (Number(tip) || 0);
   const rec = method === "CASH" ? vRec.value ?? null : null;
   const change = rec !== null && rec > total ? Math.round((rec - total) * 100) / 100 : 0;
   const problems = [
@@ -104,15 +121,18 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
     rec !== null && rec < total ? `Recibiste ${money2(rec)} y el total es ${money2(total)}: faltan ${money2(total - rec)}.` : null,
     lines.some((l) => l.kind === "SERVICE" && !l.staffId) ? "Indica qué barbero hizo cada servicio." : null,
     phone.trim() && phone.replace(/\D/g, "").length !== 10 && !appointmentId ? "El teléfono del cliente debe tener 10 dígitos." : null,
+    lines.some((l) => l.kind === "PACKAGE") && !appointmentId && phone.replace(/\D/g, "").length !== 10 ? "Para vender un paquete registra al cliente (su teléfono)." : null,
   ].filter(Boolean) as string[];
 
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
     const src = tab === "SERVICE"
       ? services.map((s) => ({ id: s.id, name: s.name, sub: "", price: s.price, disabled: false }))
-      : products.map((p) => ({ id: p.id, name: p.name, sub: p.stock ? `${p.brand ? `${p.brand}, ` : ""}${p.stock} en existencia` : "Agotado", price: p.price, disabled: p.stock === 0 }));
+      : tab === "PACKAGE"
+        ? packages.map((p) => ({ id: p.id, name: p.name, sub: p.sub, price: p.price, disabled: lines.some((l) => l.kind === "PACKAGE" && l.refId === p.id) }))
+        : products.map((p) => ({ id: p.id, name: p.name, sub: p.stock ? `${p.brand ? `${p.brand}, ` : ""}${p.stock} en existencia` : "Agotado", price: p.price, disabled: p.stock === 0 }));
     return term ? src.filter((x) => x.name.toLowerCase().includes(term)) : src;
-  }, [tab, q, services, products]);
+  }, [tab, q, services, products, packages, lines]);
 
   function charge() {
     setError("");
@@ -121,7 +141,10 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
       const res = await chargeSale({
         lines: lines.map((l) => l.kind === "SERVICE"
           ? { kind: "SERVICE", serviceId: l.refId, staffId: l.staffId ?? "", quantity: l.quantity }
-          : { kind: "PRODUCT", productId: l.refId, staffId: l.staffId, quantity: l.quantity }),
+          : l.kind === "PACKAGE"
+            ? { kind: "PACKAGE", packageId: l.refId, staffId: l.staffId, quantity: 1 }
+            : { kind: "PRODUCT", productId: l.refId, staffId: l.staffId, quantity: l.quantity }),
+        usePackages: pkgValue > 0,
         discount: disc, tip: vTip.value ?? 0, method, appointmentId, redeemPoints: redeem, redeemReward: rewardValue > 0, received: rec,
         customer: appointmentId ? null : { phone, name },
       });
@@ -134,10 +157,10 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
       <section>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
           <div role="tablist" className="flex gap-6">
-            {(["SERVICE", "PRODUCT"] as const).map((t) => (
+            {(packages.length ? (["SERVICE", "PRODUCT", "PACKAGE"] as const) : (["SERVICE", "PRODUCT"] as const)).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${tab === t ? "bg-brand-soft text-brand" : "text-muted hover:text-fg"}`}>
-                {t === "SERVICE" ? "Servicios" : "Productos"}
+                {t === "SERVICE" ? "Servicios" : t === "PRODUCT" ? "Productos" : "Paquetes"}
               </button>
             ))}
           </div>
@@ -212,6 +235,17 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
             </details>
           )}
 
+          {pkgPlan.value > 0 && (
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-soft px-3 py-2.5 text-sm">
+              <span>
+                <span className="block font-semibold">🎟 Usar su paquete: {[...new Set(pkgPlan.used)].join(", ")}</span>
+                <span className="text-muted">
+                  {owned.filter((o) => pkgPlan.used.includes(o.name)).map((o) => o.usesLeft === null ? `ilimitado hasta ${new Date(o.expiresAt).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}` : `le quedan ${o.usesLeft}`).join(" · ")}
+                </span>
+              </span>
+              <input type="checkbox" checked={usePkg} onChange={(e) => setUsePkg(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />
+            </label>
+          )}
           {stampMode && cl && cl.rewards > 0 && (
             <label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">
               <span>
@@ -258,6 +292,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
             {disc > 0 && <div className="flex justify-between text-muted"><dt>Descuento</dt><dd className="tnum">−{money2(disc)}</dd></div>}
             {pointsValue > 0 && <div className="flex justify-between text-muted"><dt>{redeem} puntos</dt><dd className="tnum">−{money2(pointsValue)}</dd></div>}
             {rewardValue > 0 && <div className="flex justify-between text-muted"><dt>Premio de la tarjeta</dt><dd className="tnum">−{money2(rewardValue)}</dd></div>}
+            {pkgValue > 0 && <div className="flex justify-between text-muted"><dt>Paquete</dt><dd className="tnum">−{money2(pkgValue)}</dd></div>}
             <div className="flex items-baseline justify-between"><dt className="text-muted">Total</dt><dd className="font-display text-3xl tnum">{money2(total)}</dd></div>
             {change > 0 && <div className="flex justify-between"><dt className="text-muted">Cambio</dt><dd className="tnum">{money2(change)}</dd></div>}
           </dl>

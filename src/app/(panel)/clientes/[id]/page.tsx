@@ -44,6 +44,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
       activities: { include: { staff: true }, orderBy: { createdAt: "desc" }, take: 60 },
       tasks: { include: { assignedTo: true }, orderBy: [{ doneAt: { sort: "desc", nulls: "first" } }, { dueOn: "asc" }], take: 20 },
       loyalty: { orderBy: { createdAt: "desc" }, take: 12 },
+      packages: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   }),
     customerStats(shop.id, { customerId: id, lostAfterDays: shop.lostAfterDays }),
@@ -80,6 +81,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   const day = today(tz);
   const bday = c.birthday ? daysToBirthday(c.birthday, day) : null;
   const loyalty = loyaltyOn(shop);
+  const packagesOwned = c.packages;
   const stampCard = stampsOn(shop);
   const rewardLabel = stampRewardLabel(shop);
   const myTagIds = new Set(c.tags.map((t) => t.tagId));
@@ -309,6 +311,26 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                 No tienes programa de lealtad. Activa la tarjeta de sellos o los puntos en{" "}
                 <Link href="/ajustes#lealtad" className="link">Ajustes → Clientes y lealtad</Link>.
               </p>
+            </section>
+          )}
+
+          {packagesOwned.length > 0 && (
+            <section>
+              <SectionTitle>Paquetes y membresías</SectionTitle>
+              <ul className="space-y-2">
+                {packagesOwned.map((p) => {
+                  const live = p.status === "ACTIVE" && p.expiresAt.getTime() > Date.now() && (p.usesLeft === null || p.usesLeft > 0);
+                  return (
+                    <li key={p.id} className={`rounded-xl border p-3 text-sm ${live ? "border-brand/30 bg-brand-soft" : "border-line-soft text-muted"}`}>
+                      <span className="block font-semibold">{p.name}</span>
+                      <span className="block">
+                        {p.usesLeft === null ? "Ilimitado" : `Le quedan ${p.usesLeft} de ${p.usesTotal}`} ·{" "}
+                        {p.status === "VOIDED" ? "venta cancelada" : `${p.expiresAt.getTime() > Date.now() ? "vence" : "venció"} el ${dateLabel(toLocalDate(p.expiresAt, tz), { day: "numeric", month: "short", year: "numeric" })}`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </section>
           )}
 

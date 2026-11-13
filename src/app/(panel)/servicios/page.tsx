@@ -20,7 +20,7 @@ export default async function ServiciosPage({ searchParams }: { searchParams: Pr
   return (
     <>
       <PageHeader title="Servicios" subtitle="Lo que ofreces, cuánto dura y quién lo hace."
-        actions={<Link href="/servicios?nuevo=1" className="btn-primary">Agregar servicio</Link>} />
+        actions={<><Link href="/servicios/paquetes" className="btn-quiet">Paquetes y membresías</Link><Link href="/servicios?nuevo=1" className="btn-primary">Agregar servicio</Link></>} />
 
       {nuevo && (
         <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">

@@ -10,14 +10,19 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
   const { shop, me } = await requireSection("ventas");
   const { cita, cliente } = await searchParams;
 
-  const [services, products, staff, appt] = await Promise.all([
+  const [services, products, staff, appt, packages] = await Promise.all([
     prisma.service.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ position: "asc" }, { name: "asc" }] }),
     prisma.product.findMany({ where: { shopId: shop.id, active: true }, orderBy: { name: "asc" } }),
     prisma.staff.findMany({ where: { shopId: shop.id, active: true }, orderBy: { name: "asc" } }),
     cita
       ? prisma.appointment.findFirst({ where: { id: cita, shopId: shop.id, sale: null }, include: { services: true, customer: true } })
       : null,
+    prisma.package.findMany({ where: { shopId: shop.id, active: true }, orderBy: { price: "asc" } }),
   ]);
+  const apptPackages = appt ? await prisma.customerPackage.findMany({
+    where: { customerId: appt.customerId, status: "ACTIVE", expiresAt: { gt: new Date() }, OR: [{ usesLeft: null }, { usesLeft: { gt: 0 } }] },
+    orderBy: { expiresAt: "asc" },
+  }) : [];
 
   // Cliente sin cita: "lo de siempre" = servicios de su última visita, con su barbero
   const regular = !appt && cliente
@@ -51,7 +56,11 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
           pesoPerPoint: Number(shop.loyaltyPesoPerPoint),
           stamps: { required: shop.stampsRequired, reward: shop.stampReward, value: Number(shop.stampRewardValue), min: Number(shop.stampMinAmount), label: stampRewardLabel(shop) },
         }}
-        customerLoyalty={appt ? { points: appt.customer.points, stamps: appt.customer.stamps, rewards: appt.customer.stampRewards } : null}
+        customerLoyalty={appt ? {
+          points: appt.customer.points, stamps: appt.customer.stamps, rewards: appt.customer.stampRewards,
+          packages: apptPackages.map((p) => ({ id: p.id, name: p.name, usesLeft: p.usesLeft, expiresAt: p.expiresAt.toISOString(), serviceIds: p.serviceIds })),
+        } : null}
+        packages={packages.map((p) => ({ id: p.id, name: p.name, price: Number(p.price), sub: p.kind === "BUNDLE" ? `${p.uses} servicios · ${p.days} días` : `Ilimitado · ${p.days} días` }))}
         appointmentId={appt?.id ?? null}
         initial={initial}
         initialCustomer={regular ? { phone: regular.phone, name: regular.name } : null}

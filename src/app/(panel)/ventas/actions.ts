@@ -12,7 +12,7 @@ import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export async function chargeSale(input: {
   lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number; redeemReward?: boolean;
-  received?: number | null;
+  received?: number | null; usePackages?: boolean;
   appointmentId?: string | null; customer?: { phone: string; name: string } | null;
 }): Promise<{ error: string } | void> {
   const { shop, me } = await requireSection("ventas");
@@ -46,6 +46,7 @@ export async function chargeSale(input: {
       shopId: shop.id, chargedById: me.id, customerId, appointmentId: input.appointmentId,
       lines: input.lines, discount: input.discount, tip: input.tip, method: input.method,
       redeemPoints: input.redeemPoints ?? 0, redeemReward: Boolean(input.redeemReward), received: input.received ?? null,
+      usePackages: Boolean(input.usePackages),
     });
     saleId = sale.id;
     await audit(shop.id, me.id, Number(sale.discount) > 0 ? "venta.descuento" : "venta.cobro",
@@ -77,7 +78,8 @@ export async function lookupCustomer(phone: string) {
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 10) return null;
   const c = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone: digits } } });
-  return c && { name: c.name, points: c.points, stamps: c.stamps, rewards: c.stampRewards };
+  if (!c) return null;
+  return { name: c.name, points: c.points, stamps: c.stamps, rewards: c.stampRewards, packages: await activePackages(c.id) };
 }
 
 /** "Terminar y cobrar": cobra los servicios de la cita, sin pasar por el punto de venta. */
@@ -142,4 +144,13 @@ function discountLimit(role: string, shop: { maxDiscountBarber: number; maxDisco
   if (role === "BARBER") return shop.maxDiscountBarber;
   if (role === "RECEPTIONIST") return shop.maxDiscountReception;
   return null;
+}
+
+/** Paquetes y membresías vigentes de un cliente (para la caja). */
+async function activePackages(customerId: string) {
+  const list = await prisma.customerPackage.findMany({
+    where: { customerId, status: "ACTIVE", expiresAt: { gt: new Date() }, OR: [{ usesLeft: null }, { usesLeft: { gt: 0 } }] },
+    orderBy: { expiresAt: "asc" },
+  });
+  return list.map((p) => ({ id: p.id, name: p.name, usesLeft: p.usesLeft, expiresAt: p.expiresAt.toISOString(), serviceIds: p.serviceIds }));
 }
