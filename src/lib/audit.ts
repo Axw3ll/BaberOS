@@ -8,6 +8,7 @@ export const AUDIT_ACTIONS = {
   "venta.cancelada": "Venta cancelada",
   "cita.cancelada": "Cita cancelada",
   "cita.no_llego": "No llegó",
+  "cita.termino_antes": "Terminó antes",
   "cliente.borrado": "Cliente borrado",
   "lealtad.ajuste": "Ajuste de puntos o sellos",
   "precio.cambio": "Cambio de precio",

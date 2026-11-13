@@ -12,7 +12,7 @@ import { ActionForm, Submit } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { CopyButton } from "@/components/copy-button";
 import { PrintButton } from "@/components/print-button";
-import { addToQueue, callEntry, leftEntry, serveEntry } from "./actions";
+import { addToQueue, callEntry, finishNow, leftEntry, serveEntry } from "./actions";
 
 export const metadata = { title: "Fila" };
 export const dynamic = "force-dynamic";
@@ -70,7 +70,8 @@ export default async function FilaPage() {
                       <form action={leftEntry}><input type="hidden" name="id" value={e.id} /><button className="btn-ghost text-sm text-faint hover:text-danger">Se fue</button></form>
                     </div>
                   </div>
-                  <ActionForm action={serveEntry} className="mt-3 flex flex-wrap items-center gap-2 pl-12">
+                  <ActionForm action={serveEntry} className="mt-3 flex flex-wrap items-center gap-2 pl-12"
+                    onError={<Submit name="fit" value="1" className="btn-quiet mt-2 w-full py-1.5 text-sm sm:w-auto" pending="…">Pasar de todos modos</Submit>}>
                     <input type="hidden" name="id" value={e.id} />
                     <select name="staffId" defaultValue={e.staffId ?? ""} className="field w-auto py-1.5 text-sm" aria-label="Barbero">
                       <option value="">¿Quién lo atiende?</option>
@@ -95,11 +96,14 @@ export default async function FilaPage() {
               {staff.map((b) => (
                 <li key={b.id} className="flex items-start gap-2.5">
                   <span className={`mt-1.5 size-2 shrink-0 rounded-full ${b.state === "busy" ? "bg-warning" : b.state === "off" ? "bg-line" : b.freeMinutes >= 30 ? "bg-success" : "bg-warning"}`} aria-hidden />
-                  <span><span className="font-medium">{b.name.split(" ")[0]}</span> <span className="text-muted">{statusText(b)}</span></span>
+                  <span className="min-w-0 flex-1"><span className="font-medium">{b.name.split(" ")[0]}</span> <span className="text-muted">{statusText(b)}</span></span>
+                  {b.state === "busy" && (
+                    <form action={finishNow}><input type="hidden" name="staffId" value={b.id} /><button className="btn-ghost -my-1 py-1 text-xs text-brand">Ya terminó</button></form>
+                  )}
                 </li>
               ))}
             </ul>
-            <p className="mt-3 text-xs text-faint">Al pasar a alguien a la silla se revisa que su servicio termine antes de la siguiente cita del barbero.</p>
+            <p className="mt-3 text-xs text-faint">Al pasar a alguien a la silla se revisa que su servicio termine antes de la siguiente cita del barbero. Si un barbero acabó antes, toca “Ya terminó” para liberarlo aunque aún no se cobre.</p>
           </section>
 
           <section className="print:hidden">

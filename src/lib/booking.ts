@@ -57,6 +57,8 @@ export async function book(input: {
   shopId: string; staffId: string; serviceIds: string[]; startsAt: Date;
   customer: { id?: string; name?: string; phone?: string; email?: string; acceptsMarketing?: boolean };
   source: AppointmentSource; notes?: string; checkAvailability?: { ignoreNotice: boolean; date: string };
+  /** Tiempo máximo (min) cuando se sabe que se hará más rápido de lo normal, p. ej. un cliente de la fila antes de otra cita. */
+  maxMinutes?: number;
 }) {
   const { services, minutes } = await servicesFor(input.shopId, input.serviceIds);
   const staff = await prisma.staff.findFirst({
@@ -95,7 +97,7 @@ export async function book(input: {
     return await prisma.appointment.create({
       data: {
         shopId: input.shopId, staffId: staff.id, customerId,
-        startsAt: input.startsAt, endsAt: new Date(input.startsAt.getTime() + minutes * 60_000),
+        startsAt: input.startsAt, endsAt: new Date(input.startsAt.getTime() + Math.min(minutes, input.maxMinutes ?? minutes) * 60_000),
         source: input.source, status: input.source === "ONLINE" ? "PENDING" : "CONFIRMED", notes: input.notes || null,
         services: { create: services.map((s) => ({ serviceId: s.id, name: s.name, minutes: s.minutes, price: s.price })) },
       },
