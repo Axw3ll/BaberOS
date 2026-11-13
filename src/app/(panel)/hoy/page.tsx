@@ -8,7 +8,7 @@ import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { addDays, dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
 import { noShowCounts } from "@/lib/waitlist";
 import { money } from "@/lib/format";
-import { Empty, Figure, PageHeader, RowLink, Rows, SectionTitle, Status } from "@/components/ui";
+import { Bar, Empty, Figure, PageHeader, RowLink, Rows, SectionTitle, Status } from "@/components/ui";
 
 export const metadata = { title: "Hoy" };
 
@@ -68,6 +68,18 @@ export default async function HoyPage() {
   const next = active.filter((a) => a.endsAt.getTime() > now && a.status !== "COMPLETED");
   const done = active.filter((a) => a.status === "COMPLETED").length;
   const pending = active.filter((a) => a.status === "PENDING").length;
+  // Metas del mes: lo vendido (servicios y productos) desde el día 1
+  const monthFrom = localToUtc(`${day.slice(0, 7)}-01`, 0, tz);
+  const goalStaff = await prisma.staff.findMany({ where: { shopId: shop.id, active: true, monthlyGoal: { gt: 0 }, ...(own && { id: me.id }) }, orderBy: { name: "asc" } });
+  const goalSales = goalStaff.length ? await prisma.saleItem.groupBy({
+    by: ["staffId"], where: { staffId: { in: goalStaff.map((g) => g.id) }, sale: { status: "PAID", createdAt: { gte: monthFrom } } }, _sum: { total: true },
+  }) : [];
+  const soldBy = new Map(goalSales.map((g) => [g.staffId, Number(g._sum.total ?? 0)]));
+  const goals = goalStaff.map((g) => ({ id: g.id, name: g.name, goal: Number(g.monthlyGoal), sold: soldBy.get(g.id) ?? 0 }))
+    .sort((a, b) => b.sold / b.goal - a.sold / a.goal);
+  const [yy, mm] = day.split("-").map(Number);
+  const daysLeft = new Date(Date.UTC(yy, mm, 0)).getUTCDate() - Number(day.slice(8)) + 1;
+  const myGoal = own ? goals[0] : undefined;
   const misses = await noShowCounts(shop.id, [...new Set(next.map((a) => a.customerId))]);
 
   return (
@@ -95,6 +107,21 @@ export default async function HoyPage() {
       </div>
 
       {canAccess(me.role, "ajustes") && <GettingStarted shop={shop} />}
+
+      {myGoal && (
+        <section className="mb-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display text-lg">Tu meta del mes</h2>
+            <span className="text-sm text-muted tnum">{money(myGoal.sold)} de {money(myGoal.goal)}</span>
+          </div>
+          <div className="mt-3"><Bar value={Math.min(myGoal.sold, myGoal.goal)} max={myGoal.goal} /></div>
+          <p className="mt-2 text-sm text-muted">
+            {myGoal.sold >= myGoal.goal
+              ? "🎉 ¡Meta cumplida! Todo lo que sigue es extra."
+              : `Te faltan ${money(myGoal.goal - myGoal.sold)}: unos ${money((myGoal.goal - myGoal.sold) / daysLeft)} por día en los ${daysLeft} días que quedan.`}
+          </p>
+        </section>
+      )}
 
       {inQueue > 0 && (
         <Link href="/fila" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
@@ -174,6 +201,23 @@ export default async function HoyPage() {
                     {t.title}
                     {t.dueOn.toISOString().slice(0, 10) < day && <span className="text-danger"> · atrasado</span>}
                   </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {!own && goals.length > 0 && (
+          <section>
+            <SectionTitle>Metas del mes</SectionTitle>
+            <ul className="space-y-4 text-sm">
+              {goals.map((g, i) => (
+                <li key={g.id}>
+                  <span className="flex justify-between gap-3">
+                    <span className="truncate">{i === 0 && g.sold > 0 ? "🏆 " : ""}{g.name.split(" ")[0]}</span>
+                    <span className={`tnum ${g.sold >= g.goal ? "text-success" : "text-muted"}`}>{Math.round((g.sold / g.goal) * 100)}%</span>
+                  </span>
+                  <span className="mt-1.5 block"><Bar value={Math.min(g.sold, g.goal)} max={g.goal} /></span>
+                  <span className="mt-1 block text-xs text-faint tnum">{money(g.sold, true)} de {money(g.goal, true)}</span>
                 </li>
               ))}
             </ul>

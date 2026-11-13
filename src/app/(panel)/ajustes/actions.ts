@@ -22,8 +22,14 @@ export async function saveShop(_: ActionResult, data: FormData): Promise<ActionR
   const vTax = v.int(String(data.get("taxRate") ?? "").replace(/\.0+$/, ""), "el IVA (%)", { required: true, min: 0, max: 30 });
   const vNotice = v.int(data.get("minNoticeMinutes"), "la anticipación mínima", { required: true, min: 0, max: 2880 });
   const vAdvance = v.int(data.get("maxAdvanceDays"), "los días para reservar", { required: true, min: 1, max: 180 });
-  const err = v.first(vName, vPhone, vAddress, vTax, vNotice, vAdvance);
+  const vDesc = v.text(data.get("description"), "la descripción", { max: 300 });
+  const err = v.first(vName, vPhone, vAddress, vTax, vNotice, vAdvance, vDesc);
   if (err) return { error: err };
+  // Instagram: acepta @usuario, usuario o el enlace completo
+  const igRaw = String(data.get("instagram") ?? "").trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/^@/, "").replace(/[/?].*$/, "");
+  if (igRaw && !/^[A-Za-z0-9._]{1,30}$/.test(igRaw)) return { error: "El usuario de Instagram no es válido (ej. @elfilo.barberia)." };
+  const mapsRaw = String(data.get("mapsUrl") ?? "").trim();
+  if (mapsRaw && (!/^https:\/\/[^\s]+$/i.test(mapsRaw) || mapsRaw.length > 300)) return { error: "El enlace del mapa debe empezar con https:// (cópialo de Google Maps → Compartir)." };
   const name = vName.value!;
   const slug = slugify(String(data.get("slug") ?? "") || name);
   if (slug !== shop.slug && (await prisma.barbershop.findUnique({ where: { slug } }))) return { error: "Esa dirección ya la usa otra barbería." };
@@ -33,6 +39,7 @@ export async function saveShop(_: ActionResult, data: FormData): Promise<ActionR
       name, slug,
       phone: vPhone.value,
       address: vAddress.value,
+      description: vDesc.value, instagram: igRaw || null, mapsUrl: mapsRaw || null,
       taxRate: vTax.value! / 100,
       slotMinutes: [10, 15, 20, 30, 60].includes(Number(data.get("slotMinutes"))) ? Number(data.get("slotMinutes")) : shop.slotMinutes,
       minNoticeMinutes: vNotice.value!,

@@ -94,6 +94,10 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
                 <Field label="Teléfono"><input name="phone" defaultValue={s.phone ?? ""} className="field" /></Field>
                 <Field label="Comisión por servicios (%)"><input name="serviceCommission" inputMode="numeric" defaultValue={pct(s.serviceCommission)} className="field tnum" /></Field>
                 <Field label="Comisión por productos (%)"><input name="productCommission" inputMode="numeric" defaultValue={pct(s.productCommission)} className="field tnum" /></Field>
+                <Field label="Meta de venta del mes" hint="Servicios y productos. Vacío: sin meta"><input name="monthlyGoal" inputMode="decimal" defaultValue={s.monthlyGoal ? Number(s.monthlyGoal) : ""} placeholder="25000" className="field tnum" /></Field>
+                <Field label="Presentación" hint="Sale en tu página de reservas" className="sm:col-span-2">
+                  <input name="bio" defaultValue={s.bio ?? ""} maxLength={200} placeholder="Especialista en degradados y barba. 8 años de experiencia." className="field" />
+                </Field>
               </div>
               <label className="mt-5 flex items-center gap-2">
                 <input type="checkbox" name="takesAppointments" defaultChecked={s.takesAppointments} className="accent-[var(--color-brand)]" />

@@ -44,6 +44,13 @@ export default async function AjustesPage() {
               <Field label="Teléfono"><input name="phone" defaultValue={shop.phone ?? ""} className="field" /></Field>
               <Field label="Dirección"><input name="address" defaultValue={shop.address ?? ""} className="field" /></Field>
               <Field label="IVA incluido en precios (%)"><input name="taxRate" inputMode="decimal" defaultValue={Number(shop.taxRate) * 100} className="field tnum" /></Field>
+              <Field label="Instagram"><input name="instagram" defaultValue={shop.instagram ? `@${shop.instagram}` : ""} placeholder="@tubarberia" className="field" /></Field>
+              <Field label="Descripción" hint="Sale en tu página de reservas" className="sm:col-span-2">
+                <textarea name="description" defaultValue={shop.description ?? ""} maxLength={300} rows={2} placeholder="Cortes clásicos y modernos en el centro. Café de cortesía y estacionamiento." className="field" />
+              </Field>
+              <Field label="Enlace de Google Maps" hint="En Google Maps: Compartir → Copiar vínculo" className="sm:col-span-2">
+                <input name="mapsUrl" defaultValue={shop.mapsUrl ?? ""} placeholder="https://maps.app.goo.gl/…" className="field" />
+              </Field>
             </div>
             <h3 className="mt-10 mb-4 text-fg">Reglas para reservar</h3>
             <div className="grid gap-5 sm:grid-cols-3">

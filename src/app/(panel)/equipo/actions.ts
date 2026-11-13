@@ -85,7 +85,9 @@ export async function updateStaff(_: ActionResult, data: FormData): Promise<Acti
     const vPhone = v.phone(data.get("phone"));
     const vSvc = v.percent(data.get("serviceCommission"), "la comisión por servicios");
     const vProd = v.percent(data.get("productCommission"), "la comisión por productos");
-    const err = v.first(vName, vEmail, vPhone, vSvc, vProd);
+    const vGoal = v.money(data.get("monthlyGoal"), "la meta del mes", { max: 10_000_000 });
+    const vBio = v.text(data.get("bio"), "la presentación", { max: 200 });
+    const err = v.first(vName, vEmail, vPhone, vSvc, vProd, vGoal, vBio);
     if (err) return { error: err };
     const name = vName.value!;
     const role = s.role === "OWNER" ? "OWNER" : (String(data.get("role")) as Role);
@@ -101,6 +103,7 @@ export async function updateStaff(_: ActionResult, data: FormData): Promise<Acti
         ...(!s.userId && { email }),
         takesAppointments: data.get("takesAppointments") === "on",
         serviceCommission: vSvc.value!, productCommission: vProd.value!,
+        monthlyGoal: vGoal.value || null, bio: vBio.value,
       },
     });
     revalidatePath("/equipo");
