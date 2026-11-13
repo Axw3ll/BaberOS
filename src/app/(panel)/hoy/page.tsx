@@ -1,0 +1,113 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
+import { dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
+import { money } from "@/lib/format";
+import { Empty, Figure, PageHeader, RowLink, Rows, SectionTitle, Status } from "@/components/ui";
+
+export const metadata = { title: "Hoy" };
+
+function greeting(tz: string) {
+  const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hourCycle: "h23" }).format(new Date()));
+  return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches";
+}
+
+export default async function HoyPage() {
+  const { me, shop } = await requireSection("hoy");
+  const tz = shop.timezone, day = today(tz);
+  const from = localToUtc(day, 0, tz), to = localToUtc(day, 1440, tz);
+  const own = seesOnlyOwnAgenda(me.role);
+  const staffFilter = own ? { staffId: me.id } : {};
+
+  const [appts, sales, ownItems, low] = await Promise.all([
+    prisma.appointment.findMany({
+      where: { shopId: shop.id, startsAt: { gte: from, lt: to }, ...staffFilter },
+      include: { customer: true, staff: true, services: true },
+      orderBy: { startsAt: "asc" },
+    }),
+    prisma.sale.aggregate({ where: { shopId: shop.id, status: "PAID", createdAt: { gte: from, lt: to } }, _sum: { total: true } }),
+    own
+      ? prisma.saleItem.aggregate({
+          where: { staffId: me.id, sale: { status: "PAID", createdAt: { gte: from, lt: to } } },
+          _sum: { total: true, commission: true },
+        })
+      : null,
+    canAccess(me.role, "productos")
+      ? prisma.$queryRaw<{ id: string; name: string; stock: number }[]>`
+          SELECT id, name, stock FROM products
+          WHERE "shopId" = ${shop.id}::uuid AND active AND stock <= "minStock" ORDER BY stock LIMIT 6`
+      : [],
+  ]);
+
+  const active = appts.filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW");
+  const now = Date.now();
+  const next = active.filter((a) => a.endsAt.getTime() > now && a.status !== "COMPLETED");
+  const done = active.filter((a) => a.status === "COMPLETED").length;
+  const pending = active.filter((a) => a.status === "PENDING").length;
+
+  return (
+    <>
+      <PageHeader
+        title={dateLabel(day)}
+        subtitle={`${greeting(tz)}, ${me.name.split(" ")[0]}.`}
+        actions={
+          <>
+            <Link href="/agenda/nueva" className="btn-primary">Nueva cita</Link>
+            <Link href="/ventas/nueva" className="btn-quiet">Cobrar</Link>
+          </>
+        }
+      />
+
+      <div className="mb-14 grid grid-cols-2 gap-x-10 gap-y-6 sm:flex sm:flex-wrap">
+        <Figure value={active.length} label={own ? "Tus citas hoy" : "Citas hoy"} />
+        <Figure value={done} label="Atendidas" />
+        {own && ownItems ? (
+          <Figure value={money(ownItems._sum.commission ?? 0)} label="Tu comisión hoy" />
+        ) : (
+          <Figure value={money(sales._sum.total ?? 0)} label="Vendido hoy" />
+        )}
+        {pending > 0 && <Figure value={pending} label="Por confirmar" />}
+      </div>
+
+      <div className="grid gap-14 lg:grid-cols-[1fr_280px]">
+        <section>
+          <SectionTitle aside={<Link href="/agenda" className="link">Ver agenda</Link>}>Lo que sigue</SectionTitle>
+          {next.length === 0 ? (
+            <Empty title={active.length ? "Ya no quedan citas hoy" : "Sin citas para hoy"}>
+              {active.length ? "Buen trabajo. Revisa la agenda de mañana o registra una venta." : "Agenda la primera o recibe clientes sin cita desde Cobrar."}
+            </Empty>
+          ) : (
+            <Rows>
+              {next.map((a) => (
+                <RowLink key={a.id} href={`/citas/${a.id}`}>
+                  <span className="w-14 shrink-0 font-display text-lg text-foam tnum">{timeLabel(a.startsAt, tz)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{a.customer.name}</span>
+                    <span className="block truncate text-sm text-ash">
+                      {a.services.map((s) => s.name).join(", ")}{!own && ` con ${a.staff.name}`}
+                    </span>
+                  </span>
+                  <Status status={a.status} />
+                </RowLink>
+              ))}
+            </Rows>
+          )}
+        </section>
+
+        {low.length > 0 && (
+          <aside>
+            <SectionTitle>Por surtir</SectionTitle>
+            <ul className="space-y-3">
+              {low.map((p) => (
+                <li key={p.id} className="flex justify-between gap-4 text-sm">
+                  <Link href={`/productos/${p.id}`} className="truncate hover:text-foam text-ash">{p.name}</Link>
+                  <span className={p.stock === 0 ? "text-rose tnum" : "text-foam tnum"}>{p.stock === 0 ? "Agotado" : `${p.stock} pzas`}</span>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
+      </div>
+    </>
+  );
+}

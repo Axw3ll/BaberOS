@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/*
+  BarberOS — tokens
+  Pizarra (fondo), Cuero (superficie), Línea, Espuma (texto), Ceniza (secundario),
+  Níquel (acento frío, como el acero de la navaja).
+*/
+@theme {
+  --color-ink: #1c1b19;
+  --color-ink-2: #23221f;
+  --color-ink-3: #2b2a26;
+  --color-line: #393732;
+  --color-line-soft: #2f2d29;
+  --color-foam: #eeeae3;
+  --color-ash: #9c978d;
+  --color-ash-2: #6f6b63;
+  --color-nickel: #c9cfd1;
+  --color-sage: #93a88d;
+  --color-rose: #c4918a;
+  --color-sand: #cbb791;
+
+  --font-display: "Marcellus", "Times New Roman", serif;
+  --font-sans: "Albert Sans Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Escala tipográfica (razón ~1.25, base 15) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.4rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 12px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-ink);
+    color: var(--color-foam);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100dvh;
+    line-height: 1.5;
+  }
+  ::selection {
+    background: var(--color-nickel);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 1.5px solid var(--color-nickel);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  /* Los selectores de fecha/hora nativos en tono claro */
+  input::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+    opacity: 0.6;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@utility field {
+  @apply block w-full rounded-md border border-line bg-ink-2 px-3 py-2 text-foam placeholder:text-ash-2 transition-colors hover:border-ash-2 focus:border-nickel focus:outline-none;
+}
+@utility label {
+  @apply mb-1.5 block text-sm text-ash;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-foam text-ink hover:bg-nickel;
+}
+@utility btn-quiet {
+  @apply btn border border-line text-foam hover:border-ash-2 hover:bg-ink-2;
+}
+@utility btn-ghost {
+  @apply btn px-2 text-ash hover:text-foam;
+}
+@utility link {
+  @apply text-foam underline decoration-line underline-offset-4 transition-colors hover:decoration-nickel;
+}
+
+/* Agenda: la regla horaria se dibuja como los dientes de un peine */
+.comb {
+  /* diente largo cada hora, diente corto cada 15 min, pegados al borde derecho */
+  background-image:
+    linear-gradient(to bottom, var(--color-ash-2) 0 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 0 1px, transparent 1px);
+  background-size:
+    14px var(--hour),
+    7px calc(var(--hour) / 4);
+  background-repeat: repeat-y;
+  background-position: right top;
+}
+.comb-rows {
+  background-image: linear-gradient(to bottom, var(--color-line-soft) 1px, transparent 1px);
+  background-size: 100% var(--hour);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

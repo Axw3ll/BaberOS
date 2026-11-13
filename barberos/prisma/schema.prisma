@@ -1,0 +1,435 @@
+// BarberOS — esquema multi-tenant.
+// Todos los montos se guardan en CENTAVOS de MXN (Int) para evitar errores de redondeo.
+// Toda tabla, salvo Barbershop, lleva barbershopId y todas las consultas filtran por él.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Plan {
+  BASICO
+  PRO
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  RECEPTION
+  BARBER
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CHARGED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  PANEL
+  ONLINE
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+}
+
+enum DepositStatus {
+  PENDING
+  PAID
+  VOID // anticipo pendiente que se absorbió en el cobro final o cita cancelada
+}
+
+enum DepositMode {
+  FIXED
+  PERCENT
+}
+
+enum ExpenseCategory {
+  RENTA
+  INSUMOS
+  SUELDOS
+  LIMPIEZA
+  SERVICIOS
+  OTROS
+}
+
+enum ReminderKind {
+  TOMORROW
+  TODAY
+}
+
+model Barbershop {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  city      String
+  address   String?
+  phone     String
+  timezone  String   @default("America/Mexico_City")
+  ownerName String
+  ownerEmail String?
+  ownerPhone String?
+  isDemo    Boolean  @default(false)
+
+  // Horario: "HH:MM" y días laborales 0=Dom..6=Sáb separados por coma
+  openTime    String @default("09:00")
+  closeTime   String @default("20:00")
+  workDays    String @default("1,2,3,4,5,6")
+  slotMinutes Int    @default(30)
+
+  // Anticipo
+  depositEnabled Boolean     @default(false)
+  depositMode    DepositMode @default(FIXED)
+  depositValue   Int         @default(0) // centavos si FIXED, porcentaje (0-100) si PERCENT
+
+  // Lealtad
+  loyaltyStampsRequired  Int @default(5)
+  loyaltyDiscountPercent Int @default(100)
+
+  // Stripe de la barbería (cifrado con APP_SECRET). Null = no conectado.
+  stripeSecretKeyEnc     String?
+  stripeWebhookSecretEnc String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscription   Subscription?
+  members        Member[]
+  sessions       Session[]
+  barbers        Barber[]
+  clients        Client[]
+  services       Service[]
+  appointments   Appointment[]
+  payments       Payment[]
+  deposits       Deposit[]
+  expenses       Expense[]
+  products       Product[]
+  productSales   ProductSale[]
+  stockMovements StockMovement[]
+  cashClosures   CashClosure[]
+  loyaltyRewards LoyaltyReward[]
+  ratings        Rating[]
+  reminderLogs   ReminderLog[]
+  recoveryLogs   RecoveryLog[]
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  barbershopId     String             @unique
+  barbershop       Barbershop         @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  plan             Plan               @default(BASICO)
+  status           SubscriptionStatus @default(TRIALING)
+  trialEndsAt      DateTime
+  currentPeriodEnd DateTime?
+  lastPaidAt       DateTime? // solo lo escribe el webhook de Stripe
+  stripeSessionId  String?
+  updatedAt        DateTime           @updatedAt
+}
+
+model Member {
+  id             String     @id @default(cuid())
+  barbershopId   String
+  barbershop     Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name           String
+  email          String?
+  role           Role
+  pinHash        String // scrypt, nunca texto plano
+  failedAttempts Int        @default(0)
+  lockedUntil    DateTime?
+  active         Boolean    @default(true)
+  barberId       String?    @unique
+  barber         Barber?    @relation(fields: [barberId], references: [id])
+  createdAt      DateTime   @default(now())
+  sessions       Session[]
+
+  @@index([barbershopId])
+}
+
+model Session {
+  id           String     @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  memberId     String
+  member       Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  tokenHash    String     @unique
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+}
+
+model Barber {
+  id            String        @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name          String
+  specialty     String?
+  phone         String?
+  email         String?
+  commissionPct Int           @default(40)
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  member        Member?
+  appointments  Appointment[]
+  ratings       Rating[]
+  favoriteOf    Client[]      @relation("FavoriteBarber")
+
+  @@index([barbershopId])
+}
+
+model Client {
+  id               String          @id @default(cuid())
+  barbershopId     String
+  barbershop       Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name             String
+  phone            String
+  email            String?
+  notes            String?
+  favoriteBarberId String?
+  favoriteBarber   Barber?         @relation("FavoriteBarber", fields: [favoriteBarberId], references: [id], onDelete: SetNull)
+  loyaltyStamps    Int             @default(0)
+  active           Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  appointments     Appointment[]
+  rewards          LoyaltyReward[]
+  recoveryLogs     RecoveryLog[]
+
+  @@unique([barbershopId, phone])
+}
+
+model Service {
+  id           String        @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Int // centavos
+  durationMin  Int
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  appointments Appointment[]
+
+  @@index([barbershopId])
+}
+
+model Appointment {
+  id           String            @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop        @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  barberId     String
+  barber       Barber            @relation(fields: [barberId], references: [id])
+  clientId     String
+  client       Client            @relation(fields: [clientId], references: [id])
+  serviceId    String
+  service      Service           @relation(fields: [serviceId], references: [id])
+  startAt      DateTime          @db.Timestamptz(3)
+  endAt        DateTime          @db.Timestamptz(3)
+  price        Int // precio congelado al agendar (centavos)
+  status       AppointmentStatus @default(PENDING)
+  source       AppointmentSource @default(PANEL)
+  notes        String?
+  publicToken  String            @unique @default(cuid()) // permite al cliente pagar su anticipo en línea
+  completedAt  DateTime?
+  chargedAt    DateTime?
+  cancelledAt  DateTime?
+  createdAt    DateTime          @default(now())
+
+  payment        Payment?
+  deposit        Deposit?
+  rating         Rating?
+  redeemedReward LoyaltyReward?  @relation("RedeemedOn")
+  reminderLogs   ReminderLog[]
+
+  @@index([barbershopId, startAt])
+  @@index([barberId, startAt])
+}
+
+// Un solo Payment por cita (appointmentId @unique) => cobrar dos veces es imposible en BD.
+model Payment {
+  id            String        @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointmentId String        @unique
+  appointment   Appointment   @relation(fields: [appointmentId], references: [id])
+  amount        Int // lo cobrado al final (resto)
+  depositApplied Int          @default(0)
+  loyaltyDiscount Int         @default(0)
+  method        PaymentMethod
+  memberId      String?
+  createdAt     DateTime      @default(now())
+
+  @@index([barbershopId, createdAt])
+}
+
+model Deposit {
+  id              String         @id @default(cuid())
+  barbershopId    String
+  barbershop      Barbershop     @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointmentId   String         @unique
+  appointment     Appointment    @relation(fields: [appointmentId], references: [id])
+  amount          Int
+  method          PaymentMethod?
+  status          DepositStatus  @default(PENDING)
+  paidAt          DateTime?
+  stripeSessionId String?        @unique
+  createdAt       DateTime       @default(now())
+
+  @@index([barbershopId, status])
+}
+
+model Expense {
+  id           String          @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  concept      String
+  category     ExpenseCategory
+  amount       Int
+  date         String // YYYY-MM-DD en la zona del negocio
+  createdAt    DateTime        @default(now())
+
+  @@index([barbershopId, date])
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  barbershopId   String
+  barbershop     Barbershop      @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  name           String
+  price          Int
+  cost           Int
+  stock          Int             @default(0)
+  lowStockAlert  Int             @default(3)
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  sales          ProductSale[]
+  movements      StockMovement[]
+
+  @@index([barbershopId])
+}
+
+model StockMovement {
+  id           String     @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  delta        Int // + entrada, - salida
+  reason       String
+  memberId     String?
+  createdAt    DateTime   @default(now())
+}
+
+model ProductSale {
+  id           String        @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop    @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id])
+  qty          Int
+  unitPrice    Int
+  unitCost     Int
+  total        Int
+  method       PaymentMethod
+  memberId     String?
+  createdAt    DateTime      @default(now())
+
+  @@index([barbershopId, createdAt])
+}
+
+model CashClosure {
+  id           String     @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  date         String // YYYY-MM-DD
+  expectedCash Int
+  countedCash  Int
+  difference   Int // contado - esperado
+  totalIncome  Int
+  totalExpense Int
+  net          Int
+  notes        String?
+  memberId     String?
+  createdAt    DateTime   @default(now())
+
+  @@unique([barbershopId, date]) // un solo cierre por día
+}
+
+model LoyaltyReward {
+  id                    String       @id @default(cuid())
+  barbershopId          String
+  barbershop            Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  clientId              String
+  client                Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  discountPercent       Int
+  earnedAt              DateTime     @default(now())
+  redeemedAt            DateTime?
+  discountAmount        Int?
+  redeemedAppointmentId String?      @unique
+  redeemedAppointment   Appointment? @relation("RedeemedOn", fields: [redeemedAppointmentId], references: [id])
+
+  @@index([barbershopId, clientId])
+}
+
+model Rating {
+  id            String      @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop  @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  barberId      String
+  barber        Barber      @relation(fields: [barberId], references: [id])
+  stars         Int
+  createdAt     DateTime    @default(now())
+}
+
+model ReminderLog {
+  id            String       @id @default(cuid())
+  barbershopId  String
+  barbershop    Barbershop   @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  appointmentId String
+  appointment   Appointment  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  kind          ReminderKind
+  channel       String       @default("whatsapp_manual")
+  sentById      String?
+  sentByName    String?
+  sentAt        DateTime     @default(now())
+
+  @@unique([appointmentId, kind])
+}
+
+model RecoveryLog {
+  id           String     @id @default(cuid())
+  barbershopId String
+  barbershop   Barbershop @relation(fields: [barbershopId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  daysAway     Int
+  channel      String     @default("whatsapp_manual")
+  sentById     String?
+  sentByName   String?
+  sentAt       DateTime   @default(now())
+}
+
+// Idempotencia de webhooks de Stripe
+model StripeEvent {
+  id           String   @id // id del evento de Stripe
+  barbershopId String
+  type         String
+  createdAt    DateTime @default(now())
+}

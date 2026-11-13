@@ -1,0 +1,188 @@
+"use client";
+import { useMemo, useState, useTransition } from "react";
+import { money } from "@/lib/format";
+import { chargeSale } from "../actions";
+
+export type PosLine = {
+  key: string; kind: "SERVICE" | "PRODUCT"; refId: string; name: string; price: number; quantity: number; staffId: string | null;
+};
+type Method = "CASH" | "CARD" | "TRANSFER";
+const METHODS: { id: Method; label: string }[] = [
+  { id: "CASH", label: "Efectivo" }, { id: "CARD", label: "Tarjeta" }, { id: "TRANSFER", label: "Transferencia" },
+];
+
+export function Pos({ services, products, staff, me, appointmentId, initial }: {
+  services: { id: string; name: string; price: number }[];
+  products: { id: string; name: string; brand: string | null; price: number; stock: number }[];
+  staff: { id: string; name: string }[];
+  me: string; appointmentId: string | null; initial: PosLine[];
+}) {
+  const [tab, setTab] = useState<"SERVICE" | "PRODUCT">(initial.length ? "PRODUCT" : "SERVICE");
+  const [q, setQ] = useState("");
+  const [lines, setLines] = useState<PosLine[]>(initial);
+  const [discount, setDiscount] = useState("");
+  const [tip, setTip] = useState("");
+  const [method, setMethod] = useState<Method>("CASH");
+  const [received, setReceived] = useState("");
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [pending, start] = useTransition();
+
+  const defaultStaff = staff.some((s) => s.id === me) ? me : null;
+  const stockOf = (id: string) => products.find((p) => p.id === id)?.stock ?? 0;
+
+  function add(kind: PosLine["kind"], refId: string, name: string, price: number) {
+    setError("");
+    setLines((ls) => {
+      const found = ls.find((l) => l.kind === kind && l.refId === refId);
+      if (found && kind === "PRODUCT") {
+        return ls.map((l) => (l === found ? { ...l, quantity: Math.min(l.quantity + 1, stockOf(refId)) } : l));
+      }
+      return [...ls, { key: crypto.randomUUID(), kind, refId, name, price, quantity: 1, staffId: kind === "SERVICE" ? defaultStaff : null }];
+    });
+  }
+  const update = (key: string, patch: Partial<PosLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  const remove = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
+
+  const subtotal = lines.reduce((a, l) => a + l.price * l.quantity, 0);
+  const disc = Math.min(Number(discount) || 0, subtotal);
+  const total = subtotal - disc + (Number(tip) || 0);
+  const change = method === "CASH" && Number(received) > total ? Number(received) - total : 0;
+
+  const list = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    const src = tab === "SERVICE"
+      ? services.map((s) => ({ id: s.id, name: s.name, sub: "", price: s.price, disabled: false }))
+      : products.map((p) => ({ id: p.id, name: p.name, sub: p.stock ? `${p.brand ? `${p.brand}, ` : ""}${p.stock} en existencia` : "Agotado", price: p.price, disabled: p.stock === 0 }));
+    return term ? src.filter((x) => x.name.toLowerCase().includes(term)) : src;
+  }, [tab, q, services, products]);
+
+  function charge() {
+    setError("");
+    start(async () => {
+      const res = await chargeSale({
+        lines: lines.map((l) => l.kind === "SERVICE"
+          ? { kind: "SERVICE", serviceId: l.refId, staffId: l.staffId ?? "", quantity: l.quantity }
+          : { kind: "PRODUCT", productId: l.refId, staffId: l.staffId, quantity: l.quantity }),
+        discount: disc, tip: Number(tip) || 0, method, appointmentId,
+        customer: appointmentId ? null : { phone, name },
+      });
+      if (res?.error) setError(res.error);
+    });
+  }
+
+  return (
+    <div className="grid gap-12 lg:grid-cols-[1fr_380px]">
+      <section>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+          <div role="tablist" className="flex gap-6">
+            {(["SERVICE", "PRODUCT"] as const).map((t) => (
+              <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
+                className={`border-b pb-1 font-display text-xl transition-colors ${tab === t ? "border-nickel text-foam" : "border-transparent text-ash hover:text-foam"}`}>
+                {t === "SERVICE" ? "Servicios" : "Productos"}
+              </button>
+            ))}
+          </div>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" aria-label="Buscar" className="field max-w-56 py-1.5" />
+        </div>
+
+        {list.length === 0 ? (
+          <p className="py-10 text-ash">{q ? "Nada coincide con la búsqueda." : tab === "PRODUCT" ? "Aún no hay productos. Agrégalos en Productos." : "Aún no hay servicios."}</p>
+        ) : (
+          <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {list.map((x) => (
+              <li key={x.id}>
+                <button type="button" disabled={x.disabled} onClick={() => add(tab, x.id, x.name, x.price)}
+                  className="flex h-full w-full flex-col justify-between rounded-md border border-line px-4 py-3 text-left transition-colors hover:border-ash-2 hover:bg-ink-2 disabled:opacity-40 disabled:hover:bg-transparent">
+                  <span>{x.name}{x.sub && <span className="block text-sm text-ash">{x.sub}</span>}</span>
+                  <span className="mt-3 text-sm text-ash tnum">{money(x.price, true)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <aside className="lg:sticky lg:top-14 lg:self-start">
+        <div className="rounded-lg border border-line p-6">
+          <p className="font-display text-xl">Ticket</p>
+          {lines.length === 0 ? (
+            <p className="mt-3 text-sm text-ash">Toca un servicio o producto para agregarlo.</p>
+          ) : (
+            <ul className="mt-4 divide-y divide-line-soft">
+              {lines.map((l) => (
+                <li key={l.key} className="py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-sm">{l.name}</span>
+                    <span className="text-sm tnum">{money(l.price * l.quantity)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    {l.kind === "PRODUCT" && (
+                      <span className="flex items-center rounded-md border border-line text-sm">
+                        <button type="button" className="px-2 py-1 text-ash hover:text-foam" aria-label="Quitar uno"
+                          onClick={() => (l.quantity > 1 ? update(l.key, { quantity: l.quantity - 1 }) : remove(l.key))}>−</button>
+                        <span className="w-6 text-center tnum">{l.quantity}</span>
+                        <button type="button" className="px-2 py-1 text-ash hover:text-foam disabled:opacity-30" aria-label="Agregar uno"
+                          disabled={l.quantity >= stockOf(l.refId)} onClick={() => update(l.key, { quantity: l.quantity + 1 })}>+</button>
+                      </span>
+                    )}
+                    <select value={l.staffId ?? ""} onChange={(e) => update(l.key, { staffId: e.target.value || null })}
+                      aria-label="Barbero" className="field min-w-0 flex-1 py-1 text-sm">
+                      <option value="">{l.kind === "SERVICE" ? "¿Quién lo hizo?" : "Sin comisión"}</option>
+                      {staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                    <button type="button" onClick={() => remove(l.key)} className="btn-ghost text-sm" aria-label={`Quitar ${l.name}`}>Quitar</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line-soft pt-4">
+            <label><span className="label">Descuento</span><input inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} className="field py-1.5 tnum" placeholder="0" /></label>
+            <label><span className="label">Propina</span><input inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} className="field py-1.5 tnum" placeholder="0" /></label>
+          </div>
+
+          {!appointmentId && (
+            <details className="mt-4 text-sm">
+              <summary className="cursor-pointer text-ash hover:text-foam">Registrar cliente (opcional)</summary>
+              <div className="mt-3 grid gap-3">
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Teléfono" aria-label="Teléfono" className="field py-1.5" />
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" aria-label="Nombre" className="field py-1.5" />
+              </div>
+            </details>
+          )}
+
+          <fieldset className="mt-5">
+            <legend className="label">Pago</legend>
+            <div className="grid grid-cols-3 gap-1 rounded-md border border-line p-1">
+              {METHODS.map((m) => (
+                <button key={m.id} type="button" aria-pressed={method === m.id} onClick={() => setMethod(m.id)}
+                  className={`rounded px-2 py-1.5 text-sm transition-colors ${method === m.id ? "bg-ink-3 text-foam" : "text-ash hover:text-foam"}`}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {method === "CASH" && (
+              <label className="mt-3 block"><span className="label">Recibido</span>
+                <input inputMode="decimal" value={received} onChange={(e) => setReceived(e.target.value)} className="field py-1.5 tnum" placeholder={String(total)} />
+              </label>
+            )}
+          </fieldset>
+
+          <dl className="mt-5 space-y-1 text-sm">
+            {disc > 0 && <div className="flex justify-between text-ash"><dt>Descuento</dt><dd className="tnum">−{money(disc)}</dd></div>}
+            <div className="flex items-baseline justify-between"><dt className="text-ash">Total</dt><dd className="font-display text-3xl tnum">{money(total)}</dd></div>
+            {change > 0 && <div className="flex justify-between"><dt className="text-ash">Cambio</dt><dd className="tnum">{money(change)}</dd></div>}
+          </dl>
+
+          {error && <p role="alert" className="mt-3 text-sm text-rose">{error}</p>}
+          <button type="button" onClick={charge} disabled={pending || lines.length === 0} className="btn-primary mt-5 w-full py-3">
+            {pending ? "Cobrando…" : `Cobrar ${money(total)}`}
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}
