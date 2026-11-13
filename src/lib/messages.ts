@@ -5,6 +5,8 @@ import { customerStats, daysToBirthday, fillTemplate } from "./crm";
 import { dateLabel, timeLabel, toLocalDate, today } from "./time";
 import type { Barbershop } from "@/generated/prisma/client";
 import type { MessageKind } from "@/generated/prisma/enums";
+import { sendTemplate, TEMPLATES, whatsappEnabled } from "./whatsapp";
+import { accessFor, canUsePanel } from "./billing";
 
 // ─────────────────────────────────────────────────────────────────────
 // Mensajes automáticos
@@ -13,8 +15,8 @@ import type { MessageKind } from "@/generated/prisma/enums";
 // confirmación de reserva, recordatorios, "no llegaste", reseña, "ya toca tu corte" y cumpleaños.
 // Es idempotente (dedupeKey): se puede llamar en cada visita a la pantalla o desde una tarea programada.
 //
-// Hoy se envían con un toque (wa.me). Cuando se conecte la API de WhatsApp de Meta, basta con
-// implementar `sendWhatsApp` y llamar a deliverPending() desde /api/cron/mensajes.
+// Con WHATSAPP_TOKEN y WHATSAPP_PHONE_NUMBER_ID, /api/cron/mensajes los envía solos con plantillas
+// aprobadas por Meta (ver lib/whatsapp.ts). Sin eso, se envían con un toque (wa.me) desde el panel.
 // ─────────────────────────────────────────────────────────────────────
 
 export const KIND: Record<MessageKind, { label: string; marketing: boolean }> = {
@@ -43,7 +45,7 @@ export async function baseUrl() {
 
 type ApptCtx = { id: string; token: string; startsAt: Date; customer: { id: string; name: string }; staff: { name: string }; services: { name: string }[] };
 
-function apptText(kind: MessageKind, shop: Barbershop, a: ApptCtx, base: string) {
+function apptMessage(kind: MessageKind, shop: Barbershop, a: ApptCtx, base: string): { body: string; params: string[] } {
   const tz = shop.timezone;
   const v = {
     nombre: a.customer.name.split(/\s+/)[0] ?? a.customer.name,
@@ -55,21 +57,31 @@ function apptText(kind: MessageKind, shop: Barbershop, a: ApptCtx, base: string)
     link: `${base}/c/${a.token}`,
     reservar: `${base}/b/${shop.slug}`,
   };
+  const cuando = `el ${v.fecha} a las ${v.hora}`;
   switch (kind) {
     case "CONFIRMATION":
-      return `Hola ${v.nombre}, recibimos tu reserva en ${v.barberia}: ${v.servicio}, el ${v.fecha} a las ${v.hora} con ${v.barbero}. Confírmala aquí: ${v.link}`;
+      return { body: `Hola ${v.nombre}, recibimos tu reserva en ${v.barberia}: ${v.servicio}, ${cuando} con ${v.barbero}. Confírmala aquí: ${v.link}`,
+        params: [v.nombre, v.barberia, v.servicio, cuando, v.barbero, v.link] };
     case "REMINDER_24H":
-      return `Hola ${v.nombre}, te recordamos tu cita en ${v.barberia} el ${v.fecha} a las ${v.hora} con ${v.barbero}. Confirma, cambia o cancela aquí: ${v.link}`;
+      return { body: `Hola ${v.nombre}, te recordamos tu cita en ${v.barberia} ${cuando} con ${v.barbero}. Confirma, cambia o cancela aquí: ${v.link}`,
+        params: [v.nombre, v.barberia, cuando, v.barbero, v.link] };
     case "REMINDER_2H":
-      return `Hola ${v.nombre}, tu cita en ${v.barberia} es hoy a las ${v.hora}. ¡Te esperamos!${shop.address ? ` ${shop.address}` : ""}`;
+      return { body: `Hola ${v.nombre}, tu cita en ${v.barberia} es hoy a las ${v.hora}. ¡Te esperamos!${shop.address ? ` ${shop.address}` : ""}`,
+        params: [v.nombre, v.barberia, v.hora] };
     case "NO_SHOW":
-      return `Hola ${v.nombre}, te esperábamos en ${v.barberia}. ¿Todo bien? Si quieres, aparta otro horario aquí: ${v.reservar}`;
-    case "REVIEW":
-      return shop.googleReviewUrl
-        ? `Gracias por venir a ${v.barberia}, ${v.nombre}. Si te gustó tu corte, nos ayudas muchísimo con una reseña: ${shop.googleReviewUrl}`
-        : `Gracias por venir a ${v.barberia}, ${v.nombre}. ¿Cómo te quedó el corte? Cuéntanos respondiendo este mensaje.`;
+      return { body: `Hola ${v.nombre}, te esperábamos en ${v.barberia}. ¿Todo bien? Si quieres, aparta otro horario aquí: ${v.reservar}`,
+        params: [v.nombre, v.barberia, v.reservar] };
+    case "REVIEW": {
+      const link = shop.googleReviewUrl ?? v.reservar;
+      return {
+        body: shop.googleReviewUrl
+          ? `Gracias por venir a ${v.barberia}, ${v.nombre}. Si te gustó tu corte, nos ayudas muchísimo con una reseña: ${shop.googleReviewUrl}`
+          : `Gracias por venir a ${v.barberia}, ${v.nombre}. ¿Cómo te quedó el corte? Cuéntanos respondiendo este mensaje.`,
+        params: [v.nombre, v.barberia, link],
+      };
+    }
     default:
-      return "";
+      return { body: "", params: [] };
   }
 }
 
@@ -82,7 +94,7 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
   const base = baseOverride ?? (await baseUrl());
   const tz = shop.timezone;
   const include = { customer: { select: { id: true, name: true } }, staff: { select: { name: true } }, services: { select: { name: true } } } as const;
-  const drafts: { kind: MessageKind; key: string; customerId: string; appointmentId?: string; body: string; dueAt: Date }[] = [];
+  const drafts: { kind: MessageKind; key: string; customerId: string; appointmentId?: string; body: string; params: string[]; dueAt: Date }[] = [];
 
   const [online, upcoming, missed, done] = await Promise.all([
     // Reservas en línea recientes, aún por venir
@@ -104,16 +116,16 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
   ]);
 
   for (const a of online) {
-    drafts.push({ kind: "CONFIRMATION", key: `CONF:${a.id}`, customerId: a.customer.id, appointmentId: a.id, body: apptText("CONFIRMATION", shop, a, base), dueAt: a.createdAt });
+    drafts.push({ kind: "CONFIRMATION", key: `CONF:${a.id}`, customerId: a.customer.id, appointmentId: a.id, ...apptMessage("CONFIRMATION", shop, a, base), dueAt: a.createdAt });
   }
   for (const a of upcoming) {
     const t = a.startsAt.getTime();
     // El de 24 h no se manda si la cita se agendó hace menos de 4 h (ya recibió la confirmación)
     if (shop.autoReminder24h && t - now > 3 * H && now - a.createdAt.getTime() > 4 * H) {
-      drafts.push({ kind: "REMINDER_24H", key: `R24:${a.id}`, customerId: a.customer.id, appointmentId: a.id, body: apptText("REMINDER_24H", shop, a, base), dueAt: new Date(t - 24 * H) });
+      drafts.push({ kind: "REMINDER_24H", key: `R24:${a.id}`, customerId: a.customer.id, appointmentId: a.id, ...apptMessage("REMINDER_24H", shop, a, base), dueAt: new Date(t - 24 * H) });
     }
     if (shop.autoReminder2h && t - now <= 3 * H) {
-      drafts.push({ kind: "REMINDER_2H", key: `R2:${a.id}`, customerId: a.customer.id, appointmentId: a.id, body: apptText("REMINDER_2H", shop, a, base), dueAt: new Date(t - 2 * H) });
+      drafts.push({ kind: "REMINDER_2H", key: `R2:${a.id}`, customerId: a.customer.id, appointmentId: a.id, ...apptMessage("REMINDER_2H", shop, a, base), dueAt: new Date(t - 2 * H) });
     }
   }
 
@@ -124,7 +136,7 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
   })).map((x) => x.customerId));
   for (const a of missed) {
     if (futureCustomers.has(a.customer.id)) continue;
-    drafts.push({ kind: "NO_SHOW", key: `NS:${a.id}`, customerId: a.customer.id, appointmentId: a.id, body: apptText("NO_SHOW", shop, a, base), dueAt: new Date(a.startsAt.getTime() + H) });
+    drafts.push({ kind: "NO_SHOW", key: `NS:${a.id}`, customerId: a.customer.id, appointmentId: a.id, ...apptMessage("NO_SHOW", shop, a, base), dueAt: new Date(a.startsAt.getTime() + H) });
   }
 
   // Reseña: una vez cada 90 días por cliente
@@ -135,7 +147,7 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
     for (const a of done) {
       if (recent.has(a.customer.id)) continue;
       recent.add(a.customer.id);
-      drafts.push({ kind: "REVIEW", key: `REV:${a.id}`, customerId: a.customer.id, appointmentId: a.id, body: apptText("REVIEW", shop, a, base), dueAt: new Date(a.endsAt.getTime() + 2 * H) });
+      drafts.push({ kind: "REVIEW", key: `REV:${a.id}`, customerId: a.customer.id, appointmentId: a.id, ...apptMessage("REVIEW", shop, a, base), dueAt: new Date(a.endsAt.getTime() + 2 * H) });
     }
   }
 
@@ -149,11 +161,11 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
       if (shop.autoRebook && (c.stage === "activo" || c.stage === "nuevo") && c.expectedBack && c.lastVisit && !futureCustomers.has(c.id)) {
         const back = c.expectedBack.getTime();
         if (back - now <= D && now - back <= 4 * D) {
-          drafts.push({ kind: "REBOOK", key: `RB:${c.id}:${toLocalDate(c.lastVisit, tz)}`, customerId: c.id, body: fillTemplate(REBOOK_TEXT, vars(c)), dueAt: new Date(back - D) });
+          drafts.push({ kind: "REBOOK", key: `RB:${c.id}:${toLocalDate(c.lastVisit, tz)}`, customerId: c.id, body: fillTemplate(REBOOK_TEXT, vars(c)), params: [c.name.split(/\s+/)[0], shop.name, `${base}/b/${shop.slug}`], dueAt: new Date(back - D) });
         }
       }
       if (shop.autoBirthday && c.birthday && daysToBirthday(c.birthday, day) === 0) {
-        drafts.push({ kind: "BIRTHDAY", key: `BD:${c.id}:${day.slice(0, 4)}`, customerId: c.id, body: fillTemplate(BIRTHDAY_TEXT, vars(c)), dueAt: new Date(now) });
+        drafts.push({ kind: "BIRTHDAY", key: `BD:${c.id}:${day.slice(0, 4)}`, customerId: c.id, body: fillTemplate(BIRTHDAY_TEXT, vars(c)), params: [c.name.split(/\s+/)[0], shop.name, `${base}/b/${shop.slug}`], dueAt: new Date(now) });
       }
     }
   }
@@ -161,7 +173,7 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
   let created = 0;
   if (drafts.length) {
     const r = await prisma.outboundMessage.createMany({
-      data: drafts.map((d) => ({ shopId: shop.id, customerId: d.customerId, appointmentId: d.appointmentId, kind: d.kind, dedupeKey: d.key, body: d.body, dueAt: d.dueAt })),
+      data: drafts.map((d) => ({ shopId: shop.id, customerId: d.customerId, appointmentId: d.appointmentId, kind: d.kind, dedupeKey: d.key, body: d.body, params: d.params, dueAt: d.dueAt })),
       skipDuplicates: true,
     });
     created = r.count;
@@ -192,29 +204,48 @@ export function pendingMessages(shopId: string, opts: { staffId?: string } = {})
   });
 }
 
-// ── Envío automático (pendiente: API de WhatsApp de Meta) ────────────
+// ── Envío automático por la API de WhatsApp de Meta ───────────────────
 
-/** Devuelve true si se envió. Mientras no haya API configurada, no envía nada. */
-async function sendWhatsApp(_phone: string, _body: string): Promise<boolean> {
-  return false;
-}
-export const autoSendEnabled = false;
+export const autoSendEnabled = whatsappEnabled;
 
-/** Para la tarea programada: prepara y, si hay API, envía. */
-export async function runAutomations(base: string) {
-  const shops = await prisma.barbershop.findMany();
-  let created = 0, sent = 0;
-  for (const shop of shops) {
-    created += await syncOutbox(shop, base);
-    if (!autoSendEnabled) continue;
-    for (const m of await pendingMessages(shop.id)) {
-      if (await sendWhatsApp(m.customer.phone, m.body)) {
-        await prisma.outboundMessage.update({ where: { id: m.id }, data: { status: "SENT", sentAt: new Date() } });
-        sent++;
-      }
+/** Envía lo que ya tocó. Reintenta errores temporales (hasta 3 veces) y descarta los permanentes. */
+export async function deliverPending(shopId: string) {
+  let sent = 0, failed = 0;
+  for (const m of await pendingMessages(shopId)) {
+    const params = Array.isArray(m.params) ? (m.params as string[]) : [];
+    // Mensajes preparados antes de conectar WhatsApp no traen variables: se quedan para enviarse a mano
+    if (params.length !== TEMPLATES[m.kind].vars.length) continue;
+    const r = await sendTemplate(m.customer.phone, m.kind, params);
+    if (r.ok) {
+      await prisma.$transaction([
+        prisma.outboundMessage.update({ where: { id: m.id }, data: { status: "SENT", sentAt: new Date(), error: null } }),
+        prisma.customerActivity.create({ data: { shopId, customerId: m.customerId, type: "WHATSAPP", body: `Automático: ${m.body}` } }),
+      ]);
+      sent++;
+    } else {
+      const attempts = m.attempts + 1;
+      await prisma.outboundMessage.update({
+        where: { id: m.id },
+        data: { attempts, error: r.error.slice(0, 300), ...((r.permanent || attempts >= 3) && { status: "SKIPPED" }) },
+      });
+      failed++;
     }
   }
-  return { shops: shops.length, created, sent };
+  return { sent, failed };
+}
+
+/** Para la tarea programada: prepara los mensajes de todas las barberías y, si hay API, los envía. */
+export async function runAutomations(base: string) {
+  const shops = await prisma.barbershop.findMany();
+  let created = 0, sent = 0, failed = 0;
+  for (const shop of shops) {
+    if (!canUsePanel(accessFor(shop))) continue; // barberías vencidas no envían
+    created += await syncOutbox(shop, base);
+    if (!autoSendEnabled()) continue;
+    const r = await deliverPending(shop.id);
+    sent += r.sent; failed += r.failed;
+  }
+  return { shops: shops.length, created, sent, failed, autoSend: autoSendEnabled() };
 }
 
 // Preparación en segundo plano mientras alguien usa el panel (sin esperar a la tarea programada)

@@ -2,6 +2,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
+import { deliverPending } from "@/lib/messages";
+import { whatsappEnabled } from "@/lib/whatsapp";
 
 async function mine(id: string) {
   const { shop, me } = await requireSection("seguimiento");
@@ -26,6 +28,15 @@ export async function skipMessage(data: FormData) {
   const r = await mine(String(data.get("id")));
   if (!r || r.m.status !== "PENDING") return;
   await prisma.outboundMessage.update({ where: { id: r.m.id }, data: { status: "SKIPPED" } });
+  revalidatePath("/seguimiento/mensajes");
+  revalidatePath("/hoy");
+}
+
+/** Con la API de WhatsApp conectada: envía ya lo pendiente sin esperar a la tarea programada. */
+export async function sendAllNow() {
+  const { shop, me } = await requireSection("seguimiento");
+  if (me.role === "BARBER" || !whatsappEnabled()) return;
+  await deliverPending(shop.id);
   revalidatePath("/seguimiento/mensajes");
   revalidatePath("/hoy");
 }

@@ -657,6 +657,10 @@ model OutboundMessage {
   kind          MessageKind
   dedupeKey     String
   body          String
+  /// Variables de la plantilla de WhatsApp (en orden), para el envío automático
+  params        Json          @default("[]")
+  attempts      Int           @default(0)
+  error         String?
   dueAt         DateTime
   status        MessageStatus @default(PENDING)
   sentAt        DateTime?
