@@ -5,7 +5,7 @@ import { addDays, dateLabel, toLocalDate } from "@/lib/time";
 import { Field, PageHeader, SectionTitle } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
-import { addClosure, removeClosure, saveCrm, saveShop, saveShopHours } from "./actions";
+import { addClosure, removeClosure, saveCrm, saveMessages, saveShop, saveShopHours } from "./actions";
 import { createTag, deleteTag } from "../clientes/actions";
 import { TAG_COLORS, TAG_LABEL, tagColor } from "@/lib/crm";
 import { money } from "@/lib/format";
@@ -54,6 +54,35 @@ export default async function AjustesPage() {
               <Field label="Reservar hasta (días)"><input name="maxAdvanceDays" inputMode="numeric" defaultValue={shop.maxAdvanceDays} className="field tnum" /></Field>
             </div>
             <div className="mt-6"><Submit>Guardar ajustes</Submit></div>
+          </ActionForm>
+        </section>
+
+        <section id="mensajes" className="max-w-2xl scroll-mt-6">
+          <SectionTitle>Mensajes automáticos</SectionTitle>
+          <p className="mb-5 text-sm text-muted">
+            El sistema prepara estos mensajes solo y los deja en <a href="/seguimiento/mensajes" className="link">Mensajes por enviar</a>.
+            La confirmación de reservas en línea siempre está activa.
+          </p>
+          <ActionForm action={saveMessages}>
+            <div className="space-y-3">
+              {([
+                ["autoReminder24h", shop.autoReminder24h, "Recordatorio un día antes", "Con enlace para confirmar, cambiar o cancelar."],
+                ["autoReminder2h", shop.autoReminder2h, "Recordatorio 2 horas antes", "Útil si te faltan mucho los clientes."],
+                ["autoNoShow", shop.autoNoShow, "Si no llegó", "Le ofrece reagendar, salvo que ya tenga otra cita."],
+                ["autoReview", shop.autoReview, "Pedir reseña después de la visita", "Una vez cada 90 días por cliente."],
+                ["autoRebook", shop.autoRebook, "Ya le toca volver", "Según cada cuánto viene. Solo a quien acepta promociones."],
+                ["autoBirthday", shop.autoBirthday, "Felicitación de cumpleaños", "Solo a quien acepta promociones."],
+              ] as const).map(([name, on, label, hint]) => (
+                <label key={name} className="flex items-start gap-3 rounded-xl border border-line-soft p-3">
+                  <input type="checkbox" name={name} defaultChecked={on} className="mt-0.5 size-4 accent-[var(--color-brand)]" />
+                  <span><span className="block font-medium">{label}</span><span className="text-sm text-muted">{hint}</span></span>
+                </label>
+              ))}
+            </div>
+            <Field label="Enlace para dejar reseña en Google" hint="En tu perfil de Google Maps: Pedir reseñas → copiar enlace" className="mt-5">
+              <input name="googleReviewUrl" type="url" defaultValue={shop.googleReviewUrl ?? ""} placeholder="https://g.page/r/…" className="field" />
+            </Field>
+            <div className="mt-6"><Submit>Guardar</Submit></div>
           </ActionForm>
         </section>
 

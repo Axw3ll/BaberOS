@@ -83,3 +83,21 @@ export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionRe
   revalidatePath("/", "layout");
   return { ok: "Ajustes de clientes guardados." };
 }
+
+export async function saveMessages(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const { shop } = await requireSection("ajustes");
+  const url = String(data.get("googleReviewUrl") ?? "").trim();
+  if (url && !/^https:\/\/\S+$/.test(url)) return { error: "El enlace de reseñas debe empezar con https://" };
+  const on = (k: string) => data.get(k) === "on";
+  await prisma.barbershop.update({
+    where: { id: shop.id },
+    data: {
+      googleReviewUrl: url || null,
+      autoReminder24h: on("autoReminder24h"), autoReminder2h: on("autoReminder2h"), autoNoShow: on("autoNoShow"),
+      autoReview: on("autoReview"), autoRebook: on("autoRebook"), autoBirthday: on("autoBirthday"),
+    },
+  });
+  revalidatePath("/ajustes");
+  revalidatePath("/seguimiento/mensajes");
+  return { ok: "Mensajes automáticos guardados." };
+}

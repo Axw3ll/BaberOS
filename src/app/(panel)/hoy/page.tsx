@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, CheckCircle2, Clock, Wallet } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock, MessageCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
@@ -21,7 +21,7 @@ export default async function HoyPage() {
   const staffFilter = own ? { staffId: me.id } : {};
 
   const [m, d] = day.slice(5).split("-").map(Number);
-  const [appts, sales, ownItems, low, birthdays, tasks] = await Promise.all([
+  const [appts, sales, ownItems, low, birthdays, tasks, outbox] = await Promise.all([
     prisma.appointment.findMany({
       where: { shopId: shop.id, startsAt: { gte: from, lt: to }, ...staffFilter },
       include: { customer: true, staff: true, services: true },
@@ -45,6 +45,9 @@ export default async function HoyPage() {
     prisma.task.findMany({
       where: { shopId: shop.id, doneAt: null, dueOn: { lte: new Date(`${day}T00:00:00Z`) }, OR: [{ assignedToId: me.id }, { assignedToId: null }] },
       include: { customer: true }, orderBy: { dueOn: "asc" }, take: 6,
+    }),
+    prisma.outboundMessage.count({
+      where: { shopId: shop.id, status: "PENDING", dueAt: { lte: new Date() }, ...(own && { appointment: { staffId: me.id } }) },
     }),
   ]);
 
@@ -77,6 +80,17 @@ export default async function HoyPage() {
         )}
         {pending > 0 && <Figure value={pending} label="Por confirmar" icon={Clock} tone="warning" />}
       </div>
+
+      {outbox > 0 && (
+        <Link href="/seguimiento/mensajes" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success"><MessageCircle className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{outbox} {outbox === 1 ? "mensaje listo" : "mensajes listos"} para enviar</span>
+            <span className="block text-sm text-muted">Recordatorios y confirmaciones de tus clientes.</span>
+          </span>
+          <ChevronRight className="size-5 text-faint" />
+        </Link>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <section>

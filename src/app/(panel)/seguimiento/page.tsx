@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ChevronRight, MessageCircle } from "lucide-react";
+import { pendingMessages, syncOutbox } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
 import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { addDays, dateLabel, today } from "@/lib/time";
@@ -58,6 +60,8 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
     }),
   ]);
 
+  await syncOutbox(shop);
+  const outbox = (await pendingMessages(shop.id, own ? { staffId: me.id } : {})).length;
   const booked = new Set(upcoming.map((a) => a.customerId));
   const contacted = new Set(recentContacts.map((a) => a.customerId));
   const mineMap = new Map(lastStaff.map((r) => [r.customerId, r.staffId]));
@@ -145,6 +149,17 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
             <Link href="/seguimiento?todas=1" className={`border-l border-line px-3 py-2 ${showAll ? "text-fg" : "text-muted hover:text-fg"}`} aria-current={showAll ? "true" : undefined}>De todo el equipo</Link>
           </nav>
         )} />
+
+      {outbox > 0 && (
+        <Link href="/seguimiento/mensajes" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success"><MessageCircle className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{outbox} {outbox === 1 ? "mensaje listo" : "mensajes listos"} para enviar</span>
+            <span className="block text-sm text-muted">Recordatorios, confirmaciones y avisos que el sistema preparó solo.</span>
+          </span>
+          <ChevronRight className="size-5 text-faint" />
+        </Link>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="min-w-0 space-y-6">

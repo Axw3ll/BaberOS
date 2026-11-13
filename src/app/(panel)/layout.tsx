@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { LogOut, Scissors } from "lucide-react";
+import { baseUrl, syncSoon } from "@/lib/messages";
 import { currentContext, devAuth, ROLE_LABEL, sectionsFor } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/time";
@@ -10,13 +12,21 @@ import { switchShop } from "./actions";
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const { me, shop, shops } = await currentContext();
   const sections = sectionsFor(me.role);
+  // Prepara recordatorios y avisos después de responder, sin hacer esperar a la página
+  const base = await baseUrl();
+  after(() => syncSoon(shop, base));
 
-  // Pendientes de hoy o atrasados: se ven como número junto a "Seguimiento"
-  const due = await prisma.task.count({
-    where: { shopId: shop.id, doneAt: null, dueOn: { lte: new Date(`${today(shop.timezone)}T00:00:00Z`) },
-      OR: [{ assignedToId: me.id }, { assignedToId: null }] },
-  });
-  const badges = { seguimiento: due };
+  // Pendientes de hoy o atrasados y mensajes por enviar: se ven como número junto a "Seguimiento"
+  const [due, messages] = await Promise.all([
+    prisma.task.count({
+      where: { shopId: shop.id, doneAt: null, dueOn: { lte: new Date(`${today(shop.timezone)}T00:00:00Z`) },
+        OR: [{ assignedToId: me.id }, { assignedToId: null }] },
+    }),
+    prisma.outboundMessage.count({
+      where: { shopId: shop.id, status: "PENDING", dueAt: { lte: new Date() }, ...(me.role === "BARBER" && { appointment: { staffId: me.id } }) },
+    }),
+  ]);
+  const badges = { seguimiento: due + messages };
 
   const logo = (
     <span className="flex items-center gap-2.5">

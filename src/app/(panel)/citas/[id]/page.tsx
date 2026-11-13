@@ -107,6 +107,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
             <dl className="space-y-2 text-sm">
               <div><dt className="text-muted">Teléfono</dt><dd><a href={`tel:${a.customer.phone}`} className="link tnum">{a.customer.phone}</a></dd></div>
               <div><dt className="text-muted">Origen</dt><dd>{SOURCE[a.source]}</dd></div>
+              {a.confirmedAt && <div><dt className="text-muted">El cliente confirmó</dt><dd className="text-success">{dateLabel(toLocalDate(a.confirmedAt, tz), { day: "numeric", month: "short" })}, {timeLabel(a.confirmedAt, tz)}</dd></div>}
             </dl>
             <Link href={`/clientes/${a.customer.id}`} className="mt-4 inline-block text-sm link">Ver historial</Link>
           </section>
