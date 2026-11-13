@@ -152,7 +152,7 @@ Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (
 prisma/
   schema.prisma                 modelos (37 tablas)
   migrations/                   init, reglas, crm, mejoras, whatsapp, sellos, enlace_cliente_y_pagos,
-                                validaciones, bienvenida_tarjeta, modulos
+                                validaciones, bienvenida_tarjeta, modulos, seguridad_rls
   seed.ts                       datos de demostración
 src/
   proxy.ts                      sesión de Supabase y rutas públicas
@@ -198,6 +198,8 @@ tests/                          npm test
 **Paquetes.** Al venderse se guarda una copia de sus condiciones (servicios, usos, vigencia), así que editar el paquete no cambia los ya vendidos. Cada servicio cubierto consume un uso dentro de la transacción del cobro; cancelar la venta lo devuelve.
 
 **Calificaciones.** Se piden desde el mensaje de después de la visita, una por cita y hasta 30 días después. En la página pública se muestra el promedio a partir de 3 calificaciones.
+
+**API de Supabase cerrada.** Todas las tablas tienen RLS activo y sin políticas, y los roles `anon` y `authenticated` no tienen permisos: con la llave pública nadie puede leer ni modificar datos por la API REST de Supabase. La app no se ve afectada porque todo pasa por el servidor con Prisma, que se conecta como dueño de las tablas. Si agregas una tabla, actívale RLS en su migración (`npm test` avisa si falta).
 
 **Historial intacto.** Citas y tickets guardan nombre y precio del momento. **Zona horaria:** todo en UTC, mostrado en la zona de la barbería.
 
