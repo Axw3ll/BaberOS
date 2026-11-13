@@ -6,6 +6,7 @@ import { dateLabel, timeLabel, toLocalDate, today } from "./time";
 import type { Barbershop } from "@/generated/prisma/client";
 import type { MessageKind } from "@/generated/prisma/enums";
 import { sendTemplate, TEMPLATES, whatsappEnabled } from "./whatsapp";
+import { stampRewardLabel } from "./loyalty";
 import { accessFor, canUsePanel } from "./billing";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -27,6 +28,8 @@ export const KIND: Record<MessageKind, { label: string; marketing: boolean }> = 
   REVIEW: { label: "Reseña después de la visita", marketing: false },
   REBOOK: { label: "Ya le toca volver", marketing: true },
   BIRTHDAY: { label: "Cumpleaños", marketing: true },
+  STAMP_ALMOST: { label: "Le falta un sello", marketing: true },
+  STAMP_REWARD: { label: "Completó su tarjeta", marketing: true },
 };
 
 const H = 3_600_000, D = 24 * H;
@@ -170,6 +173,32 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
     }
   }
 
+  // Tarjeta de sellos: "te falta 1" y "ganaste tu premio", justo después del sello que lo provocó
+  if (shop.loyaltyMode === "STAMPS" && shop.autoLoyaltyMsgs) {
+    const recent = await prisma.$queryRaw<{ id: string; customerId: string; balance: number; name: string; stamps: number; stampRewards: number }[]>`
+      SELECT DISTINCT ON (m."customerId") m.id, m."customerId", m.balance, c.name, c.stamps, c."stampRewards"
+        FROM loyalty_movements m JOIN customers c ON c.id = m."customerId"
+       WHERE m."shopId" = ${shop.id}::uuid AND m.kind = 'STAMP' AND m.points > 0 AND m."createdAt" > now() - interval '3 days'
+         AND c."acceptsMarketing"
+       ORDER BY m."customerId", m."createdAt" DESC`;
+    const premio = stampRewardLabel(shop);
+    const enlace = `${base}/b/${shop.slug}`;
+    for (const r of recent) {
+      const nombre = r.name.split(/\s+/)[0];
+      // Solo si el último movimiento sigue vigente (no se canceló la venta después)
+      if (r.balance !== r.stamps) continue;
+      if (r.stampRewards > 0 && r.stamps === 0) {
+        drafts.push({ kind: "STAMP_REWARD", key: `SR:${r.id}`, customerId: r.customerId, dueAt: new Date(now),
+          body: `¡${nombre}, completaste tu tarjeta en ${shop.name}! En tu próxima visita tienes ${premio}. Aparta tu lugar: ${enlace}`,
+          params: [nombre, shop.name, premio, enlace] });
+      } else if (r.stamps === shop.stampsRequired - 1) {
+        drafts.push({ kind: "STAMP_ALMOST", key: `SA:${r.id}`, customerId: r.customerId, dueAt: new Date(now),
+          body: `Hola ${nombre}, ¡te falta un solo sello en ${shop.name} para tu ${premio}! Aparta tu próxima visita: ${enlace}`,
+          params: [nombre, shop.name, premio, enlace] });
+      }
+    }
+  }
+
   let created = 0;
   if (drafts.length) {
     const r = await prisma.outboundMessage.createMany({
@@ -186,7 +215,12 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
        m."createdAt" < now() - interval '3 days'
        OR (m.kind IN ('CONFIRMATION', 'REMINDER_24H', 'REMINDER_2H') AND EXISTS (
              SELECT 1 FROM appointments a WHERE a.id = m."appointmentId"
-                AND (a.status IN ('CANCELLED', 'NO_SHOW', 'COMPLETED') OR a."startsAt" < now()))))`;
+                AND (a.status IN ('CANCELLED', 'NO_SHOW', 'COMPLETED') OR a."startsAt" < now())))
+       -- Avisos de la tarjeta que ya no aplican (canceló la venta, ya usó el premio, cambió el programa)
+       OR (m.kind = 'STAMP_ALMOST' AND EXISTS (SELECT 1 FROM customers c WHERE c.id = m."customerId"
+             AND (c.stamps <> ${shop.stampsRequired - 1} OR ${shop.loyaltyMode}::text <> 'STAMPS')))
+       OR (m.kind = 'STAMP_REWARD' AND EXISTS (SELECT 1 FROM customers c WHERE c.id = m."customerId"
+             AND (c."stampRewards" = 0 OR ${shop.loyaltyMode}::text <> 'STAMPS'))))`;
   return created;
 }
 

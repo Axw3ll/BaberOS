@@ -1,6 +1,6 @@
 # BarberOS
 
-CRM y sistema de gestión para barberías, listo para venderse como servicio (SaaS): agenda con disponibilidad real, reservas en línea, ficha 360° de clientes, seguimiento, mensajes automáticos por WhatsApp, campañas, puntos, ventas con corte de caja y comisiones, inventario, reportes, suscripciones con prueba gratis y un panel de administración para ti.
+CRM y sistema de gestión para barberías, listo para venderse como servicio (SaaS): agenda con disponibilidad real, reservas en línea, ficha 360° de clientes, seguimiento, mensajes automáticos por WhatsApp, campañas, tarjeta de sellos o puntos, ventas con corte de caja y comisiones, inventario, reportes, suscripciones con prueba gratis y un panel de administración para ti.
 
 **Stack:** Next.js 16 (App Router, Server Actions) · Prisma 7 · PostgreSQL en Supabase · Supabase Auth · Tailwind CSS 4 · Stripe · WhatsApp Cloud API
 
@@ -36,9 +36,10 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 | **Corte de caja** | Totales del turno por forma de pago, fondo, retiros y efectivo contado con la diferencia en vivo |
 | **Comisiones** | Lo que se le debe a cada quien desde su último pago, y "Marcar pagado" |
 | **Clientes** | Etapas (nuevo, activo, en riesgo, perdido, sin visitas), VIP, etiquetas, búsqueda, orden, importación desde Excel/CSV y exportación |
-| **Ficha del cliente** | Métricas, lo que le gusta, línea de tiempo con citas, compras y bitácora, seguimientos, etiquetas, puntos, WhatsApp con mensajes listos, "Cobrar lo de siempre" |
+| **Ficha del cliente** | Métricas, lo que le gusta, línea de tiempo con citas, compras y bitácora, seguimientos, etiquetas, tarjeta de sellos o puntos, WhatsApp con mensajes listos, "Cobrar lo de siempre" |
+| **Lealtad** | Cada barbería elige en Ajustes: **tarjeta de sellos** (un sello por visita; al completarla, servicio gratis o descuento), **puntos** (por cada peso pagado, canjeables como descuento) o nada |
 | **Seguimiento** | Pendientes por responsable y oportunidades: cumpleaños, primera visita, no llegaron, ya les toca, en riesgo |
-| **Mensajes por enviar** | Confirmación de reserva, recordatorios de 24 h y 2 h, no llegó, reseña, ya toca y cumpleaños. Se preparan solos; se envían por la API de WhatsApp o con un toque |
+| **Mensajes por enviar** | Confirmación de reserva, recordatorios de 24 h y 2 h, no llegó, reseña, ya toca, cumpleaños, "te falta un sello" y "completaste tu tarjeta". Se preparan solos; se envían por la API de WhatsApp o con un toque |
 | **Campañas** | Mensaje a un segmento o etiqueta con variables. Mide quién agendó después |
 | **Reportes** | Ventas, retención, comisiones, más vendidos, mejores clientes y canales de adquisición |
 | **Productos, Servicios, Equipo, Ajustes** | Inventario con kardex, servicios por barbero, roles, horarios, invitaciones, mensajes automáticos, puntos y etiquetas |
@@ -61,7 +62,7 @@ Solo dueño y encargado cancelan ventas, pagan comisiones y borran clientes. Sol
 
 | | Prueba (14 días) | Básico $299/mes | Pro $599/mes |
 |---|---|---|---|
-| Agenda, clientes, ventas, inventario, mensajes | ✓ | ✓ | ✓ |
+| Agenda, clientes, lealtad, ventas, inventario, mensajes | ✓ | ✓ | ✓ |
 | Campañas y reportes | ✓ | — | ✓ |
 | Personas en el equipo | Sin límite | 3 | Sin límite |
 
@@ -122,6 +123,8 @@ En Vercel Pro puedes usar Vercel Cron; en el plan gratis, un servicio externo co
 | `barberos_resena` | Utilidad | Gracias por venir a {{2}}, {{1}}. Si te gustó tu corte, nos ayudas mucho con una reseña: {{3}} |
 | `barberos_ya_toca` | Marketing | Hola {{1}}, ya toca tu corte. Aparta tu lugar en {{2}}: {{3}} |
 | `barberos_cumpleanos` | Marketing | ¡Feliz cumpleaños, {{1}}! De parte de todo {{2}}. Ven esta semana y te consentimos: {{3}} |
+| `barberos_falta_sello` | Marketing | Hola {{1}}, ¡te falta un solo sello en {{2}} para tu {{3}}! Aparta tu próxima visita: {{4}} |
+| `barberos_premio` | Marketing | ¡{{1}}, completaste tu tarjeta en {{2}}! En tu próxima visita tienes {{3}}. Aparta tu lugar: {{4}} |
 
 Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (y con "Enviar ahora" en la bandeja). Los de marketing solo van a clientes que aceptaron promociones. Las campañas siguen enviándose con un toque, porque su texto es libre.
 
@@ -136,7 +139,7 @@ Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (
 ```
 prisma/
   schema.prisma                 modelos (28 tablas)
-  migrations/                   init, reglas, crm, mejoras, whatsapp
+  migrations/                   init, reglas, crm, mejoras, whatsapp, sellos
   seed.ts                       datos de demostración
 src/
   proxy.ts                      sesión de Supabase y rutas públicas
@@ -144,7 +147,8 @@ src/
     auth.ts                     sesión, barbería activa, permisos, suscripción, modo soporte
     availability.ts             horarios libres (funciones puras)
     booking.ts                  reservar con validación de disponibilidad
-    sales.ts                    cobro en una transacción (inventario, puntos, folio)
+    sales.ts                    cobro en una transacción (inventario, sellos, puntos, folio)
+    loyalty.ts                  textos y vista previa del premio de la tarjeta
     crm.ts                      etapas, VIP, segmentos, cumpleaños, plantillas
     messages.ts                 cola de mensajes automáticos y envío
     whatsapp.ts                 WhatsApp Cloud API
@@ -161,6 +165,8 @@ src/
 **Ventas.** Cada cobro corre en una transacción: copia precio y comisión al ticket, desglosa el IVA incluido, descuenta inventario solo si alcanza, canjea y otorga puntos, asigna folio consecutivo y marca la cita como terminada. Si algo falla, no se guarda nada.
 
 **Etapas del cliente.** Una visita es una cita terminada o una venta sin cita. *En riesgo* si ya pasó 1.5 veces su frecuencia, *perdido* después de los días configurados (90 por defecto), *nuevo* si su primera visita fue hace menos de 30 días. *VIP* es el 10% que más gasta, con al menos 3 visitas.
+
+**Lealtad.** *Sellos:* al cobrar un servicio (con el gasto mínimo configurado) se da un sello por visita; al llegar al número configurado se convierte en un premio que se aplica en caja, y esa visita no suma sello. *Puntos:* se ganan sobre lo pagado sin propina y se canjean como descuento. En ambos casos todo ocurre dentro de la transacción del cobro y cancelar la venta lo revierte. Los saldos nunca bajan de cero.
 
 **Mensajes.** `syncOutbox` revisa citas y clientes y deja en la bandeja lo que toca, sin duplicar (`dedupeKey`). Los recordatorios de citas canceladas o pasadas se descartan solos.
 

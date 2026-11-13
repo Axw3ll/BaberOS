@@ -14,11 +14,11 @@ import type { Plan } from "@/generated/prisma/enums";
 export const PLANS = {
   BASIC: {
     name: "Básico", price: 299, priceId: process.env.STRIPE_PRICE_BASIC,
-    features: ["Agenda y reservas en línea", "Clientes, etiquetas y seguimiento", "Ventas, inventario y corte de caja", "Recordatorios y confirmaciones", "Hasta 3 personas en el equipo"],
+    features: ["Agenda y reservas en línea", "Clientes, etiquetas y seguimiento", "Tarjeta de sellos o puntos", "Ventas, inventario y corte de caja", "Recordatorios y confirmaciones", "Hasta 3 personas en el equipo"],
   },
   PRO: {
     name: "Pro", price: 599, priceId: process.env.STRIPE_PRICE_PRO,
-    features: ["Todo lo del Básico", "Campañas por WhatsApp", "Reportes y comisiones por periodo", "Programa de puntos", "Equipo sin límite"],
+    features: ["Todo lo del Básico", "Campañas por WhatsApp", "Reportes y comisiones por periodo", "Equipo sin límite"],
   },
 } as const;
 export type PaidPlan = keyof typeof PLANS;

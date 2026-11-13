@@ -9,7 +9,7 @@ import { toLocalDate } from "@/lib/time";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export async function chargeSale(input: {
-  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number;
+  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number; redeemReward?: boolean;
   appointmentId?: string | null; customer?: { phone: string; name: string } | null;
 }): Promise<{ error: string } | void> {
   const { shop, me } = await requireSection("ventas");
@@ -37,7 +37,7 @@ export async function chargeSale(input: {
     const sale = await checkout({
       shopId: shop.id, chargedById: me.id, customerId, appointmentId: input.appointmentId,
       lines: input.lines, discount: Number(input.discount) || 0, tip: Number(input.tip) || 0, method: input.method,
-      redeemPoints: Number(input.redeemPoints) || 0,
+      redeemPoints: Number(input.redeemPoints) || 0, redeemReward: Boolean(input.redeemReward),
     });
     saleId = sale.id;
   } catch (e) {
@@ -65,7 +65,7 @@ export async function lookupCustomer(phone: string) {
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 10) return null;
   const c = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone: digits } } });
-  return c && { name: c.name, points: c.points };
+  return c && { name: c.name, points: c.points, stamps: c.stamps, rewards: c.stampRewards };
 }
 
 /** "Terminar y cobrar": cobra los servicios de la cita, sin pasar por el punto de venta. */

@@ -98,7 +98,7 @@ export default async function SalePage({ params, searchParams }: { params: Promi
 
         <dl className="mt-6 space-y-1.5 border-t border-dashed border-line pt-6 text-sm">
           <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="tnum">{money(sale.subtotal)}</dd></div>
-          {Number(sale.discount) > 0 && <div className="flex justify-between"><dt className="text-muted">Descuento{sale.pointsRedeemed > 0 && ` (incluye ${sale.pointsRedeemed} pts)`}</dt><dd className="tnum">−{money(sale.discount)}</dd></div>}
+          {Number(sale.discount) > 0 && <div className="flex justify-between"><dt className="text-muted">Descuento{sale.pointsRedeemed > 0 && ` (incluye ${sale.pointsRedeemed} pts)`}{sale.rewardRedeemed && " (premio de la tarjeta)"}</dt><dd className="tnum">−{money(sale.discount)}</dd></div>}
           <div className="flex justify-between"><dt className="text-muted">IVA incluido</dt><dd className="tnum">{money(sale.tax)}</dd></div>
           {Number(sale.tip) > 0 && <div className="flex justify-between"><dt className="text-muted">Propina</dt><dd className="tnum">{money(sale.tip)}</dd></div>}
           <div className="flex items-baseline justify-between pt-3"><dt>Total</dt><dd className="font-display text-2xl tnum">{money(sale.total)}</dd></div>

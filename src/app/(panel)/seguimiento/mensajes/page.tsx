@@ -13,7 +13,7 @@ import type { MessageKind } from "@/generated/prisma/enums";
 
 export const metadata = { title: "Mensajes por enviar" };
 
-const ORDER: MessageKind[] = ["REMINDER_2H", "CONFIRMATION", "REMINDER_24H", "NO_SHOW", "REVIEW", "BIRTHDAY", "REBOOK"];
+const ORDER: MessageKind[] = ["REMINDER_2H", "CONFIRMATION", "REMINDER_24H", "NO_SHOW", "REVIEW", "STAMP_REWARD", "STAMP_ALMOST", "BIRTHDAY", "REBOOK"];
 
 export default async function MensajesPage() {
   const { shop, me } = await requireSection("seguimiento");

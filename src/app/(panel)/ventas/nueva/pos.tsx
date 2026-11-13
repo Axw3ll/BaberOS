@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { money } from "@/lib/format";
 import { chargeSale, lookupCustomer } from "../actions";
+import { previewStampDiscount } from "@/lib/loyalty";
 
 export type PosLine = {
   key: string; kind: "SERVICE" | "PRODUCT"; refId: string; name: string; price: number; quantity: number; staffId: string | null;
@@ -11,12 +12,18 @@ const METHODS: { id: Method; label: string }[] = [
   { id: "CASH", label: "Efectivo" }, { id: "CARD", label: "Tarjeta" }, { id: "TRANSFER", label: "Transferencia" },
 ];
 
-export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerPoints, initialCustomer }: {
+type Loyalty = {
+  mode: "OFF" | "POINTS" | "STAMPS"; pesoPerPoint: number;
+  stamps: { required: number; reward: string; value: number; min: number; label: string };
+};
+type CustomerLoyalty = { points: number; stamps: number; rewards: number };
+
+export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerLoyalty, initialCustomer }: {
   services: { id: string; name: string; price: number }[];
   products: { id: string; name: string; brand: string | null; price: number; stock: number }[];
   staff: { id: string; name: string }[];
   me: string; appointmentId: string | null; initial: PosLine[];
-  loyalty: { pesoPerPoint: number } | null; customerPoints: number | null;
+  loyalty: Loyalty; customerLoyalty: CustomerLoyalty | null;
   initialCustomer?: { phone: string; name: string } | null;
 }) {
   const [tab, setTab] = useState<"SERVICE" | "PRODUCT">(initial.length ? "PRODUCT" : "SERVICE");
@@ -30,8 +37,9 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   const [name, setName] = useState(initialCustomer?.name ?? "");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
-  const [known, setKnown] = useState<{ name: string; points: number } | null>(null);
+  const [known, setKnown] = useState<({ name: string } & CustomerLoyalty) | null>(null);
   const [usePoints, setUsePoints] = useState(false);
+  const [useReward, setUseReward] = useState(false);
 
   // Cliente sin cita: al escribir 10 dígitos busca si ya existe (nombre y puntos)
   useEffect(() => {
@@ -65,12 +73,22 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
 
   const subtotal = lines.reduce((a, l) => a + l.price * l.quantity, 0);
   const disc = Math.min(Number(discount) || 0, subtotal);
-  const balance = appointmentId ? customerPoints : known?.points ?? null;
-  const redeem = loyalty && usePoints && balance
+  const cl = appointmentId ? customerLoyalty : known;
+  const pointsMode = loyalty.mode === "POINTS" && loyalty.pesoPerPoint > 0;
+  const balance = pointsMode ? cl?.points ?? null : null;
+  const redeem = pointsMode && usePoints && balance
     ? Math.min(balance, Math.floor((subtotal - disc) / loyalty.pesoPerPoint))
     : 0;
-  const pointsValue = loyalty ? Math.round(redeem * loyalty.pesoPerPoint * 100) / 100 : 0;
-  const total = subtotal - disc - pointsValue + (Number(tip) || 0);
+  const pointsValue = pointsMode ? Math.round(redeem * loyalty.pesoPerPoint * 100) / 100 : 0;
+  // Tarjeta de sellos
+  const stampMode = loyalty.mode === "STAMPS";
+  const servicePrices = lines.filter((l) => l.kind === "SERVICE").map((l) => l.price);
+  const rewardValue = stampMode && useReward && cl && cl.rewards > 0
+    ? previewStampDiscount({ stampReward: loyalty.stamps.reward, stampRewardValue: loyalty.stamps.value }, servicePrices, subtotal - disc)
+    : 0;
+  const willStamp = stampMode && Boolean(cl || phone.replace(/\D/g, "").length >= 10) && !rewardValue && servicePrices.length > 0
+    && subtotal - disc >= loyalty.stamps.min;
+  const total = subtotal - disc - pointsValue - rewardValue + (Number(tip) || 0);
   const change = method === "CASH" && Number(received) > total ? Number(received) - total : 0;
 
   const list = useMemo(() => {
@@ -88,7 +106,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
         lines: lines.map((l) => l.kind === "SERVICE"
           ? { kind: "SERVICE", serviceId: l.refId, staffId: l.staffId ?? "", quantity: l.quantity }
           : { kind: "PRODUCT", productId: l.refId, staffId: l.staffId, quantity: l.quantity }),
-        discount: disc, tip: Number(tip) || 0, method, appointmentId, redeemPoints: redeem,
+        discount: disc, tip: Number(tip) || 0, method, appointmentId, redeemPoints: redeem, redeemReward: rewardValue > 0,
         customer: appointmentId ? null : { phone, name },
       });
       if (res?.error) setError(res.error);
@@ -178,7 +196,22 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
             </details>
           )}
 
-          {loyalty && balance != null && balance > 0 && (
+          {stampMode && cl && cl.rewards > 0 && (
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-sm">
+              <span>
+                <span className="block font-semibold">🎁 Tiene un premio: {loyalty.stamps.label}</span>
+                <span className="text-muted">{servicePrices.length || loyalty.stamps.reward !== "FREE_SERVICE" ? "Márcalo para aplicarlo en este cobro" : "Agrega un servicio para aplicarlo"}</span>
+              </span>
+              <input type="checkbox" checked={useReward} onChange={(e) => setUseReward(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />
+            </label>
+          )}
+          {stampMode && cl && (
+            <p className="mt-3 text-sm text-muted">
+              Tarjeta: {cl.stamps} de {loyalty.stamps.required} sellos{willStamp && <span className="text-success"> · +1 sello con este cobro</span>}
+            </p>
+          )}
+
+          {pointsMode && balance != null && balance > 0 && (
             <label className="mt-4 flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm">
               <span>
                 <span className="block">Canjear puntos</span>
@@ -208,6 +241,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           <dl className="mt-5 space-y-1 text-sm">
             {disc > 0 && <div className="flex justify-between text-muted"><dt>Descuento</dt><dd className="tnum">−{money(disc)}</dd></div>}
             {pointsValue > 0 && <div className="flex justify-between text-muted"><dt>{redeem} puntos</dt><dd className="tnum">−{money(pointsValue)}</dd></div>}
+            {rewardValue > 0 && <div className="flex justify-between text-muted"><dt>Premio de la tarjeta</dt><dd className="tnum">−{money(rewardValue)}</dd></div>}
             <div className="flex items-baseline justify-between"><dt className="text-muted">Total</dt><dd className="font-display text-3xl tnum">{money(total)}</dd></div>
             {change > 0 && <div className="flex justify-between"><dt className="text-muted">Cambio</dt><dd className="tnum">{money(change)}</dd></div>}
           </dl>

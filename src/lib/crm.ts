@@ -224,4 +224,6 @@ export function bookingUrl(slug: string) {
 
 // ── Lealtad ──────────────────────────────────────────────────────────
 
-export const loyaltyOn = (shop: { loyaltyPointsPerPeso: { toString(): string } }) => Number(shop.loyaltyPointsPerPeso.toString()) > 0;
+export const loyaltyOn = (shop: { loyaltyMode: string; loyaltyPointsPerPeso: { toString(): string } }) =>
+  shop.loyaltyMode === "POINTS" && Number(shop.loyaltyPointsPerPeso.toString()) > 0;
+export const stampsOn = (shop: { loyaltyMode: string }) => shop.loyaltyMode === "STAMPS";

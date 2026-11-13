@@ -17,12 +17,15 @@ async function main() {
     (await prisma.user.create({ data: { id: "00000000-0000-4000-8000-000000000001", email, name: "Dueño" } }));
 
   const slug = "el-filo";
+  // Las citas primero: sus servicios apuntan a servicios de la barbería sin borrado en cascada
+  await prisma.appointment.deleteMany({ where: { shop: { slug } } });
   await prisma.barbershop.deleteMany({ where: { slug } });
 
   const week = [1, 2, 3, 4, 5, 6];
   const shop = await prisma.barbershop.create({
     data: {
       name: "Barbería El Filo", slug, ownerId: user.id, phone: "312 555 0142", address: "Av. Constitución 210, Colima",
+      loyaltyMode: "STAMPS", stampsRequired: 9, stampReward: "FREE_SERVICE",
       loyaltyPointsPerPeso: 1, loyaltyPesoPerPoint: 0.05,
       hours: { create: week.map((weekday) => ({ weekday, startMinute: 600, endMinute: 1200 })) },
     },
@@ -164,7 +167,11 @@ async function main() {
         },
       });
     }
-    await prisma.customer.update({ where: { id: cust.id }, data: { points } });
+    // Tarjeta de 9 sellos: un sello por visita; cada 9, un premio
+    await prisma.customer.update({ where: { id: cust.id }, data: { points, stamps: n % 9, stampRewards: Math.floor(n / 9) } });
+    if (n) await prisma.loyaltyMovement.create({
+      data: { shopId: shop.id, customerId: cust.id, kind: "STAMP", points: n, balance: n % 9, note: `${n} visitas` },
+    });
   }
 
   const origins = ["WALK_BY", "REFERRAL", "INSTAGRAM", "GOOGLE", "INSTAGRAM", "TIKTOK", "WALK_BY", "FACEBOOK", "ONLINE_BOOKING", "REFERRAL", "INSTAGRAM", "WALK_BY"] as const;

@@ -16,7 +16,7 @@ export type CartLine =
  */
 export async function checkout(input: {
   shopId: string; chargedById: string; customerId?: string | null; appointmentId?: string | null;
-  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number;
+  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number; redeemReward?: boolean;
 }) {
   if (input.lines.length === 0) throw new SaleError("Agrega al menos un servicio o producto.");
 
@@ -58,7 +58,7 @@ export async function checkout(input: {
         const wanted = Math.max(0, Math.floor(input.redeemPoints ?? 0));
         if (wanted > 0) {
           if (!input.customerId) throw new SaleError("Para canjear puntos registra al cliente.");
-          if (shop.loyaltyPointsPerPeso.lte(0)) throw new SaleError("El programa de puntos está apagado.");
+          if (shop.loyaltyMode !== "POINTS" || shop.loyaltyPointsPerPeso.lte(0)) throw new SaleError("El programa de puntos está apagado.");
           const maxByTotal = subtotal.minus(discount).div(shop.loyaltyPesoPerPoint).floor().toNumber();
           pointsUsed = Math.min(wanted, maxByTotal);
           if (pointsUsed > 0) {
@@ -72,6 +72,22 @@ export async function checkout(input: {
           }
         }
 
+        // Tarjeta de sellos: canjear el premio ganado
+        let rewardUsed = false;
+        if (input.redeemReward) {
+          if (!input.customerId) throw new SaleError("Para usar el premio registra al cliente.");
+          if (shop.loyaltyMode !== "STAMPS") throw new SaleError("La tarjeta de sellos está apagada.");
+          const value = stampRewardDiscount(shop, items, subtotal.minus(discount));
+          if (value.lte(0)) throw new SaleError("El premio aplica a un servicio: agrégalo al ticket.");
+          const ok = await tx.customer.updateMany({
+            where: { id: input.customerId, shopId: shop.id, stampRewards: { gte: 1 } },
+            data: { stampRewards: { decrement: 1 } },
+          });
+          if (ok.count === 0) throw new SaleError("El cliente no tiene premios disponibles.");
+          discount = Prisma.Decimal.min(discount.plus(value), subtotal);
+          rewardUsed = true;
+        }
+
         const net = subtotal.minus(discount);
         const tax = net.minus(net.div(D(1).plus(shop.taxRate))).toDecimalPlaces(2);
         const tip = D(Math.max(0, input.tip));
@@ -82,7 +98,7 @@ export async function checkout(input: {
           data: {
             shopId: shop.id, folio: (last._max.folio ?? 0) + 1,
             customerId: input.customerId || null, appointmentId: input.appointmentId || null,
-            chargedById: input.chargedById, subtotal, discount, tax, tip, total, pointsRedeemed: pointsUsed,
+            chargedById: input.chargedById, subtotal, discount, tax, tip, total, pointsRedeemed: pointsUsed, rewardRedeemed: rewardUsed,
             items: { createMany: { data: items } },
             ...(total.gt(0) && { payments: { create: { method: input.method, amount: total } } }),
           },
@@ -100,8 +116,8 @@ export async function checkout(input: {
         }
 
         // Puntos: se canjean y se ganan sobre lo pagado (sin propina).
-        if (input.customerId) {
-          const earned = shop.loyaltyPointsPerPeso.gt(0) ? net.mul(shop.loyaltyPointsPerPeso).floor().toNumber() : 0;
+        if (input.customerId && (shop.loyaltyMode === "POINTS" || pointsUsed > 0)) {
+          const earned = shop.loyaltyMode === "POINTS" && shop.loyaltyPointsPerPeso.gt(0) ? net.mul(shop.loyaltyPointsPerPeso).floor().toNumber() : 0;
           let balance = (await tx.customer.findUniqueOrThrow({ where: { id: input.customerId }, select: { points: true } })).points;
           if (pointsUsed > 0) {
             await tx.loyaltyMovement.create({
@@ -112,6 +128,28 @@ export async function checkout(input: {
             balance = (await tx.customer.update({ where: { id: input.customerId }, data: { points: { increment: earned } } })).points;
             await tx.loyaltyMovement.create({
               data: { shopId: shop.id, customerId: input.customerId, kind: "EARN", points: earned, balance, saleId: sale.id, note: `Venta #${sale.folio}` },
+            });
+          }
+        }
+
+        // Sellos: uno por visita con servicio y gasto mínimo. La visita en la que usa su premio no suma sello.
+        if (input.customerId && shop.loyaltyMode === "STAMPS") {
+          if (rewardUsed) {
+            const c = await tx.customer.findUniqueOrThrow({ where: { id: input.customerId } });
+            await tx.loyaltyMovement.create({
+              data: { shopId: shop.id, customerId: input.customerId, kind: "REWARD", points: -1, balance: c.stampRewards, saleId: sale.id, note: `Premio usado en venta #${sale.folio}` },
+            });
+          } else if (items.some((i) => i.kind === "SERVICE") && net.gte(shop.stampMinAmount)) {
+            const c = await tx.customer.findUniqueOrThrow({ where: { id: input.customerId } });
+            const complete = c.stamps + 1 >= shop.stampsRequired;
+            const after = await tx.customer.update({
+              where: { id: c.id },
+              data: complete ? { stamps: c.stamps + 1 - shop.stampsRequired, stampRewards: { increment: 1 } } : { stamps: { increment: 1 } },
+            });
+            await tx.sale.update({ where: { id: sale.id }, data: { stampGiven: true } });
+            await tx.loyaltyMovement.create({
+              data: { shopId: shop.id, customerId: c.id, kind: "STAMP", points: 1, balance: after.stamps, saleId: sale.id,
+                note: complete ? `Sello en venta #${sale.folio}: tarjeta completa, ganó un premio` : `Sello en venta #${sale.folio}` },
             });
           }
         }
@@ -151,6 +189,42 @@ export async function voidSale(shopId: string, saleId: string) {
         data: { shopId, customerId: m.customerId, kind: "ADJUST", points: -m.points, balance: c.points, saleId, note: `Venta #${sale.folio} cancelada` },
       });
     }
+    // Sellos: quita el sello que dio (deshaciendo el premio si con él completó la tarjeta) y regresa el premio usado
+    if ((sale.stampGiven || sale.rewardRedeemed) && sale.customerId) {
+      const shop = await tx.barbershop.findUniqueOrThrow({ where: { id: shopId } });
+      const c = await tx.customer.findUniqueOrThrow({ where: { id: sale.customerId } });
+      let { stamps, stampRewards } = c;
+      if (sale.rewardRedeemed) stampRewards += 1;
+      if (sale.stampGiven) {
+        if (stamps > 0) stamps -= 1;
+        else if (stampRewards > 0) { stampRewards -= 1; stamps = shop.stampsRequired - 1; }
+      }
+      await tx.customer.update({ where: { id: c.id }, data: { stamps, stampRewards } });
+      await tx.loyaltyMovement.create({
+        data: { shopId, customerId: c.id, kind: sale.stampGiven ? "STAMP" : "REWARD", points: sale.stampGiven ? -1 : 1,
+          balance: sale.stampGiven ? stamps : stampRewards, saleId, note: `Venta #${sale.folio} cancelada` },
+      });
+    }
     return tx.sale.update({ where: { id: saleId }, data: { status: "VOIDED" } });
   });
+}
+
+/** Cuánto descuenta el premio de la tarjeta de sellos en este ticket. */
+export function stampRewardDiscount(
+  shop: { stampReward: "FREE_SERVICE" | "PERCENT" | "AMOUNT"; stampRewardValue: Prisma.Decimal },
+  items: { kind: "SERVICE" | "PRODUCT"; unitPrice: unknown }[],
+  remaining: Prisma.Decimal,
+) {
+  let value: Prisma.Decimal;
+  if (shop.stampReward === "FREE_SERVICE") {
+    const prices = items.filter((i) => i.kind === "SERVICE").map((i) => D(String(i.unitPrice)));
+    if (!prices.length) return D(0);
+    value = prices.reduce((a, b) => (b.gt(a) ? b : a));
+    if (shop.stampRewardValue.gt(0)) value = Prisma.Decimal.min(value, shop.stampRewardValue);
+  } else if (shop.stampReward === "PERCENT") {
+    value = remaining.mul(Prisma.Decimal.min(shop.stampRewardValue, D(100))).div(100).toDecimalPlaces(2);
+  } else {
+    value = shop.stampRewardValue;
+  }
+  return Prisma.Decimal.max(D(0), Prisma.Decimal.min(value, remaining));
 }

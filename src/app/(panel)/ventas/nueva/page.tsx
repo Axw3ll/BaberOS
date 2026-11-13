@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { Pos, type PosLine } from "./pos";
+import { stampRewardLabel } from "@/lib/loyalty";
 
 export const metadata = { title: "Nueva venta" };
 
@@ -45,8 +46,12 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       />
       <Pos
         me={me.id}
-        loyalty={Number(shop.loyaltyPointsPerPeso) > 0 ? { pesoPerPoint: Number(shop.loyaltyPesoPerPoint) } : null}
-        customerPoints={appt?.customer.points ?? null}
+        loyalty={{
+          mode: shop.loyaltyMode,
+          pesoPerPoint: Number(shop.loyaltyPesoPerPoint),
+          stamps: { required: shop.stampsRequired, reward: shop.stampReward, value: Number(shop.stampRewardValue), min: Number(shop.stampMinAmount), label: stampRewardLabel(shop) },
+        }}
+        customerLoyalty={appt ? { points: appt.customer.points, stamps: appt.customer.stamps, rewards: appt.customer.stampRewards } : null}
         appointmentId={appt?.id ?? null}
         initial={initial}
         initialCustomer={regular ? { phone: regular.phone, name: regular.name } : null}

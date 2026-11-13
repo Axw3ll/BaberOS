@@ -20,6 +20,8 @@ export const TEMPLATES: Record<MessageKind, { name: string; vars: string[] }> = 
   REVIEW: { name: process.env.WHATSAPP_TPL_REVIEW || "barberos_resena", vars: ["nombre", "barbería", "enlace de reseña"] },
   REBOOK: { name: process.env.WHATSAPP_TPL_REBOOK || "barberos_ya_toca", vars: ["nombre", "barbería", "enlace para reservar"] },
   BIRTHDAY: { name: process.env.WHATSAPP_TPL_BIRTHDAY || "barberos_cumpleanos", vars: ["nombre", "barbería", "enlace para reservar"] },
+  STAMP_ALMOST: { name: process.env.WHATSAPP_TPL_STAMP_ALMOST || "barberos_falta_sello", vars: ["nombre", "barbería", "premio", "enlace para reservar"] },
+  STAMP_REWARD: { name: process.env.WHATSAPP_TPL_STAMP_REWARD || "barberos_premio", vars: ["nombre", "barbería", "premio", "enlace para reservar"] },
 };
 
 export const whatsappEnabled = () => Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);

@@ -83,6 +83,25 @@ enum LoyaltyKind {
   EARN
   REDEEM
   ADJUST
+  /// Tarjeta de sellos: un sello por visita (points = +1/-1, balance = sellos)
+  STAMP
+  /// Tarjeta de sellos: premio canjeado o ajustado (points = premios, balance = premios disponibles)
+  REWARD
+}
+
+/// Programa de lealtad que eligió la barbería
+enum LoyaltyMode {
+  OFF
+  POINTS
+  STAMPS
+}
+
+/// Premio al completar la tarjeta de sellos
+enum StampReward {
+  /// El servicio más caro del ticket gratis (con tope opcional)
+  FREE_SERVICE
+  PERCENT
+  AMOUNT
 }
 
 enum Plan {
@@ -100,6 +119,9 @@ enum MessageKind {
   REVIEW
   REBOOK
   BIRTHDAY
+  /// Tarjeta de sellos
+  STAMP_ALMOST
+  STAMP_REWARD
 }
 
 enum MessageStatus {
@@ -143,11 +165,19 @@ model Barbershop {
   minNoticeMinutes Int @default(60)
   maxAdvanceDays   Int @default(30)
 
-  // CRM: lealtad. 0 puntos por peso = programa apagado.
-  loyaltyPointsPerPeso Decimal @default(0) @db.Decimal(6, 3)
-  loyaltyPesoPerPoint  Decimal @default(0.10) @db.Decimal(6, 3)
+  // CRM: lealtad. La barbería elige sellos, puntos o nada.
+  loyaltyMode          LoyaltyMode @default(STAMPS)
+  stampsRequired       Int         @default(9)
+  stampReward          StampReward @default(FREE_SERVICE)
+  /// FREE_SERVICE: tope en pesos (0 = sin tope) · PERCENT: % · AMOUNT: pesos
+  stampRewardValue     Decimal     @default(0) @db.Decimal(10, 2)
+  /// Gasto mínimo del ticket para ganar sello (0 = cualquier visita con servicio)
+  stampMinAmount       Decimal     @default(0) @db.Decimal(10, 2)
+  autoLoyaltyMsgs      Boolean     @default(true)
+  loyaltyPointsPerPeso Decimal     @default(0) @db.Decimal(6, 3)
+  loyaltyPesoPerPoint  Decimal     @default(0.10) @db.Decimal(6, 3)
   /// Días sin venir para considerar a un cliente "perdido"
-  lostAfterDays        Int     @default(90)
+  lostAfterDays        Int         @default(90)
 
   // Mensajes automáticos
   googleReviewUrl String?
@@ -341,6 +371,9 @@ model Customer {
   acceptsMarketing Boolean         @default(true)
   /// Saldo de puntos (la suma de LoyaltyMovement)
   points           Int             @default(0)
+  /// Tarjeta de sellos: avance actual y premios ganados sin canjear
+  stamps           Int             @default(0)
+  stampRewards     Int             @default(0)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @default(now()) @updatedAt
 
@@ -590,6 +623,9 @@ model Sale {
   tip            Decimal    @default(0) @db.Decimal(10, 2)
   /// Puntos canjeados en este ticket (ya incluidos en discount)
   pointsRedeemed Int        @default(0)
+  /// Tarjeta de sellos: se dio sello / se canjeó un premio en este ticket
+  stampGiven     Boolean    @default(false)
+  rewardRedeemed Boolean    @default(false)
   total          Decimal    @db.Decimal(10, 2)
   createdAt      DateTime   @default(now())
 

@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { CalendarCheck, CalendarClock, Repeat, Scissors, Star, TrendingUp, UserX, Wallet } from "lucide-react";
+import { CalendarCheck, CalendarClock, Gift, Repeat, Scissors, Stamp, Star, TrendingUp, UserX, Wallet } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, dateTimeLabel, toLocalDate, today } from "@/lib/time";
 import { money } from "@/lib/format";
 import {
-  ACTIVITY, birthdayLabel, bookingUrl, customerStats, daysToBirthday, fillTemplate, loyaltyOn, ORIGIN,
+  ACTIVITY, birthdayLabel, bookingUrl, customerStats, daysToBirthday, fillTemplate, loyaltyOn, ORIGIN, stampsOn,
   QUICK_MESSAGES, STAGE, TAG_COLORS, TAG_LABEL, tagColor, whatsappUrl,
 } from "@/lib/crm";
 import { Chip, Dot, Field, Figure, PageHeader, SectionTitle, Status } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { WhatsAppMenu } from "@/components/whatsapp-menu";
-import { addActivity, adjustPoints, createTag, deleteActivity, deleteCustomer, toggleTag, updateCustomer } from "../actions";
+import { StampCard } from "@/components/stamp-card";
+import { stampRewardLabel } from "@/lib/loyalty";
+import { addActivity, adjustPoints, adjustStamps, createTag, deleteActivity, deleteCustomer, toggleTag, updateCustomer } from "../actions";
 import { createTask, deleteTask, toggleTask } from "../../seguimiento/actions";
 
 export const metadata = { title: "Cliente" };
@@ -76,6 +78,8 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   const day = today(tz);
   const bday = c.birthday ? daysToBirthday(c.birthday, day) : null;
   const loyalty = loyaltyOn(shop);
+  const stampCard = stampsOn(shop);
+  const rewardLabel = stampRewardLabel(shop);
   const myTagIds = new Set(c.tags.map((t) => t.tagId));
 
   // Mensajes de WhatsApp listos para mandar
@@ -141,6 +145,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
           <Figure value={dateLabel(toLocalDate(stats.expectedBack, tz), { day: "numeric", month: "short" })} label={stats.expectedBack.getTime() < now ? "Debió volver" : "Debería volver"} icon={CalendarClock} tone="warning" />
         ) : null}
         {loyalty && <Figure value={c.points.toLocaleString("es-MX")} label="Puntos" icon={Star} tone="warning" />}
+        {stampCard && <Figure value={c.stampRewards > 0 ? `${c.stampRewards} ${c.stampRewards === 1 ? "premio" : "premios"}` : `${c.stamps} de ${shop.stampsRequired}`} label={c.stampRewards > 0 ? "Premio listo" : "Sellos"} icon={c.stampRewards > 0 ? Gift : Stamp} tone="warning" />}
         {stats.noShows > 0 && <Figure value={stats.noShows} label="Veces que no llegó" icon={UserX} tone="danger" />}
       </div>
 
@@ -293,13 +298,42 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
             </ActionForm>
           </section>
 
-          {!loyalty && isAdmin && (
+          {shop.loyaltyMode === "OFF" && isAdmin && (
             <section>
-              <SectionTitle>Puntos</SectionTitle>
+              <SectionTitle>Lealtad</SectionTitle>
               <p className="text-sm text-muted">
-                El programa de puntos está apagado: los clientes no acumulan ni canjean. Actívalo en{" "}
+                No tienes programa de lealtad. Activa la tarjeta de sellos o los puntos en{" "}
                 <Link href="/ajustes#lealtad" className="link">Ajustes → Clientes y lealtad</Link>.
               </p>
+            </section>
+          )}
+
+          {stampCard && (
+            <section>
+              <SectionTitle>Tarjeta de sellos</SectionTitle>
+              <StampCard stamps={c.stamps} required={shop.stampsRequired} rewards={c.stampRewards} rewardLabel={rewardLabel} />
+              {c.loyalty.some((m) => m.kind === "STAMP" || m.kind === "REWARD") && (
+                <ul className="mt-4 space-y-1.5 text-sm">
+                  {c.loyalty.filter((m) => m.kind === "STAMP" || m.kind === "REWARD").slice(0, 8).map((m) => (
+                    <li key={m.id} className="flex justify-between gap-3">
+                      <span className="truncate text-muted">{m.note ?? (m.kind === "STAMP" ? "Sello" : "Premio")}</span>
+                      <span className={`shrink-0 tnum ${m.points < 0 ? "text-danger" : "text-success"}`}>
+                        {m.points > 0 ? "+" : ""}{m.points} {m.kind === "STAMP" ? (Math.abs(m.points) === 1 ? "sello" : "sellos") : (Math.abs(m.points) === 1 ? "premio" : "premios")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canAdjust && (
+                <ActionForm action={adjustStamps} resetOnOk className="mt-4">
+                  <input type="hidden" name="customerId" value={c.id} />
+                  <div className="flex gap-2">
+                    <input name="stamps" inputMode="numeric" className="field w-20 py-1.5 text-sm tnum" placeholder="±1" aria-label="Sellos" />
+                    <input name="note" className="field py-1.5 text-sm" placeholder="Motivo (ej. visitas anteriores)" aria-label="Motivo" />
+                    <Submit className="btn-ghost" pending="…">Aplicar</Submit>
+                  </div>
+                </ActionForm>
+              )}
             </section>
           )}
 
@@ -308,9 +342,9 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
               <SectionTitle aside={<span className="tnum">{c.points.toLocaleString("es-MX")} pts ≈ {money(c.points * Number(shop.loyaltyPesoPerPoint))}</span>}>Puntos</SectionTitle>
               {c.loyalty.length > 0 && (
                 <ul className="mb-5 space-y-1.5 text-sm">
-                  {c.loyalty.map((m) => (
+                  {c.loyalty.filter((m) => m.kind !== "STAMP" && m.kind !== "REWARD").map((m) => (
                     <li key={m.id} className="flex justify-between gap-3">
-                      <span className="truncate text-muted">{m.note ?? { EARN: "Ganados", REDEEM: "Canje", ADJUST: "Ajuste" }[m.kind]}</span>
+                      <span className="truncate text-muted">{m.note ?? ({ EARN: "Ganados", REDEEM: "Canje", ADJUST: "Ajuste" } as Record<string, string>)[m.kind]}</span>
                       <span className={`tnum ${m.points < 0 ? "text-danger" : "text-success"}`}>{m.points > 0 ? "+" : ""}{m.points}</span>
                     </li>
                   ))}

@@ -191,3 +191,28 @@ export async function adjustPoints(_: ActionResult, data: FormData): Promise<Act
   revalidatePath(`/clientes/${customerId}`);
   return { ok: points > 0 ? `Se sumaron ${points} puntos.` : `Se descontaron ${-points} puntos.` };
 }
+
+/** Sellos a mano: reconocer visitas anteriores, regalar o corregir. Al completar la tarjeta se convierte en premio. */
+export async function adjustStamps(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const { shop, me } = await requireSection("clientes");
+  if (me.role === "BARBER") return { error: "Solo recepción o encargados ajustan sellos." };
+  const customerId = str(data.get("customerId"));
+  const delta = Math.trunc(Number(data.get("stamps")));
+  const note = str(data.get("note")).slice(0, 200) || null;
+  if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 100) return { error: "Escribe cuántos sellos (negativo para quitar)." };
+  const c = await prisma.customer.findFirst({ where: { id: customerId, shopId: shop.id } });
+  if (!c) return { error: "Cliente no encontrado." };
+  const req = shop.stampsRequired;
+  // Se trabaja con el total (premios × sellos por tarjeta + sellos) para que sumar o quitar cruce tarjetas sin errores
+  const total = c.stampRewards * req + c.stamps + delta;
+  if (total < 0) return { error: "No tiene tantos sellos para quitar." };
+  const stampRewards = Math.floor(total / req), stamps = total % req;
+  await prisma.$transaction([
+    prisma.customer.update({ where: { id: c.id }, data: { stamps, stampRewards } }),
+    prisma.loyaltyMovement.create({
+      data: { shopId: shop.id, customerId: c.id, kind: "STAMP", points: delta, balance: stamps, note: note ?? (delta > 0 ? "Sellos agregados a mano" : "Sellos quitados a mano") },
+    }),
+  ]);
+  revalidatePath(`/clientes/${c.id}`);
+  return { ok: stampRewards > c.stampRewards ? "¡Completó la tarjeta! Ya tiene su premio." : delta > 0 ? `Se agregaron ${delta} sellos.` : `Se quitaron ${-delta} sellos.` };
+}

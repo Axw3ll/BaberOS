@@ -5,6 +5,7 @@ import { addDays, dateLabel, toLocalDate } from "@/lib/time";
 import { Field, PageHeader, SectionTitle } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
+import { LoyaltySettings } from "./loyalty-settings";
 import { addClosure, removeClosure, saveCrm, saveMessages, saveShop, saveShopHours } from "./actions";
 import { createTag, deleteTag } from "../clientes/actions";
 import { TAG_COLORS, TAG_LABEL, tagColor } from "@/lib/crm";
@@ -89,21 +90,13 @@ export default async function AjustesPage() {
         <section id="lealtad" className="max-w-2xl scroll-mt-6">
           <SectionTitle>Clientes y lealtad</SectionTitle>
           <ActionForm action={saveCrm}>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" name="loyalty" defaultChecked={Number(shop.loyaltyPointsPerPeso) > 0} className="size-4 accent-[var(--color-brand)]" />
-              Programa de puntos
-            </label>
-            <p className="mt-1 text-sm text-muted">
-              Viene apagado. Al activarlo, el cliente gana puntos con cada cobro desde ese momento (sin contar propina) y los canjea como
-              descuento en caja. Las compras anteriores no suman puntos; si quieres reconocerlas, regálale puntos desde su ficha.
-            </p>
-            <div className="mt-5 grid gap-5 sm:grid-cols-3">
-              <Field label="Puntos por cada peso" hint="1 = un punto por peso"><input name="pointsPerPeso" inputMode="decimal" defaultValue={Number(shop.loyaltyPointsPerPeso) || 1} className="field tnum" /></Field>
-              <Field label="Cada punto vale ($)" hint={`Gastar ${money(1000, true)} regresa ${money(1000 * (Number(shop.loyaltyPointsPerPeso) || 1) * Number(shop.loyaltyPesoPerPoint), true)}`}>
-                <input name="pesoPerPoint" inputMode="decimal" defaultValue={Number(shop.loyaltyPesoPerPoint)} className="field tnum" />
-              </Field>
-              <Field label="Cliente perdido después de (días)" hint="Sin venir"><input name="lostAfterDays" inputMode="numeric" defaultValue={shop.lostAfterDays} className="field tnum" /></Field>
-            </div>
+            <LoyaltySettings
+              mode={shop.loyaltyMode} pointsPerPeso={Number(shop.loyaltyPointsPerPeso)} pesoPerPoint={Number(shop.loyaltyPesoPerPoint)}
+              stampsRequired={shop.stampsRequired} stampReward={shop.stampReward} stampRewardValue={Number(shop.stampRewardValue)}
+              stampMinAmount={Number(shop.stampMinAmount)} autoLoyaltyMsgs={shop.autoLoyaltyMsgs} />
+            <Field label="Cliente perdido después de (días)" hint="Sin venir. Define las etapas “en riesgo” y “perdido”." className="mt-6 sm:w-1/2">
+              <input name="lostAfterDays" inputMode="numeric" defaultValue={shop.lostAfterDays} className="field tnum" />
+            </Field>
             <div className="mt-6"><Submit>Guardar</Submit></div>
           </ActionForm>
         </section>

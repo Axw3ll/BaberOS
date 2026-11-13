@@ -6,6 +6,8 @@ import { addDays, dateLabel, timeLabel, toLocalDate, today } from "@/lib/time";
 import { minutesLabel, money } from "@/lib/format";
 import { Dot, STATUS } from "@/components/ui";
 import { Manage } from "./manage";
+import { StampCard } from "@/components/stamp-card";
+import { stampRewardLabel } from "@/lib/loyalty";
 
 export const metadata = { title: "Tu cita", robots: { index: false } };
 
@@ -56,6 +58,12 @@ export default async function ClientAppointmentPage({ params }: { params: Promis
             </div>
           )}
         </div>
+        {a.shop.loyaltyMode === "STAMPS" && (a.customer.stamps > 0 || a.customer.stampRewards > 0) && (
+          <div className="mt-4">
+            <p className="mb-2 px-1 text-sm font-medium text-muted">Tu tarjeta de {a.shop.name}</p>
+            <StampCard stamps={a.customer.stamps} required={a.shop.stampsRequired} rewards={a.customer.stampRewards} rewardLabel={stampRewardLabel(a.shop)} compact />
+          </div>
+        )}
         {(a.shop.address || a.shop.phone) && (
           <div className="mt-4 space-y-1.5 px-1 text-sm text-muted">
             {a.shop.address && <p className="flex items-center gap-2"><MapPin className="size-4" aria-hidden />{a.shop.address}</p>}
