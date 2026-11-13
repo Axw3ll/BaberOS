@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { checkout, SaleError, voidSale, type CartLine } from "@/lib/sales";
 import { book, BookingError } from "@/lib/booking";
-import { phone as vPhone, text as vText } from "@/lib/validate";
+import { money as vMoney, phone as vPhone, text as vText } from "@/lib/validate";
 import { toLocalDate } from "@/lib/time";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
@@ -75,23 +75,30 @@ export async function lookupCustomer(phone: string) {
 }
 
 /** "Terminar y cobrar": cobra los servicios de la cita, sin pasar por el punto de venta. */
-export async function quickCharge(data: FormData) {
+export async function quickCharge(_: { error?: string } | void, data: FormData): Promise<{ error?: string } | void> {
   const { shop, me } = await requireSection("ventas");
   const id = String(data.get("appointmentId"));
   const method = String(data.get("method")) as PaymentMethod;
-  if (!["CASH", "CARD", "TRANSFER"].includes(method)) return;
+  if (!["CASH", "CARD", "TRANSFER"].includes(method)) return { error: "Elige cómo pagó." };
+  // En efectivo hay que capturar cuánto entregó el cliente (para el cambio y para no cobrar de menos)
+  let received: number | null = null;
+  if (method === "CASH") {
+    const r = vMoney(data.get("received"), "cuánto te dio el cliente", { required: true });
+    if (r.error) return { error: r.error };
+    received = r.value!;
+  }
   const a = await prisma.appointment.findFirst({ where: { id, shopId: shop.id }, include: { services: true, sale: true } });
-  if (!a) return;
+  if (!a) return { error: "La cita no existe." };
   if (a.sale) redirect(`/ventas/${a.sale.id}`);
   let saleId: string;
   try {
     const sale = await checkout({
-      shopId: shop.id, chargedById: me.id, customerId: a.customerId, appointmentId: a.id, discount: 0, tip: 0, method,
+      shopId: shop.id, chargedById: me.id, customerId: a.customerId, appointmentId: a.id, discount: 0, tip: 0, method, received,
       lines: a.services.map((s) => ({ kind: "SERVICE" as const, serviceId: s.serviceId, staffId: a.staffId, quantity: 1 })),
     });
     saleId = sale.id;
   } catch (e) {
-    if (e instanceof SaleError) redirect(`/ventas/nueva?cita=${a.id}`);
+    if (e instanceof SaleError) return { error: e.message };
     throw e;
   }
   revalidatePath("/ventas");

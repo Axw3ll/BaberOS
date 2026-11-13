@@ -7,8 +7,7 @@ import { minutesLabel, money } from "@/lib/format";
 import { PageHeader, SectionTitle, Status } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { saveNotes, setStatus } from "../../agenda/actions";
-import { quickCharge } from "../../ventas/actions";
-import { Banknote, CreditCard } from "lucide-react";
+import { QuickCharge } from "./quick-charge";
 
 export const metadata = { title: "Cita" };
 
@@ -88,14 +87,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
                         🎁 Tiene un premio de su tarjeta: cóbrale desde aquí para aplicarlo
                       </Link>
                     )}
-                    <form action={quickCharge}>
-                      <input type="hidden" name="appointmentId" value={a.id} />
-                      <button name="method" value="CASH" className="btn-primary w-full py-2.5"><Banknote className="size-4" />Cobrar {money(total, true)} en efectivo</button>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <button name="method" value="CARD" className="btn-quiet"><CreditCard className="size-4" />Tarjeta</button>
-                        <button name="method" value="TRANSFER" className="btn-quiet">Transferencia</button>
-                      </div>
-                    </form>
+                    <QuickCharge appointmentId={a.id} total={total} />
                     <Link href={`/ventas/nueva?cita=${a.id}`} className="mt-2 block text-center text-sm font-medium text-brand hover:underline">Agregar productos, propina o descuento</Link>
                   </div>
                 )}
