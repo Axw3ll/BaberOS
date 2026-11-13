@@ -10,25 +10,38 @@ const DEV_EMAIL = process.env.NODE_ENV !== "production" ? process.env.DEV_AUTH_E
 const DEV_ID = "00000000-0000-4000-8000-000000000001";
 export const devAuth = Boolean(DEV_EMAIL);
 
-/** Usuario actual (fila en `users`), o null. Crea la fila la primera vez. */
-export const currentUser = cache(async () => {
-  let id: string, email: string, name: string;
+/** Quién está en sesión, sin tocar la base. getClaims valida el JWT localmente (llaves asimétricas). */
+const session = cache(async (): Promise<{ id: string; email: string; name: string } | null> => {
+  if (DEV_EMAIL) return { id: DEV_ID, email: DEV_EMAIL, name: "Desarrollo" };
+  const sb = await supabaseServer();
+  const { data } = await sb.auth.getClaims();
+  const c = data?.claims;
+  if (!c?.sub || typeof c.email !== "string" || !c.email) return null;
+  const meta = (c.user_metadata ?? {}) as { name?: string };
+  return { id: c.sub, email: c.email, name: meta.name ?? c.email.split("@")[0] };
+});
 
-  if (DEV_EMAIL) {
-    id = DEV_ID; email = DEV_EMAIL; name = "Desarrollo";
-  } else {
-    const sb = await supabaseServer();
-    const { data } = await sb.auth.getUser();
-    if (!data.user?.email) return null;
-    id = data.user.id; email = data.user.email;
-    name = (data.user.user_metadata?.name as string | undefined) ?? email.split("@")[0];
+/** Crea la fila en `users` la primera vez y vincula invitaciones pendientes (staff con su email y sin cuenta). */
+async function ensureUser(s: { id: string; email: string; name: string }, exists: boolean, pendingInvite: boolean) {
+  const user = exists
+    ? await prisma.user.findUniqueOrThrow({ where: { id: s.id } })
+    : await prisma.user.upsert({ where: { id: s.id }, update: {}, create: s });
+  if (pendingInvite || !exists) {
+    await prisma.staff.updateMany({ where: { email: user.email, userId: null }, data: { userId: user.id } });
   }
-
-  const user = await prisma.user.upsert({ where: { id }, update: {}, create: { id, email, name } });
-
-  // Invitaciones: staff creado con este email y aún sin cuenta
-  await prisma.staff.updateMany({ where: { email: user.email, userId: null }, data: { userId: user.id } });
   return user;
+}
+
+/** Usuario actual (fila en `users`), o null. */
+export const currentUser = cache(async () => {
+  const s = await session();
+  if (!s) return null;
+  const [user, invite] = await Promise.all([
+    prisma.user.findUnique({ where: { id: s.id } }),
+    prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+  ]);
+  if (user && !invite) return user;
+  return ensureUser(s, Boolean(user), Boolean(invite));
 });
 
 export async function requireUser() {
@@ -39,14 +52,27 @@ export async function requireUser() {
 
 export const SHOP_COOKIE = "barberos_shop";
 
-/** Barbería activa + mi perfil de staff en ella. */
+/**
+ * Barbería activa + mi perfil de staff en ella.
+ * En el caso normal es UNA sola ida a la base: usuario, membresías e invitaciones van en paralelo.
+ */
 export const currentContext = cache(async () => {
-  const user = await requireUser();
-  const memberships = await prisma.staff.findMany({
-    where: { userId: user.id, active: true },
+  const s = await session();
+  if (!s) redirect("/login");
+  const membershipsQuery = () => prisma.staff.findMany({
+    where: { userId: s.id, active: true },
     include: { shop: true },
     orderBy: { createdAt: "asc" },
   });
+  let [user, invite, memberships] = await Promise.all([
+    prisma.user.findUnique({ where: { id: s.id } }),
+    prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+    membershipsQuery(),
+  ]);
+  if (!user || invite) {
+    user = await ensureUser(s, Boolean(user), Boolean(invite));
+    memberships = await membershipsQuery();
+  }
   if (memberships.length === 0) redirect("/onboarding");
 
   const wanted = (await cookies()).get(SHOP_COOKIE)?.value;

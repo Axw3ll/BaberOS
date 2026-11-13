@@ -27,7 +27,9 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   const { shop, me } = await requireSection("clientes");
   const tz = shop.timezone;
 
-  const c = await prisma.customer.findFirst({
+  if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  // Todo en paralelo: la ficha se arma en una sola ida a la base
+  const [c, [stats], tags, staff, favorites, products] = await Promise.all([prisma.customer.findFirst({
     where: { id, shopId: shop.id },
     include: {
       tags: true, preferredStaff: true, referredBy: true,
@@ -38,11 +40,8 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
       tasks: { include: { assignedTo: true }, orderBy: [{ doneAt: { sort: "desc", nulls: "first" } }, { dueOn: "asc" }], take: 20 },
       loyalty: { orderBy: { createdAt: "desc" }, take: 12 },
     },
-  });
-  if (!c) notFound();
-
-  const [[stats], tags, staff, favorites, products] = await Promise.all([
-    customerStats(shop.id, { customerId: c.id, lostAfterDays: shop.lostAfterDays }),
+  }),
+    customerStats(shop.id, { customerId: id, lostAfterDays: shop.lostAfterDays }),
     prisma.tag.findMany({ where: { shopId: shop.id }, orderBy: { name: "asc" } }),
     prisma.staff.findMany({ where: { shopId: shop.id, active: true }, orderBy: { name: "asc" } }),
     prisma.$queryRaw<{ service: string; staff: string; n: number }[]>`
@@ -50,14 +49,15 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
         FROM appointments a
         JOIN appointment_services s ON s."appointmentId" = a.id
         JOIN staff st ON st.id = a."staffId"
-       WHERE a."customerId" = ${c.id}::uuid AND a.status = 'COMPLETED'
+       WHERE a."customerId" = ${id}::uuid AND a."shopId" = ${shop.id}::uuid AND a.status = 'COMPLETED'
        GROUP BY 1, 2`,
     prisma.$queryRaw<{ name: string; qty: number; last: Date }[]>`
       SELECT i.name, sum(i.quantity)::int AS qty, max(s."createdAt") AS last
         FROM sale_items i JOIN sales s ON s.id = i."saleId"
-       WHERE s."customerId" = ${c.id}::uuid AND s.status = 'PAID' AND i.kind = 'PRODUCT'
+       WHERE s."customerId" = ${id}::uuid AND s."shopId" = ${shop.id}::uuid AND s.status = 'PAID' AND i.kind = 'PRODUCT'
        GROUP BY 1 ORDER BY qty DESC LIMIT 5`,
   ]);
+  if (!c || !stats) notFound();
 
   const seesMoney = me.role !== "BARBER" && canAccess(me.role, "ventas");
   const canAdjust = me.role !== "BARBER";

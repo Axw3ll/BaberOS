@@ -81,6 +81,8 @@ export function classify(r: { visits: number; first: Date | null; last: Date | n
 /** Estadísticas de todos los clientes de la barbería (o de uno). */
 export async function customerStats(shopId: string, opts: { customerId?: string; lostAfterDays: number }): Promise<CustomerStats[]> {
   const one = opts.customerId ?? null;
+  // Para un solo cliente, el umbral VIP (que mira a toda la barbería) se pide al mismo tiempo
+  const thresholdForOne = one ? vipThreshold(shopId, null) : null;
   const rows = await prisma.$queryRaw<Row[]>`
     WITH visits AS (
       SELECT "customerId" AS cid, "startsAt" AS at FROM appointments
@@ -113,7 +115,7 @@ export async function customerStats(shopId: string, opts: { customerId?: string;
   });
 
   // VIP: el 10% que más gasta, con al menos 3 visitas. Con un solo cliente se compara contra toda la barbería.
-  const threshold = await vipThreshold(shopId, one ? null : stats);
+  const threshold = await (thresholdForOne ?? vipThreshold(shopId, stats));
   for (const s of stats) s.vip = s.visits >= 3 && threshold > 0 && s.spent >= threshold;
   return stats;
 }

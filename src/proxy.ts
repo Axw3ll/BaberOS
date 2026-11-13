@@ -22,11 +22,12 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
-  const { data } = await supabase.auth.getUser();
+  // getClaims valida el JWT sin ir al servidor de Auth (con llaves asimétricas) y refresca la sesión si está por vencer.
+  const { data } = await supabase.auth.getClaims();
   const path = request.nextUrl.pathname;
   const isPublic = path === "/" || PUBLIC.some((p) => path.startsWith(p));
 
-  if (!data.user && !isPublic) {
+  if (!data?.claims && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
