@@ -11,12 +11,13 @@ const METHODS: { id: Method; label: string }[] = [
   { id: "CASH", label: "Efectivo" }, { id: "CARD", label: "Tarjeta" }, { id: "TRANSFER", label: "Transferencia" },
 ];
 
-export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerPoints }: {
+export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerPoints, initialCustomer }: {
   services: { id: string; name: string; price: number }[];
   products: { id: string; name: string; brand: string | null; price: number; stock: number }[];
   staff: { id: string; name: string }[];
   me: string; appointmentId: string | null; initial: PosLine[];
   loyalty: { pesoPerPoint: number } | null; customerPoints: number | null;
+  initialCustomer?: { phone: string; name: string } | null;
 }) {
   const [tab, setTab] = useState<"SERVICE" | "PRODUCT">(initial.length ? "PRODUCT" : "SERVICE");
   const [q, setQ] = useState("");
@@ -25,8 +26,8 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   const [tip, setTip] = useState("");
   const [method, setMethod] = useState<Method>("CASH");
   const [received, setReceived] = useState("");
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const [phone, setPhone] = useState(initialCustomer?.phone ?? "");
+  const [name, setName] = useState(initialCustomer?.name ?? "");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
   const [known, setKnown] = useState<{ name: string; points: number } | null>(null);
@@ -167,7 +168,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           </div>
 
           {!appointmentId && (
-            <details className="mt-4 text-sm">
+            <details className="mt-4 text-sm" open={Boolean(initialCustomer)}>
               <summary className="cursor-pointer text-muted hover:text-fg">Registrar cliente (opcional)</summary>
               <div className="mt-3 grid gap-3">
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Teléfono" aria-label="Teléfono" className="field py-1.5" />

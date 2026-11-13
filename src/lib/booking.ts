@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { computeSlots } from "./availability";
-import { localToUtc } from "./time";
+import { addDays, localToUtc } from "./time";
 import type { AppointmentSource } from "@/generated/prisma/enums";
 
 export class BookingError extends Error {}
@@ -104,4 +104,19 @@ export async function book(input: {
     if (String(e).includes("appointments_no_overlap")) throw new BookingError("Ese horario se acaba de ocupar. Elige otro.");
     throw e;
   }
+}
+
+/** Horarios libres a partir de una fecha (para "¿le agendo la próxima?"). Revisa hasta `span` días. */
+export async function slotsFrom(opts: { shopId: string; staffId: string; serviceIds: string[]; fromDate: string; span?: number; limit?: number }) {
+  const out: number[] = [];
+  for (let i = 0; i < (opts.span ?? 10) && out.length < (opts.limit ?? 6); i++) {
+    try {
+      const day = await slotsFor({ shopId: opts.shopId, staffId: opts.staffId, serviceIds: opts.serviceIds, date: addDays(opts.fromDate, i), ignoreNotice: true });
+      // Pocas opciones por día para que haya variedad de días
+      const picks = day.filter((t) => t > Date.now());
+      const spread = picks.length <= 2 ? picks : [picks[0], picks[Math.floor(picks.length / 2)], picks[picks.length - 1]];
+      out.push(...spread);
+    } catch { /* barbero sin turno ese día */ }
+  }
+  return out.slice(0, opts.limit ?? 6);
 }

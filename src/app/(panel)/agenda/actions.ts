@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { book, BookingError, slotsFor } from "@/lib/booking";
-import { isDate, toLocalDate } from "@/lib/time";
+import { addDays, isDate, toLocalDate, today } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
 import type { AppointmentStatus } from "@/generated/prisma/enums";
 
@@ -20,12 +20,59 @@ export async function getSlots(input: { staffId: string; serviceIds: string[]; d
   }
 }
 
+/** Al escribir el teléfono: si ya es cliente, devuelve su nombre y lo que suele pedir. */
 export async function findCustomer(phone: string) {
   const { shop } = await requireSection("agenda");
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 10) return null;
   const c = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone: digits } } });
-  return c && { id: c.id, name: c.name };
+  if (!c) return null;
+  // Su última cita terminada: mismos servicios y, si no tiene barbero de confianza, el mismo barbero
+  const last = await prisma.appointment.findFirst({
+    where: { customerId: c.id, status: "COMPLETED" }, orderBy: { startsAt: "desc" },
+    include: { services: { select: { serviceId: true } } },
+  });
+  return {
+    id: c.id, name: c.name,
+    serviceIds: last?.services.map((s) => s.serviceId) ?? [],
+    staffId: c.preferredStaffId ?? last?.staffId ?? null,
+  };
+}
+
+/** Los siguientes horarios libres (hasta 14 días) para esos servicios, con un barbero o con cualquiera. */
+export async function nextSlots(input: { serviceIds: string[]; staffId?: string | null; limit?: number }) {
+  const { shop, me } = await requireSection("agenda");
+  if (input.serviceIds.length === 0) return [];
+  const own = seesOnlyOwnAgenda(me.role);
+  const staff = await prisma.staff.findMany({
+    where: {
+      shopId: shop.id, active: true, takesAppointments: true,
+      ...(own ? { id: me.id } : input.staffId ? { id: input.staffId } : {}),
+      AND: input.serviceIds.map((id) => ({ services: { some: { serviceId: id } } })),
+    },
+    select: { id: true, name: true },
+  });
+  const limit = input.limit ?? 6;
+  const found: { at: string; staffId: string; staffName: string }[] = [];
+  const day0 = today(shop.timezone);
+  for (let i = 0; i < 14 && found.length < limit; i++) {
+    const date = addDays(day0, i);
+    const perStaff = await Promise.all(staff.map(async (s) => {
+      try {
+        return (await slotsFor({ shopId: shop.id, staffId: s.id, serviceIds: input.serviceIds, date, ignoreNotice: true }))
+          .filter((t) => t > Date.now()).map((t) => ({ at: t, staffId: s.id, staffName: s.name }));
+      } catch { return []; }
+    }));
+    // Por hora; si dos barberos tienen la misma hora, solo se muestra una vez
+    const seen = new Set<number>();
+    for (const x of perStaff.flat().sort((a, b) => a.at - b.at)) {
+      if (seen.has(x.at)) continue;
+      seen.add(x.at);
+      found.push({ at: new Date(x.at).toISOString(), staffId: x.staffId, staffName: x.staffName });
+      if (found.length >= limit) break;
+    }
+  }
+  return found;
 }
 
 export async function createAppointment(_: ActionResult, data: FormData): Promise<ActionResult> {

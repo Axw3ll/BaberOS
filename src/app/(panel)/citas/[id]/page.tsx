@@ -7,14 +7,16 @@ import { minutesLabel, money } from "@/lib/format";
 import { PageHeader, SectionTitle, Status } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { saveNotes, setStatus } from "../../agenda/actions";
+import { quickCharge } from "../../ventas/actions";
+import { Banknote, CreditCard } from "lucide-react";
 
 export const metadata = { title: "Cita" };
 
 const SOURCE = { WALK_IN: "En persona", PHONE: "Teléfono o WhatsApp", ONLINE: "Reserva en línea" };
 
-export default async function CitaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function CitaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; nueva?: string }> }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, nueva } = await searchParams;
   const { shop, me } = await requireSection("agenda");
   const a = await prisma.appointment.findFirst({
     where: { id, shopId: shop.id, ...(seesOnlyOwnAgenda(me.role) && { staffId: me.id }) },
@@ -44,6 +46,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
         actions={<Status status={a.status} />}
       />
 
+      {nueva && <p role="status" className="-mt-4 mb-6 rounded-xl bg-success/10 px-4 py-3 text-success">Cita agendada.</p>}
       {error === "ocupado" && (
         <p role="alert" className="-mt-4 mb-10 text-danger">Ese horario ya lo tomó otra cita. Agenda una nueva en otro horario.</p>
       )}
@@ -79,7 +82,17 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
               <SectionTitle>Siguiente paso</SectionTitle>
               <div className="flex flex-col gap-2">
                 {canAccess(me.role, "ventas") && (
-                  <Link href={`/ventas/nueva?cita=${a.id}`} className="btn-primary">Cobrar {money(total, true)}</Link>
+                  <div className="rounded-xl bg-brand-soft p-3">
+                    <form action={quickCharge}>
+                      <input type="hidden" name="appointmentId" value={a.id} />
+                      <button name="method" value="CASH" className="btn-primary w-full py-2.5"><Banknote className="size-4" />Cobrar {money(total, true)} en efectivo</button>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button name="method" value="CARD" className="btn-quiet"><CreditCard className="size-4" />Tarjeta</button>
+                        <button name="method" value="TRANSFER" className="btn-quiet">Transferencia</button>
+                      </div>
+                    </form>
+                    <Link href={`/ventas/nueva?cita=${a.id}`} className="mt-2 block text-center text-sm font-medium text-brand hover:underline">Agregar productos, propina o descuento</Link>
+                  </div>
                 )}
                 {a.status === "PENDING" && action("CONFIRMED", "Confirmar cita")}
                 {a.status !== "IN_PROGRESS" && action("IN_PROGRESS", "Pasar a la silla")}

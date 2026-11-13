@@ -121,7 +121,10 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
           <>
             <WhatsAppMenu customerId={c.id} messages={messages} chatUrl={whatsappUrl(c.phone)}
               disabled={c.acceptsMarketing ? undefined : "Pidió no recibir promociones. Solo abre el chat para temas de su cita."} />
-            <Link href={`/agenda/nueva?cliente=${c.id}`} className="btn-quiet">Agendar cita</Link>
+            {canAccess(me.role, "ventas") && stats.visits > 0 && (
+              <Link href={`/ventas/nueva?cliente=${c.id}`} className="btn-quiet">Cobrar lo de siempre</Link>
+            )}
+            <Link href={`/agenda/nueva?cliente=${c.id}`} className="btn-primary">Agendar cita</Link>
           </>
         } />
 

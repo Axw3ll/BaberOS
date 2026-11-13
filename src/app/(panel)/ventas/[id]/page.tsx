@@ -2,18 +2,21 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
-import { dateTimeLabel } from "@/lib/time";
+import { addDays, dateLabel, dateTimeLabel, timeLabel, toLocalDate, today } from "@/lib/time";
+import { CalendarPlus } from "lucide-react";
+import { customerStats } from "@/lib/crm";
+import { slotsFrom } from "@/lib/booking";
 import { money } from "@/lib/format";
 import { PageHeader } from "@/components/ui";
 import { PrintButton } from "@/components/print-button";
-import { cancelSale } from "../actions";
+import { cancelSale, rebook } from "../actions";
 
 export const metadata = { title: "Venta" };
 const METHOD = { CASH: "Efectivo", CARD: "Tarjeta", TRANSFER: "Transferencia" } as const;
 
-export default async function SalePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ nueva?: string }> }) {
+export default async function SalePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ nueva?: string; ocupado?: string }> }) {
   const { id } = await params;
-  const { nueva } = await searchParams;
+  const { nueva, ocupado } = await searchParams;
   const { shop, me } = await requireSection("ventas");
   const sale = await prisma.sale.findFirst({
     where: { id, shopId: shop.id },
@@ -21,6 +24,22 @@ export default async function SalePage({ params, searchParams }: { params: Promi
   });
   if (!sale) notFound();
   const voided = sale.status === "VOIDED";
+  const tz = shop.timezone;
+
+  // Recién cobrada una cita: proponer la próxima visita según su frecuencia (si no tiene ya otra agendada)
+  let rebookSlots: number[] = [], rebookIn = 0;
+  if (nueva && sale.appointment && sale.customerId && canAccess(me.role, "agenda")) {
+    const hasNext = await prisma.appointment.count({ where: { customerId: sale.customerId, startsAt: { gt: new Date() }, status: { in: ["PENDING", "CONFIRMED"] } } });
+    if (!hasNext) {
+      const [stats] = await customerStats(shop.id, { customerId: sale.customerId, lostAfterDays: shop.lostAfterDays });
+      rebookIn = Math.min(60, Math.max(7, stats?.cadence ?? 21));
+      const services = await prisma.appointmentService.findMany({ where: { appointmentId: sale.appointment.id }, select: { serviceId: true } });
+      rebookSlots = await slotsFrom({
+        shopId: shop.id, staffId: sale.appointment.staffId, serviceIds: services.map((s) => s.serviceId),
+        fromDate: addDays(today(tz), rebookIn), limit: 6,
+      });
+    }
+  }
 
   return (
     <>
@@ -37,6 +56,25 @@ export default async function SalePage({ params, searchParams }: { params: Promi
           }
         />
       </div>
+
+      {rebookSlots.length > 0 && (
+        <section className="card mx-auto mb-6 max-w-xl p-5 print:hidden">
+          <p className="flex items-center gap-2 font-semibold"><CalendarPlus className="size-5 text-brand" />¿Le agendamos la próxima?</p>
+          <p className="mt-1 text-sm text-muted">
+            {sale.customer?.name.split(" ")[0]} suele venir cada {rebookIn} días. Mismo servicio y mismo barbero.
+            {ocupado && <span className="text-danger"> Ese horario se acaba de ocupar; elige otro.</span>}
+          </p>
+          <form action={rebook} className="mt-4 flex flex-wrap gap-2">
+            <input type="hidden" name="saleId" value={sale.id} />
+            {rebookSlots.map((t) => (
+              <button key={t} name="at" value={new Date(t).toISOString()} className="rounded-xl border border-line bg-surface px-3 py-2 text-left text-sm transition hover:border-brand">
+                <span className="block font-semibold">{dateLabel(toLocalDate(new Date(t), tz), { weekday: "short", day: "numeric", month: "short" })}</span>
+                <span className="block text-muted tnum">{timeLabel(new Date(t), tz)}</span>
+              </button>
+            ))}
+          </form>
+        </section>
+      )}
 
       <article className="mx-auto max-w-sm rounded-lg border border-line px-8 py-10 print:border-0 print:text-black">
         <header className="text-center">

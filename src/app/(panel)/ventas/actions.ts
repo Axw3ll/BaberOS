@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { checkout, SaleError, voidSale, type CartLine } from "@/lib/sales";
+import { book, BookingError } from "@/lib/booking";
+import { toLocalDate } from "@/lib/time";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export async function chargeSale(input: {
@@ -64,4 +66,53 @@ export async function lookupCustomer(phone: string) {
   if (digits.length < 10) return null;
   const c = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone: digits } } });
   return c && { name: c.name, points: c.points };
+}
+
+/** "Terminar y cobrar": cobra los servicios de la cita, sin pasar por el punto de venta. */
+export async function quickCharge(data: FormData) {
+  const { shop, me } = await requireSection("ventas");
+  const id = String(data.get("appointmentId"));
+  const method = String(data.get("method")) as PaymentMethod;
+  if (!["CASH", "CARD", "TRANSFER"].includes(method)) return;
+  const a = await prisma.appointment.findFirst({ where: { id, shopId: shop.id }, include: { services: true, sale: true } });
+  if (!a) return;
+  if (a.sale) redirect(`/ventas/${a.sale.id}`);
+  let saleId: string;
+  try {
+    const sale = await checkout({
+      shopId: shop.id, chargedById: me.id, customerId: a.customerId, appointmentId: a.id, discount: 0, tip: 0, method,
+      lines: a.services.map((s) => ({ kind: "SERVICE" as const, serviceId: s.serviceId, staffId: a.staffId, quantity: 1 })),
+    });
+    saleId = sale.id;
+  } catch (e) {
+    if (e instanceof SaleError) redirect(`/ventas/nueva?cita=${a.id}`);
+    throw e;
+  }
+  revalidatePath("/ventas");
+  revalidatePath("/hoy");
+  revalidatePath("/agenda");
+  redirect(`/ventas/${saleId}?nueva=1`);
+}
+
+/** Después de cobrar: agenda la próxima visita con los mismos servicios y barbero. */
+export async function rebook(data: FormData) {
+  const { shop } = await requireSection("agenda");
+  const saleId = String(data.get("saleId"));
+  const at = new Date(String(data.get("at")));
+  const sale = await prisma.sale.findFirst({ where: { id: saleId, shopId: shop.id }, include: { appointment: { include: { services: true } } } });
+  if (!sale?.appointment || Number.isNaN(at.getTime())) return;
+  let id: string;
+  try {
+    const a = await book({
+      shopId: shop.id, staffId: sale.appointment.staffId, serviceIds: sale.appointment.services.map((s) => s.serviceId), startsAt: at,
+      customer: { id: sale.appointment.customerId }, source: "WALK_IN",
+      checkAvailability: { ignoreNotice: true, date: toLocalDate(at, shop.timezone) },
+    });
+    id = a.id;
+  } catch (e) {
+    if (e instanceof BookingError) redirect(`/ventas/${saleId}?nueva=1&ocupado=1`);
+    throw e;
+  }
+  revalidatePath("/agenda");
+  redirect(`/citas/${id}?nueva=1`);
 }

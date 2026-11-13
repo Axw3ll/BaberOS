@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SlotClick } from "@/components/slot-click";
 import { initials } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
@@ -120,6 +121,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
 
               return (
                 <div key={s.id} className="comb-rows relative border-l border-line-soft" style={{ height: px(span) }}>
+                  <SlotClick staffId={s.id} day={day} startMin={startMin} hourPx={HOUR} step={shop.slotMinutes} />
                   {blocked.map((b, i) => (
                     <div key={i} className="absolute inset-x-0 bg-[repeating-linear-gradient(135deg,transparent_0_6px,var(--color-line-soft)_6px_7px)] opacity-70"
                       style={{ top: px(b.start - startMin), height: px(b.end - b.start) }} aria-hidden />
