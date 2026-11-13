@@ -55,7 +55,7 @@ export async function slotsFor(opts: {
 
 export async function book(input: {
   shopId: string; staffId: string; serviceIds: string[]; startsAt: Date;
-  customer: { id?: string; name?: string; phone?: string; email?: string };
+  customer: { id?: string; name?: string; phone?: string; email?: string; acceptsMarketing?: boolean };
   source: AppointmentSource; notes?: string; checkAvailability?: { ignoreNotice: boolean; date: string };
 }) {
   const { services, minutes } = await servicesFor(input.shopId, input.serviceIds);
@@ -77,10 +77,15 @@ export async function book(input: {
     if (phone.length < 10 || !input.customer.name?.trim()) throw new BookingError("Escribe nombre y un teléfono de 10 dígitos.");
     const c = await prisma.customer.upsert({
       where: { shopId_phone: { shopId: input.shopId, phone } },
-      update: { name: input.customer.name.trim(), ...(input.customer.email && { email: input.customer.email }) },
+      update: {
+        name: input.customer.name.trim(), ...(input.customer.email && { email: input.customer.email }),
+        // Solo se activa si lo pide; nunca se desactiva en silencio
+        ...(input.customer.acceptsMarketing && { acceptsMarketing: true }),
+      },
       create: {
         shopId: input.shopId, phone, name: input.customer.name.trim(), email: input.customer.email || null,
         ...(input.source === "ONLINE" && { origin: "ONLINE_BOOKING" as const }),
+        ...(input.customer.acceptsMarketing !== undefined && { acceptsMarketing: input.customer.acceptsMarketing }),
       },
     });
     customerId = c.id;

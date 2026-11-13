@@ -85,6 +85,29 @@ enum LoyaltyKind {
   ADJUST
 }
 
+enum Plan {
+  TRIAL
+  BASIC
+  PRO
+}
+
+/// Mensajes que el sistema prepara solo. Se envían por WhatsApp (por ahora con un toque; luego por la API).
+enum MessageKind {
+  CONFIRMATION
+  REMINDER_24H
+  REMINDER_2H
+  NO_SHOW
+  REVIEW
+  REBOOK
+  BIRTHDAY
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  SKIPPED
+}
+
 enum CampaignStatus {
   DRAFT
   SENDING
@@ -126,6 +149,23 @@ model Barbershop {
   /// Días sin venir para considerar a un cliente "perdido"
   lostAfterDays        Int     @default(90)
 
+  // Mensajes automáticos
+  googleReviewUrl String?
+  autoReminder24h Boolean @default(true)
+  autoReminder2h  Boolean @default(false)
+  autoNoShow      Boolean @default(true)
+  autoReview      Boolean @default(true)
+  autoRebook      Boolean @default(true)
+  autoBirthday    Boolean @default(true)
+
+  // Suscripción a BarberOS
+  plan                 Plan      @default(TRIAL)
+  trialEndsAt          DateTime  @default(dbgenerated("(now() + '14 days'::interval)"))
+  subscriptionStatus   String?
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  currentPeriodEnd     DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -144,6 +184,9 @@ model Barbershop {
   tasks        Task[]
   loyalty      LoyaltyMovement[]
   campaigns    Campaign[]
+  messages     OutboundMessage[]
+  cashClosures CashClosure[]
+  payouts      CommissionPayout[]
 
   @@index([ownerId])
   @@map("barbershops")
@@ -208,6 +251,9 @@ model Staff {
   tasksAssigned Task[]             @relation("TaskAssignee")
   tasksCreated  Task[]             @relation("TaskCreator")
   campaigns     Campaign[]
+  cashClosures  CashClosure[]
+  payouts       CommissionPayout[] @relation("PayoutStaff")
+  payoutsMade   CommissionPayout[] @relation("PayoutBy")
 
   @@unique([shopId, userId])
   @@unique([shopId, email])
@@ -309,6 +355,7 @@ model Customer {
   tasks          Task[]
   loyalty        LoyaltyMovement[]
   campaignSends  CampaignRecipient[]
+  messages       OutboundMessage[]
 
   @@unique([shopId, phone])
   @@index([shopId, name])
@@ -437,23 +484,27 @@ model CampaignRecipient {
 }
 
 model Appointment {
-  id         String            @id @default(uuid()) @db.Uuid
-  shopId     String            @db.Uuid
-  staffId    String            @db.Uuid
-  customerId String            @db.Uuid
-  startsAt   DateTime
-  endsAt     DateTime
-  status     AppointmentStatus @default(CONFIRMED)
-  source     AppointmentSource @default(WALK_IN)
-  notes      String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id          String            @id @default(uuid()) @db.Uuid
+  shopId      String            @db.Uuid
+  staffId     String            @db.Uuid
+  customerId  String            @db.Uuid
+  startsAt    DateTime
+  endsAt      DateTime
+  status      AppointmentStatus @default(CONFIRMED)
+  source      AppointmentSource @default(WALK_IN)
+  notes       String?
+  /// Enlace privado del cliente para confirmar, cancelar o cambiar su cita
+  token       String            @unique @default(dbgenerated("replace(((gen_random_uuid())::text || (gen_random_uuid())::text), '-'::text, ''::text)"))
+  confirmedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 
   shop     Barbershop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
   staff    Staff                @relation(fields: [staffId], references: [id])
   customer Customer             @relation(fields: [customerId], references: [id])
   services AppointmentService[]
   sale     Sale?
+  messages OutboundMessage[]
 
   @@index([shopId, startsAt])
   @@index([staffId, startsAt])
@@ -568,11 +619,14 @@ model SaleItem {
   unitPrice  Decimal      @db.Decimal(10, 2)
   total      Decimal      @db.Decimal(10, 2)
   commission Decimal      @default(0) @db.Decimal(10, 2)
+  /// Pago de comisión que ya cubrió este renglón
+  payoutId   String?      @db.Uuid
 
-  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  staff   Staff?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  sale    Sale              @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  payout  CommissionPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  service Service?          @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  product Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  staff   Staff?            @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
   @@index([saleId])
   @@index([staffId])
@@ -590,4 +644,86 @@ model Payment {
 
   @@index([saleId])
   @@map("payments")
+}
+
+// ── Mensajes automáticos ─────────────────────────────────────────────
+
+/// Bandeja de salida. dedupeKey evita preparar el mismo mensaje dos veces.
+model OutboundMessage {
+  id            String        @id @default(uuid()) @db.Uuid
+  shopId        String        @db.Uuid
+  customerId    String        @db.Uuid
+  appointmentId String?       @db.Uuid
+  kind          MessageKind
+  dedupeKey     String
+  body          String
+  dueAt         DateTime
+  status        MessageStatus @default(PENDING)
+  sentAt        DateTime?
+  createdAt     DateTime      @default(now())
+
+  shop        Barbershop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, dedupeKey])
+  @@index([shopId, status, dueAt])
+  @@map("outbound_messages")
+}
+
+/// Límite de intentos (reservas públicas). key = "book:ip:1.2.3.4", etc.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@map("rate_limits")
+}
+
+// ── Caja y comisiones ────────────────────────────────────────────────
+
+model CashClosure {
+  id            String   @id @default(uuid()) @db.Uuid
+  shopId        String   @db.Uuid
+  closedById    String?  @db.Uuid
+  periodStart   DateTime
+  periodEnd     DateTime
+  openingCash   Decimal  @default(0) @db.Decimal(10, 2)
+  cashSales     Decimal  @db.Decimal(10, 2)
+  cardSales     Decimal  @db.Decimal(10, 2)
+  transferSales Decimal  @db.Decimal(10, 2)
+  withdrawals   Decimal  @default(0) @db.Decimal(10, 2)
+  expectedCash  Decimal  @db.Decimal(10, 2)
+  countedCash   Decimal  @db.Decimal(10, 2)
+  difference    Decimal  @db.Decimal(10, 2)
+  tickets       Int
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  shop     Barbershop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  closedBy Staff?     @relation(fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@index([shopId, periodEnd])
+  @@map("cash_closures")
+}
+
+model CommissionPayout {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @db.Uuid
+  staffId   String   @db.Uuid
+  paidById  String?  @db.Uuid
+  amount    Decimal  @db.Decimal(10, 2)
+  items     Int
+  upTo      DateTime
+  note      String?
+  createdAt DateTime @default(now())
+
+  shop      Barbershop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  staff     Staff      @relation("PayoutStaff", fields: [staffId], references: [id], onDelete: Cascade)
+  paidBy    Staff?     @relation("PayoutBy", fields: [paidById], references: [id], onDelete: SetNull)
+  saleItems SaleItem[]
+
+  @@index([shopId, createdAt])
+  @@index([staffId])
+  @@map("commission_payouts")
 }

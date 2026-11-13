@@ -19,6 +19,7 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
   const password = String(data.get("password") ?? "");
   if (!name) return { error: "Escribe tu nombre." };
   if (password.length < 8) return { error: "La contraseña necesita al menos 8 caracteres." };
+  if (data.get("terms") !== "on") return { error: "Acepta los términos y el aviso de privacidad para continuar." };
 
   const sb = await supabaseServer();
   const { data: res, error } = await sb.auth.signUp({

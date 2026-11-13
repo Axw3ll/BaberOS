@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { addDays, today } from "@/lib/time";
 import { MapPin, Phone, Scissors } from "lucide-react";
 import { Booking } from "./booking";
+import { turnstileSiteKey } from "@/lib/guard";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -50,6 +51,8 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           days={days}
           services={services.map((s) => ({ id: s.id, name: s.name, description: s.description, minutes: s.minutes, price: Number(s.price), staffIds: s.staff.map((x) => x.staffId) }))}
           staff={staff.map((s) => ({ id: s.id, name: s.name }))}
+          captchaKey={turnstileSiteKey}
+          shopName={shop.name}
         />
       )}
       </div>

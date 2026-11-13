@@ -19,6 +19,10 @@ export default async function SignUpPage({ searchParams }: { searchParams: Promi
         <Field label="Contraseña" hint="Mínimo 8 caracteres">
           <input name="password" type="password" required minLength={8} autoComplete="new-password" className="field" />
         </Field>
+        <label className="flex items-start gap-2 text-sm text-muted">
+          <input type="checkbox" name="terms" required className="mt-0.5 size-4 accent-[var(--color-brand)]" />
+          <span>Acepto los <Link href="/terminos" className="link" target="_blank">términos</Link> y el <Link href="/privacidad" className="link" target="_blank">aviso de privacidad</Link>.</span>
+        </label>
         <Submit pending="Creando cuenta…" className="btn-primary w-full">Crear cuenta</Submit>
       </ActionForm>
       <p className="mt-8 text-sm text-muted">
