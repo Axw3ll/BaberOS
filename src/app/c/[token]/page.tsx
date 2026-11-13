@@ -50,6 +50,7 @@ export default async function ClientAppointmentPage({ params }: { params: Promis
             <>
               <Manage token={token} tz={tz} days={days} confirmed={a.status === "CONFIRMED"} />
               <a href={`/c/${token}/calendario`} className="btn-ghost mt-3 w-full"><CalendarPlus className="size-4" />Agregar a mi calendario</a>
+              <Link href={`/mi/${a.customer.token}`} className="btn-ghost w-full">Ver mi tarjeta y mis visitas</Link>
             </>
           ) : (
             <div className="mt-6 rounded-xl bg-hover p-4 text-sm text-muted">

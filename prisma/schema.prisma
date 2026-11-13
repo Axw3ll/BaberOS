@@ -89,6 +89,13 @@ enum LoyaltyKind {
   REWARD
 }
 
+/// Cada cuánto se pagan las comisiones
+enum PayoutFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
 /// Programa de lealtad que eligió la barbería
 enum LoyaltyMode {
   OFF
@@ -166,18 +173,23 @@ model Barbershop {
   maxAdvanceDays   Int @default(30)
 
   // CRM: lealtad. La barbería elige sellos, puntos o nada.
-  loyaltyMode          LoyaltyMode @default(STAMPS)
-  stampsRequired       Int         @default(9)
-  stampReward          StampReward @default(FREE_SERVICE)
+  loyaltyMode      LoyaltyMode @default(STAMPS)
+  stampsRequired   Int         @default(9)
+  stampReward      StampReward @default(FREE_SERVICE)
   /// FREE_SERVICE: tope en pesos (0 = sin tope) · PERCENT: % · AMOUNT: pesos
-  stampRewardValue     Decimal     @default(0) @db.Decimal(10, 2)
+  stampRewardValue Decimal     @default(0) @db.Decimal(10, 2)
   /// Gasto mínimo del ticket para ganar sello (0 = cualquier visita con servicio)
-  stampMinAmount       Decimal     @default(0) @db.Decimal(10, 2)
-  autoLoyaltyMsgs      Boolean     @default(true)
-  loyaltyPointsPerPeso Decimal     @default(0) @db.Decimal(6, 3)
-  loyaltyPesoPerPoint  Decimal     @default(0.10) @db.Decimal(6, 3)
+  stampMinAmount   Decimal     @default(0) @db.Decimal(10, 2)
+  autoLoyaltyMsgs  Boolean     @default(true)
+
+  // Pago de comisiones: semanal (día de la semana), quincenal (15 y fin de mes) o mensual (fin de mes)
+  payoutFrequency      PayoutFrequency @default(WEEKLY)
+  /// 0 domingo … 6 sábado (solo semanal)
+  payoutWeekday        Int             @default(6)
+  loyaltyPointsPerPeso Decimal         @default(0) @db.Decimal(6, 3)
+  loyaltyPesoPerPoint  Decimal         @default(0.10) @db.Decimal(6, 3)
   /// Días sin venir para considerar a un cliente "perdido"
-  lostAfterDays        Int         @default(90)
+  lostAfterDays        Int             @default(90)
 
   // Mensajes automáticos
   googleReviewUrl String?
@@ -374,6 +386,8 @@ model Customer {
   /// Tarjeta de sellos: avance actual y premios ganados sin canjear
   stamps           Int             @default(0)
   stampRewards     Int             @default(0)
+  /// Enlace personal del cliente (/mi/<token>): su tarjeta, sus citas y reservar, sin cuenta
+  token            String          @unique @default(dbgenerated("replace(((gen_random_uuid())::text || (gen_random_uuid())::text), '-'::text, ''::text)"))
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @default(now()) @updatedAt
 

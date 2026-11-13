@@ -45,7 +45,7 @@ export const tagColor = (c: string) => `var(--color-${TAG_TOKEN[c] ?? "brand"})`
 const DAY = 86_400_000;
 
 export type CustomerStats = {
-  id: string; name: string; phone: string; email: string | null;
+  id: string; name: string; phone: string; email: string | null; token: string;
   birthday: Date | null; acceptsMarketing: boolean; points: number; createdAt: Date;
   visits: number; firstVisit: Date | null; lastVisit: Date | null; spent: number; noShows: number;
   /** Días promedio entre visitas (null con menos de 2) */
@@ -59,7 +59,7 @@ export type CustomerStats = {
 };
 
 type Row = {
-  id: string; name: string; phone: string; email: string | null; birthday: Date | null;
+  id: string; name: string; phone: string; email: string | null; token: string; birthday: Date | null;
   acceptsMarketing: boolean; points: number; createdAt: Date;
   visits: number; first: Date | null; last: Date | null; spent: string | null; no_shows: number; tag_ids: string[] | null;
 };
@@ -94,7 +94,7 @@ export async function customerStats(shopId: string, opts: { customerId?: string;
       SELECT "customerId", "createdAt" FROM sales
        WHERE "shopId" = ${shopId}::uuid AND status = 'PAID' AND "appointmentId" IS NULL AND "customerId" IS NOT NULL
     )
-    SELECT c.id, c.name, c.phone, c.email, c.birthday, c."acceptsMarketing", c.points, c."createdAt",
+    SELECT c.id, c.name, c.phone, c.email, c.token, c.birthday, c."acceptsMarketing", c.points, c."createdAt",
            COALESCE(v.visits, 0)::int AS visits, v.first, v.last,
            s.spent::text AS spent, COALESCE(n.no_shows, 0)::int AS no_shows, t.tag_ids
       FROM customers c
@@ -110,7 +110,7 @@ export async function customerStats(shopId: string, opts: { customerId?: string;
   const stats = rows.map((r): CustomerStats => {
     const k = classify(r, opts.lostAfterDays, now);
     return {
-      id: r.id, name: r.name, phone: r.phone, email: r.email, birthday: r.birthday,
+      id: r.id, name: r.name, phone: r.phone, email: r.email, token: r.token, birthday: r.birthday,
       acceptsMarketing: r.acceptsMarketing, points: r.points, createdAt: r.createdAt,
       visits: r.visits, firstVisit: r.first, lastVisit: r.last, spent: Number(r.spent ?? 0), noShows: r.no_shows,
       ...k, vip: false, tagIds: r.tag_ids ?? [],

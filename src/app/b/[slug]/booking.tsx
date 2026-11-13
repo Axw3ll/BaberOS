@@ -32,17 +32,17 @@ declare global {
   interface Window { turnstile?: { render: (el: HTMLElement, o: { sitekey: string; callback: (t: string) => void }) => void } }
 }
 
-export function Booking({ slug, tz, days, services, staff, captchaKey, shopName }: {
+export function Booking({ slug, tz, days, services, staff, captchaKey, shopName, known }: {
   slug: string; tz: string; days: string[]; services: Svc[]; staff: { id: string; name: string }[];
-  captchaKey: string | null; shopName: string;
+  captchaKey: string | null; shopName: string; known?: { name: string; phone: string } | null;
 }) {
   const [serviceId, setServiceId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [date, setDate] = useState(days[0]);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(known?.name ?? "");
+  const [phone, setPhone] = useState(known?.phone ?? "");
   const [error, setError] = useState("");
   const [done, setDone] = useState<{ summary: string; token: string } | null>(null);
   const [marketing, setMarketing] = useState(false);

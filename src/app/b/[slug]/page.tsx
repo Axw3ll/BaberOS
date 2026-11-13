@@ -12,10 +12,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return { title: shop ? `Reservar en ${shop.name}` : "Reservar" };
 }
 
-export default async function PublicBookingPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PublicBookingPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ c?: string }> }) {
   const { slug } = await params;
+  const { c } = await searchParams;
   const shop = await prisma.barbershop.findUnique({ where: { slug } });
   if (!shop) notFound();
+  // Viene de su enlace personal: ya sabemos quién es
+  const me = c && /^[0-9a-f]{64}$/.test(c) ? await prisma.customer.findFirst({ where: { token: c, shopId: shop.id } }) : null;
 
   const [services, staff] = await Promise.all([
     prisma.service.findMany({
@@ -56,6 +59,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           staff={staff.map((s) => ({ id: s.id, name: s.name }))}
           captchaKey={turnstileSiteKey}
           shopName={shop.name}
+          known={me && { name: me.name, phone: me.phone }}
         />
       )}
       </div>

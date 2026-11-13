@@ -158,32 +158,32 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
   if (shop.autoRebook || shop.autoBirthday) {
     const stats = await customerStats(shop.id, { lostAfterDays: shop.lostAfterDays });
     const day = today(tz);
-    const vars = (c: { name: string; points: number }) => ({ nombre: c.name, barberia: shop.name, enlace: `${base}/b/${shop.slug}`, puntos: c.points });
+    const vars = (c: { name: string; points: number; token: string }) => ({ nombre: c.name, barberia: shop.name, enlace: `${base}/mi/${c.token}`, puntos: c.points });
     for (const c of stats) {
       if (!c.acceptsMarketing) continue;
       if (shop.autoRebook && (c.stage === "activo" || c.stage === "nuevo") && c.expectedBack && c.lastVisit && !futureCustomers.has(c.id)) {
         const back = c.expectedBack.getTime();
         if (back - now <= D && now - back <= 4 * D) {
-          drafts.push({ kind: "REBOOK", key: `RB:${c.id}:${toLocalDate(c.lastVisit, tz)}`, customerId: c.id, body: fillTemplate(REBOOK_TEXT, vars(c)), params: [c.name.split(/\s+/)[0], shop.name, `${base}/b/${shop.slug}`], dueAt: new Date(back - D) });
+          drafts.push({ kind: "REBOOK", key: `RB:${c.id}:${toLocalDate(c.lastVisit, tz)}`, customerId: c.id, body: fillTemplate(REBOOK_TEXT, vars(c)), params: [c.name.split(/\s+/)[0], shop.name, `${base}/mi/${c.token}`], dueAt: new Date(back - D) });
         }
       }
       if (shop.autoBirthday && c.birthday && daysToBirthday(c.birthday, day) === 0) {
-        drafts.push({ kind: "BIRTHDAY", key: `BD:${c.id}:${day.slice(0, 4)}`, customerId: c.id, body: fillTemplate(BIRTHDAY_TEXT, vars(c)), params: [c.name.split(/\s+/)[0], shop.name, `${base}/b/${shop.slug}`], dueAt: new Date(now) });
+        drafts.push({ kind: "BIRTHDAY", key: `BD:${c.id}:${day.slice(0, 4)}`, customerId: c.id, body: fillTemplate(BIRTHDAY_TEXT, vars(c)), params: [c.name.split(/\s+/)[0], shop.name, `${base}/mi/${c.token}`], dueAt: new Date(now) });
       }
     }
   }
 
   // Tarjeta de sellos: "te falta 1" y "ganaste tu premio", justo después del sello que lo provocó
   if (shop.loyaltyMode === "STAMPS" && shop.autoLoyaltyMsgs) {
-    const recent = await prisma.$queryRaw<{ id: string; customerId: string; balance: number; name: string; stamps: number; stampRewards: number }[]>`
-      SELECT DISTINCT ON (m."customerId") m.id, m."customerId", m.balance, c.name, c.stamps, c."stampRewards"
+    const recent = await prisma.$queryRaw<{ id: string; customerId: string; balance: number; name: string; stamps: number; stampRewards: number; token: string }[]>`
+      SELECT DISTINCT ON (m."customerId") m.id, m."customerId", m.balance, c.name, c.stamps, c."stampRewards", c.token
         FROM loyalty_movements m JOIN customers c ON c.id = m."customerId"
        WHERE m."shopId" = ${shop.id}::uuid AND m.kind = 'STAMP' AND m.points > 0 AND m."createdAt" > now() - interval '3 days'
          AND c."acceptsMarketing"
        ORDER BY m."customerId", m."createdAt" DESC`;
     const premio = stampRewardLabel(shop);
-    const enlace = `${base}/b/${shop.slug}`;
     for (const r of recent) {
+      const enlace = `${base}/mi/${r.token}`;
       const nombre = r.name.split(/\s+/)[0];
       // Solo si el último movimiento sigue vigente (no se canceló la venta después)
       if (r.balance !== r.stamps) continue;

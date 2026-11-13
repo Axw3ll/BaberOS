@@ -13,6 +13,8 @@ import { Chip, Dot, Field, Figure, PageHeader, SectionTitle, Status } from "@/co
 import { ActionForm, Submit } from "@/components/action-form";
 import { WhatsAppMenu } from "@/components/whatsapp-menu";
 import { StampCard } from "@/components/stamp-card";
+import { ShareLink } from "@/components/share-link";
+import { baseUrl } from "@/lib/messages";
 import { stampRewardLabel } from "@/lib/loyalty";
 import { addActivity, adjustPoints, adjustStamps, createTag, deleteActivity, deleteCustomer, toggleTag, updateCustomer } from "../actions";
 import { createTask, deleteTask, toggleTask } from "../../seguimiento/actions";
@@ -82,6 +84,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   const rewardLabel = stampRewardLabel(shop);
   const myTagIds = new Set(c.tags.map((t) => t.tagId));
 
+  const personal = `${await baseUrl()}/mi/${c.token}`;
   // Mensajes de WhatsApp listos para mandar
   const vars = { nombre: c.name, barberia: shop.name, enlace: bookingUrl(shop.slug), puntos: c.points };
   const messages = QUICK_MESSAGES.map((m) => {
@@ -123,6 +126,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
         }
         actions={
           <>
+            <ShareLink customerId={c.id} phone={c.phone} url={personal} shopName={shop.name} name={c.name} />
             <WhatsAppMenu customerId={c.id} messages={messages} chatUrl={whatsappUrl(c.phone)}
               disabled={c.acceptsMarketing ? undefined : "Pidió no recibir promociones. Solo abre el chat para temas de su cita."} />
             {canAccess(me.role, "ventas") && stats.visits > 0 && (
