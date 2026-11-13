@@ -45,6 +45,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
       tasks: { include: { assignedTo: true }, orderBy: [{ doneAt: { sort: "desc", nulls: "first" } }, { dueOn: "asc" }], take: 20 },
       loyalty: { orderBy: { createdAt: "desc" }, take: 12 },
       packages: { orderBy: { createdAt: "desc" }, take: 10 },
+      reviews: { include: { staff: true }, orderBy: { createdAt: "desc" }, take: 10 },
     },
   }),
     customerStats(shop.id, { customerId: id, lostAfterDays: shop.lostAfterDays }),
@@ -82,6 +83,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   const bday = c.birthday ? daysToBirthday(c.birthday, day) : null;
   const loyalty = loyaltyOn(shop);
   const packagesOwned = c.packages;
+  const misses = c.appointments.filter((a) => a.status === "NO_SHOW" && a.startsAt.getTime() > now - 180 * 86_400_000).length;
   const stampCard = stampsOn(shop);
   const rewardLabel = stampRewardLabel(shop);
   const myTagIds = new Set(c.tags.map((t) => t.tagId));
@@ -124,6 +126,11 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
             <Dot color={STAGE[stats.stage].color}>{STAGE[stats.stage].label}</Dot>
             {bday !== null && bday <= 7 && <span className="text-sm text-warning">{bday === 0 ? "¡Hoy es su cumpleaños!" : `Cumple en ${bday} ${bday === 1 ? "día" : "días"}`}</span>}
             {!c.acceptsMarketing && <span className="text-sm text-faint">No quiere promociones</span>}
+            {misses >= shop.noShowLimit && (
+              <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-sm font-medium text-danger">
+                Faltó {misses} {misses === 1 ? "vez" : "veces"} en 6 meses{shop.noShowPolicy === "BLOCK" && " · no puede reservar en línea"}
+              </span>
+            )}
           </span>
         }
         actions={
@@ -311,6 +318,21 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                 No tienes programa de lealtad. Activa la tarjeta de sellos o los puntos en{" "}
                 <Link href="/ajustes#lealtad" className="link">Ajustes → Clientes y lealtad</Link>.
               </p>
+            </section>
+          )}
+
+          {c.reviews.length > 0 && (
+            <section>
+              <SectionTitle>Sus calificaciones</SectionTitle>
+              <ul className="space-y-3 text-sm">
+                {c.reviews.map((r) => (
+                  <li key={r.id}>
+                    <span className={r.rating <= 3 ? "text-danger" : "text-warning"} aria-label={`${r.rating} de 5`}>{"★".repeat(r.rating)}<span className="text-line">{"★".repeat(5 - r.rating)}</span></span>
+                    <span className="text-muted"> · {r.staff.name} · {dateLabel(toLocalDate(r.createdAt, tz), { day: "numeric", month: "short" })}</span>
+                    {r.comment && <p className="mt-1">“{r.comment}”</p>}
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 

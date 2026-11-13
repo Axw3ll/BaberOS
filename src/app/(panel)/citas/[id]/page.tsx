@@ -8,6 +8,7 @@ import { PageHeader, SectionTitle, Status } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { saveNotes, setStatus } from "../../agenda/actions";
 import { QuickCharge } from "./quick-charge";
+import { noShowFlag } from "@/lib/waitlist";
 
 export const metadata = { title: "Cita" };
 
@@ -19,7 +20,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
   const { shop, me } = await requireSection("agenda");
   const a = await prisma.appointment.findFirst({
     where: { id, shopId: shop.id, ...(seesOnlyOwnAgenda(me.role) && { staffId: me.id }) },
-    include: { customer: true, staff: true, services: true, sale: true, shop: true },
+    include: { customer: true, staff: true, services: true, sale: true, shop: true, review: true },
   });
   if (!a) notFound();
   const tz = shop.timezone;
@@ -27,6 +28,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
   const total = a.services.reduce((s, x) => s + Number(x.price), 0);
   const minutes = a.services.reduce((s, x) => s + x.minutes, 0);
   const open = !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(a.status);
+  const misses = await noShowFlag(shop, a.customerId);
 
   const action = (status: string, label: string, cls = "btn-quiet") => (
     <form action={setStatus}>
@@ -45,6 +47,18 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
         actions={<Status status={a.status} />}
       />
 
+      {misses.flagged && open && (
+        <p role="alert" className="-mt-4 mb-6 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">
+          Este cliente faltó {misses.count} {misses.count === 1 ? "vez" : "veces"} en los últimos 6 meses. Conviene confirmarle por WhatsApp antes de la cita.
+        </p>
+      )}
+      {a.review && (
+        <p className="-mt-4 mb-6 rounded-xl bg-hover px-4 py-3 text-sm">
+          <span className={a.review.rating <= 3 ? "text-danger" : "text-warning"}>{"★".repeat(a.review.rating)}</span>
+          <span className="text-muted"> Calificó esta visita con {a.review.rating} de 5</span>
+          {a.review.comment && <span className="mt-1 block">“{a.review.comment}”</span>}
+        </p>
+      )}
       {nueva && <p role="status" className="-mt-4 mb-6 rounded-xl bg-success/10 px-4 py-3 text-success">Cita agendada.</p>}
       {error === "ocupado" && (
         <p role="alert" className="-mt-4 mb-10 text-danger">Ese horario ya lo tomó otra cita. Agenda una nueva en otro horario.</p>

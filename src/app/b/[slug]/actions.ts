@@ -5,6 +5,7 @@ import { addDays, dateLabel, isDate, timeLabel, toLocalDate, today } from "@/lib
 import { allow, clientIp, verifyTurnstile } from "@/lib/guard";
 import * as v from "@/lib/validate";
 import { accessFor, canUsePanel } from "@/lib/billing";
+import { joinWaitlist, markWaitlistBooked, noShowFlag, WaitlistError } from "@/lib/waitlist";
 
 const BUSY = "Demasiados intentos. Espera unos minutos y vuelve a intentar.";
 
@@ -62,6 +63,10 @@ export async function publicBook(input: {
   const upcoming = await prisma.appointment.count({
     where: { shopId: shop.id, customer: { phone }, startsAt: { gt: new Date() }, status: { in: ["PENDING", "CONFIRMED"] } },
   });
+  const known = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone: vPhone.value! } } });
+  if (known && (await noShowFlag(shop, known.id)).blocked) {
+    return { error: `Para agendar, comunícate directo con la barbería${shop.phone ? ` al ${shop.phone}` : ""}.` };
+  }
   if (upcoming >= 2) return { error: "Ya tienes 2 citas próximas. Para agendar otra, llama a la barbería." };
   const at = new Date(input.at);
   if (Number.isNaN(at.getTime())) return { error: "Elige un horario." };
@@ -75,10 +80,43 @@ export async function publicBook(input: {
       source: "ONLINE", notes: input.notes?.slice(0, 300),
       checkAvailability: { ignoreNotice: false, date: toLocalDate(at, shop.timezone) },
     });
+    await markWaitlistBooked(shop.id, a.customerId, toLocalDate(a.startsAt, shop.timezone));
     const staff = allowed.find((s) => s.id === a.staffId)!;
     return { ok: true, token: a.token, summary: `${dateLabel(toLocalDate(a.startsAt, shop.timezone))} a las ${timeLabel(a.startsAt, shop.timezone)} con ${staff.name}` };
   } catch (e) {
     if (e instanceof BookingError) return { error: e.message };
     throw e;
   }
+}
+
+/** "Avísame si se libera un lugar": el día ya no tiene horarios. */
+export async function publicWaitlist(input: {
+  slug: string; serviceId: string; staffId: string; date: string; name: string; phone: string; website?: string;
+}): Promise<{ error: string } | { ok: true }> {
+  if (input.website) return { error: "No se pudo." };
+  const vName = v.text(input.name, "tu nombre", { required: true, max: 80 });
+  const vPhone = v.phone(input.phone, { required: true });
+  const err = v.first(vName, vPhone);
+  if (err) return { error: err };
+  if (!(await allow(`wait:ip:${await clientIp()}`, 6, 3600))) return { error: BUSY };
+  const shop = await shopBySlug(input.slug);
+  if (!shop || !isDate(input.date)) return { error: "Esta barbería no existe." };
+  const t = today(shop.timezone);
+  if (input.date < t || input.date > addDays(t, shop.maxAdvanceDays)) return { error: "Elige otro día." };
+  if (!(await candidates(shop.id, input.serviceId, input.staffId)).length) return { error: "Ese servicio ya no está disponible en línea." };
+  const customer = await prisma.customer.upsert({
+    where: { shopId_phone: { shopId: shop.id, phone: vPhone.value! } },
+    update: {},
+    create: { shopId: shop.id, phone: vPhone.value!, name: vName.value! },
+  });
+  if ((await noShowFlag(shop, customer.id)).blocked) {
+    return { error: `Para agendar, comunícate directo con la barbería${shop.phone ? ` al ${shop.phone}` : ""}.` };
+  }
+  try {
+    await joinWaitlist(shop, { customerId: customer.id, date: input.date, serviceId: input.serviceId, staffId: input.staffId === "any" ? null : input.staffId });
+  } catch (e) {
+    if (e instanceof WaitlistError) return { error: e.message };
+    throw e;
+  }
+  return { ok: true };
 }

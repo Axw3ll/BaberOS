@@ -6,6 +6,7 @@ import { addDays, dateLabel, timeLabel, toLocalDate, today } from "@/lib/time";
 import { minutesLabel, money } from "@/lib/format";
 import { Dot, STATUS } from "@/components/ui";
 import { Manage } from "./manage";
+import { Rate, Thanks } from "./rate";
 import { StampCard } from "@/components/stamp-card";
 import { stampRewardLabel } from "@/lib/loyalty";
 
@@ -14,7 +15,7 @@ export const metadata = { title: "Tu cita", robots: { index: false } };
 export default async function ClientAppointmentPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!/^[0-9a-f]{64}$/.test(token)) notFound();
-  const a = await prisma.appointment.findUnique({ where: { token }, include: { shop: true, services: true, staff: true, customer: true } });
+  const a = await prisma.appointment.findUnique({ where: { token }, include: { shop: true, services: true, staff: true, customer: true, review: true } });
   if (!a) notFound();
   const tz = a.shop.timezone, day = toLocalDate(a.startsAt, tz);
   const open = (a.status === "PENDING" || a.status === "CONFIRMED") && a.startsAt.getTime() > Date.now();
@@ -55,9 +56,12 @@ export default async function ClientAppointmentPage({ params }: { params: Promis
           ) : (
             <div className="mt-6 rounded-xl bg-hover p-4 text-sm text-muted">
               {a.status === "CANCELLED" ? "Esta cita está cancelada." : a.status === "COMPLETED" ? "¡Gracias por venir!" : "Esta cita ya pasó."}
-              <Link href={`/b/${a.shop.slug}`} className="link mt-2 block">Reservar otra cita</Link>
+              <Link href={`/b/${a.shop.slug}?c=${a.customer.token}`} className="link mt-2 block">Reservar otra cita</Link>
             </div>
           )}
+          {a.status === "COMPLETED" && (a.review
+            ? <Thanks googleUrl={a.shop.googleReviewUrl} />
+            : <Rate token={token} barber={a.staff.name.split(" ")[0]} googleUrl={a.shop.googleReviewUrl} />)}
         </div>
         {a.shop.loyaltyMode === "STAMPS" && (a.customer.stamps > 0 || a.customer.stampRewards > 0) && (
           <div className="mt-4">

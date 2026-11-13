@@ -88,6 +88,11 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
   ]);
 
   const n = (v: string | null) => Number(v ?? 0);
+  const [ratings, latestReviews] = await Promise.all([
+    prisma.review.groupBy({ by: ["staffId"], where: { shopId: S, createdAt: { gte: from, lt: to } }, _avg: { rating: true }, _count: true }),
+    prisma.review.findMany({ where: { shopId: S, createdAt: { gte: from, lt: to } }, include: { customer: true, staff: true }, orderBy: { createdAt: "desc" }, take: 6 }),
+  ]);
+  const ratingOf = new Map(ratings.map((x) => [x.staffId, x]));
   const c: Agg = { revenue: n(cur.revenue), tickets: cur.tickets, tips: n(cur.tips), customers: cur.customers };
   const b: Agg = { revenue: n(prev.revenue), tickets: prev.tickets, tips: n(prev.tips), customers: prev.customers };
   const avg = c.tickets ? c.revenue / c.tickets : 0, avgPrev = b.tickets ? b.revenue / b.tickets : 0;
@@ -173,7 +178,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
         <SectionTitle aside="Comisión calculada al momento de cada venta">Por barbero</SectionTitle>
         {byStaff.length === 0 ? <p className="text-muted">Sin ventas en el periodo.</p> : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left">
+            <table className="w-full min-w-[720px] text-left">
               <thead className="text-sm text-muted">
                 <tr className="border-b border-line">
                   <th className="py-2 pr-4 font-normal">Barbero</th>
@@ -181,6 +186,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
                   <th className="py-2 pr-4 text-right font-normal">Clientes</th>
                   <th className="py-2 pr-4 text-right font-normal">En servicios</th>
                   <th className="py-2 pr-4 text-right font-normal">En productos</th>
+                  <th className="py-2 pr-4 text-right font-normal">Calificación</th>
                   <th className="py-2 text-right font-normal">Comisión</th>
                 </tr>
               </thead>
@@ -192,6 +198,9 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
                     <td className="py-3 pr-4 text-right tnum">{s.customers}</td>
                     <td className="py-3 pr-4 text-right tnum">{money(n(s.svc))}</td>
                     <td className="py-3 pr-4 text-right tnum">{money(n(s.prod))}</td>
+                    <td className="py-3 pr-4 text-right tnum">
+                      {ratingOf.get(s.id) ? <><span className="text-warning">★</span> {ratingOf.get(s.id)!._avg.rating!.toFixed(1)} <span className="text-sm text-muted">({ratingOf.get(s.id)!._count})</span></> : <span className="text-faint">—</span>}
+                    </td>
                     <td className="py-3 text-right tnum">{money(n(s.commission))}</td>
                   </tr>
                 ))}
@@ -203,6 +212,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
                   <td className="py-2 pr-4" />
                   <td className="py-2 pr-4 text-right tnum">{money(byStaff.reduce((a, s) => a + n(s.svc), 0))}</td>
                   <td className="py-2 pr-4 text-right tnum">{money(byStaff.reduce((a, s) => a + n(s.prod), 0))}</td>
+                  <td className="py-2 pr-4" />
                   <td className="py-2 text-right tnum">{money(byStaff.reduce((a, s) => a + n(s.commission), 0))}</td>
                 </tr>
               </tfoot>
@@ -210,6 +220,21 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           </div>
         )}
       </section>
+
+      {latestReviews.length > 0 && (
+        <section className="mb-8">
+          <SectionTitle aside="Llegan solas: el mensaje de después de la visita pide calificar">Lo que dicen tus clientes</SectionTitle>
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {latestReviews.map((r) => (
+              <li key={r.id} className="text-sm">
+                <span className={r.rating <= 3 ? "text-danger" : "text-warning"}>{"★".repeat(r.rating)}</span>
+                <span className="text-muted"> <Link href={`/clientes/${r.customerId}`} className="hover:text-fg">{r.customer.name}</Link> con {r.staff.name}</span>
+                {r.comment && <p className="mt-1">“{r.comment}”</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mb-8 grid gap-6 md:grid-cols-2">
         <section>

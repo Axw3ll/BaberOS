@@ -1,4 +1,7 @@
 "use server";
+import { after } from "next/server";
+import { baseUrl } from "@/lib/messages";
+import { notifyWaitlist } from "@/lib/waitlist";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -124,6 +127,10 @@ export async function setStatus(data: FormData) {
     if (status === "CANCELLED" || status === "NO_SHOW") {
       await audit(shop.id, me.id, status === "CANCELLED" ? "cita.cancelada" : "cita.no_llego",
         `${status === "CANCELLED" ? "Canceló" : "Marcó que no llegó"} la cita de ${a.customer.name}`, { type: "appointment", id });
+    }
+    if (status === "CANCELLED") {
+      const base = await baseUrl();
+      after(() => notifyWaitlist(shop, a, base).catch((e) => console.error("waitlist", e)));
     }
   } catch (e) {
     if (String(e).includes("appointments_no_overlap")) redirect(`/citas/${id}?error=ocupado`);

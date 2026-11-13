@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import Script from "next/script";
-import { CalendarCheck, Link2 } from "lucide-react";
+import { BellRing, CalendarCheck, Link2 } from "lucide-react";
 import { minutesLabel, money } from "@/lib/format";
-import { publicBook, publicSlots } from "./actions";
+import { publicBook, publicSlots, publicWaitlist } from "./actions";
 
 type Svc = { id: string; name: string; description: string | null; minutes: number; price: number; staffIds: string[] };
 type Slot = { at: string; staffId: string };
@@ -32,13 +32,18 @@ declare global {
   interface Window { turnstile?: { render: (el: HTMLElement, o: { sitekey: string; callback: (t: string) => void }) => void } }
 }
 
-export function Booking({ slug, tz, days, services, staff, captchaKey, shopName, known }: {
+export function Booking({ slug, tz, days, services, staff, captchaKey, shopName, known, initial }: {
   slug: string; tz: string; days: string[]; services: Svc[]; staff: { id: string; name: string }[];
   captchaKey: string | null; shopName: string; known?: { name: string; phone: string } | null;
+  initial?: { serviceId?: string; staffId?: string; date?: string };
 }) {
-  const [serviceId, setServiceId] = useState("");
-  const [staffId, setStaffId] = useState("");
-  const [date, setDate] = useState(days[0]);
+  // Viene del aviso "se liberó un lugar": llega con servicio, barbero y día ya elegidos
+  const init = services.find((s) => s.id === initial?.serviceId);
+  const [serviceId, setServiceId] = useState(init?.id ?? "");
+  const [staffId, setStaffId] = useState(init && initial?.staffId && init.staffIds.includes(initial.staffId) ? initial.staffId : init?.staffIds.length === 1 ? init.staffIds[0] : "");
+  const [date, setDate] = useState(initial?.date && days.includes(initial.date) ? initial.date : days[0]);
+  const [waitOpen, setWaitOpen] = useState(false);
+  const [waitDone, setWaitDone] = useState("");
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slot, setSlot] = useState<Slot | null>(null);
   const [name, setName] = useState(known?.name ?? "");
@@ -57,7 +62,7 @@ export function Booking({ slug, tz, days, services, staff, captchaKey, shopName,
   const fmt = (iso: string) => new Intl.DateTimeFormat("es-MX", { timeZone: tz, hour: "numeric", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 
   useEffect(() => {
-    setSlot(null);
+    setSlot(null); setWaitOpen(false); setWaitDone("");
     if (!serviceId || !staffId) { setSlots(null); return; }
     startLoading(async () => setSlots(await publicSlots({ slug, serviceId, staffId, date })));
   }, [slug, serviceId, staffId, date]);
@@ -72,6 +77,16 @@ export function Booking({ slug, tz, days, services, staff, captchaKey, shopName,
         setError(r.error);
         startLoading(async () => setSlots(await publicSlots({ slug, serviceId, staffId, date })));
       } else setDone({ summary: r.summary, token: r.token });
+    });
+  }
+
+  function joinWait(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    startSending(async () => {
+      const r = await publicWaitlist({ slug, serviceId, staffId, date, name, phone, website });
+      if ("error" in r) setError(r.error);
+      else setWaitDone(date);
     });
   }
 
@@ -139,7 +154,28 @@ export function Booking({ slug, tz, days, services, staff, captchaKey, shopName,
           </div>
           <div className="mt-6 min-h-24">
             {loading || slots === null ? <p className="text-muted">Buscando horarios…</p> : slots.length === 0 ? (
-              <p className="text-muted">No quedan horarios este día. Prueba otro.</p>
+              <div>
+                <p className="text-muted">No quedan horarios este día. Prueba otro.</p>
+                {waitDone === date ? (
+                  <p role="status" className="mt-4 flex items-start gap-3 rounded-xl bg-success/10 p-4 text-sm">
+                    <BellRing className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
+                    <span>Listo, estás en la lista de espera del {dayName(date, { weekday: "long", day: "numeric" })}. Si alguien cancela, te avisamos por WhatsApp para que lo apartes.</span>
+                  </p>
+                ) : !waitOpen ? (
+                  <button type="button" onClick={() => setWaitOpen(true)} className="btn-quiet mt-4"><BellRing className="size-4" aria-hidden />Avísame si se libera un lugar</button>
+                ) : (
+                  <form onSubmit={joinWait} className="mt-4 space-y-3 rounded-xl bg-hover p-4">
+                    <p className="text-sm text-muted">Si alguien cancela el {dayName(date, { weekday: "long", day: "numeric" })}, te mandamos un WhatsApp.</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block"><span className="label">Nombre</span><input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" className="field" /></label>
+                      <label className="block"><span className="label">Teléfono</span><input value={phone} onChange={(e) => setPhone(e.target.value)} required inputMode="tel" autoComplete="tel" className="field" placeholder="10 dígitos" /></label>
+                    </div>
+                    <input value={website} onChange={(e) => setWebsite(e.target.value)} name="website" tabIndex={-1} autoComplete="off" className="absolute -left-[9999px] h-0 w-0 opacity-0" aria-hidden />
+                    {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+                    <button disabled={sending} className="btn-primary">{sending ? "Guardando…" : "Avísame"}</button>
+                  </form>
+                )}
+              </div>
             ) : (
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                 {slots.map((s) => (

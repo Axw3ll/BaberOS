@@ -5,7 +5,8 @@ import { unpaidCommissions } from "@/lib/cash";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock, HandCoins, ListOrdered, MessageCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
-import { dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
+import { addDays, dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
+import { noShowCounts } from "@/lib/waitlist";
 import { money } from "@/lib/format";
 import { Empty, Figure, PageHeader, RowLink, Rows, SectionTitle, Status } from "@/components/ui";
 
@@ -25,7 +26,7 @@ export default async function HoyPage() {
 
   const [m, d] = day.slice(5).split("-").map(Number);
   const pay = payrollInfo(shop);
-  const [appts, sales, ownItems, low, birthdays, tasks, outbox, payRows, inQueue] = await Promise.all([
+  const [appts, sales, ownItems, low, birthdays, tasks, outbox, payRows, inQueue, waiting] = await Promise.all([
     prisma.appointment.findMany({
       where: { shopId: shop.id, startsAt: { gte: from, lt: to }, ...staffFilter },
       include: { customer: true, staff: true, services: true },
@@ -55,6 +56,10 @@ export default async function HoyPage() {
     }),
     canAccess(me.role, "ajustes") ? unpaidCommissions(shop.id, undefined, pay.cutoff) : [],
     prisma.queueEntry.count({ where: { shopId: shop.id, status: { in: ["WAITING", "CALLED"] }, createdAt: { gt: new Date(Date.now() - 16 * 3_600_000) } } }),
+    own ? [] : prisma.waitlistEntry.findMany({
+      where: { shopId: shop.id, status: { in: ["ACTIVE", "NOTIFIED"] }, date: { gte: new Date(`${day}T00:00:00Z`), lte: new Date(`${addDays(day, 7)}T00:00:00Z`) } },
+      include: { customer: true }, orderBy: [{ date: "asc" }, { createdAt: "asc" }], take: 8,
+    }),
   ]);
   const payDue = payRows.reduce((a, r) => a + Number(r.due), 0);
 
@@ -63,6 +68,7 @@ export default async function HoyPage() {
   const next = active.filter((a) => a.endsAt.getTime() > now && a.status !== "COMPLETED");
   const done = active.filter((a) => a.status === "COMPLETED").length;
   const pending = active.filter((a) => a.status === "PENDING").length;
+  const misses = await noShowCounts(shop.id, [...new Set(next.map((a) => a.customerId))]);
 
   return (
     <>
@@ -136,7 +142,10 @@ export default async function HoyPage() {
                 <RowLink key={a.id} href={`/citas/${a.id}`}>
                   <span className="w-14 shrink-0 font-display text-lg text-fg tnum">{timeLabel(a.startsAt, tz)}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate">{a.customer.name}</span>
+                    <span className="block truncate">
+                      {a.customer.name}
+                      {(misses.get(a.customerId) ?? 0) >= shop.noShowLimit && <span className="ml-2 rounded-full bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger">Faltó {misses.get(a.customerId)} veces</span>}
+                    </span>
                     <span className="block truncate text-sm text-muted">
                       {a.services.map((s) => s.name).join(", ")}{!own && ` con ${a.staff.name}`}
                     </span>
@@ -167,6 +176,26 @@ export default async function HoyPage() {
                   </Link>
                 </li>
               ))}
+            </ul>
+          </section>
+        )}
+        {waiting.length > 0 && (
+          <section>
+            <SectionTitle>Lista de espera</SectionTitle>
+            <p className="mb-3 text-xs text-muted">Si alguien cancela ese día, les avisamos solos.</p>
+            <ul className="space-y-3 text-sm">
+              {waiting.map((w) => {
+                const d = w.date.toISOString().slice(0, 10);
+                return (
+                  <li key={w.id} className="flex justify-between gap-4">
+                    <Link href={`/clientes/${w.customer.id}`} className="truncate text-muted hover:text-fg">{w.customer.name}</Link>
+                    <span className="shrink-0 text-right">
+                      {d === day ? "Hoy" : dateLabel(d, { weekday: "short", day: "numeric" })}
+                      {w.status === "NOTIFIED" && <span className="block text-xs text-success">Ya se le avisó</span>}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

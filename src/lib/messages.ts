@@ -77,15 +77,10 @@ function apptMessage(kind: MessageKind, shop: Barbershop, a: ApptCtx, base: stri
     case "NO_SHOW":
       return { body: `Hola ${v.nombre}, te esperábamos en ${v.barberia}. ¿Todo bien? Si quieres, aparta otro horario aquí: ${v.reservar}`,
         params: [v.nombre, v.barberia, v.reservar] };
-    case "REVIEW": {
-      const link = shop.googleReviewUrl ?? v.reservar;
-      return {
-        body: shop.googleReviewUrl
-          ? `Gracias por venir a ${v.barberia}, ${v.nombre}. Si te gustó tu corte, nos ayudas muchísimo con una reseña: ${shop.googleReviewUrl}`
-          : `Gracias por venir a ${v.barberia}, ${v.nombre}. ¿Cómo te quedó el corte? Cuéntanos respondiendo este mensaje.`,
-        params: [v.nombre, v.barberia, link],
-      };
-    }
+    case "REVIEW":
+      // Primero califica con nosotros (1 toque); desde ahí se le invita a Google
+      return { body: `Gracias por venir a ${v.barberia}, ${v.nombre}. ¿Cómo te quedó el corte? Califícanos con un toque: ${v.link}`,
+        params: [v.nombre, v.barberia, v.link] };
     default:
       return { body: "", params: [] };
   }
@@ -209,6 +204,12 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
       }
     }
   }
+
+  // Lista de espera de días que ya pasaron
+  await prisma.waitlistEntry.updateMany({
+    where: { shopId: shop.id, status: { in: ["ACTIVE", "NOTIFIED"] }, date: { lt: new Date(`${today(tz)}T00:00:00Z`) } },
+    data: { status: "EXPIRED" },
+  });
 
   let created = 0;
   if (drafts.length) {
