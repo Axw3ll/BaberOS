@@ -7,6 +7,7 @@ import { readSchedule } from "@/lib/schedule";
 import { localToUtc, parseHHMM } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { accessFor, BASIC_STAFF_LIMIT, hasPro } from "@/lib/billing";
 import { baseUrl } from "@/lib/messages";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -32,6 +33,9 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
   if (!name) return { error: "Escribe el nombre." };
   if (!ROLES.includes(role)) return { error: "Elige un rol." };
   if (email && (await prisma.staff.findFirst({ where: { shopId: shop.id, email } }))) return { error: "Ya hay alguien con ese email en el equipo." };
+  if (!hasPro(accessFor(shop)) && (await prisma.staff.count({ where: { shopId: shop.id, active: true } })) >= BASIC_STAFF_LIMIT) {
+    return { error: `El plan Básico incluye hasta ${BASIC_STAFF_LIMIT} personas. Cambia a Pro en Suscripción para agregar más.` };
+  }
 
   const existingUser = email ? await prisma.user.findUnique({ where: { email } }) : null;
   const takes = role !== "RECEPTIONIST";

@@ -4,6 +4,7 @@ import { addDays, today } from "@/lib/time";
 import { MapPin, Phone, Scissors } from "lucide-react";
 import { Booking } from "./booking";
 import { turnstileSiteKey } from "@/lib/guard";
+import { accessFor, canUsePanel } from "@/lib/billing";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -42,7 +43,9 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
       </div>
       <div className="mx-auto -mt-16 max-w-xl px-4 pb-16">
       <div className="card p-5 sm:p-7">
-      {services.length === 0 ? (
+      {!canUsePanel(accessFor(shop)) ? (
+        <p className="text-muted">Las reservas en línea no están disponibles por ahora. Llama o escribe a la barbería.</p>
+      ) : services.length === 0 ? (
         <p className="text-muted">Por ahora no hay reservas en línea. Llama o escribe a la barbería.</p>
       ) : (
         <Booking

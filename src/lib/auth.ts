@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { supabaseServer } from "./supabase/server";
 import type { Role } from "@/generated/prisma/enums";
+import { accessFor, canUsePanel, hasPro, PRO_SECTIONS } from "./billing";
 
 const DEV_EMAIL = process.env.NODE_ENV !== "production" ? process.env.DEV_AUTH_EMAIL : undefined;
 const DEV_ID = "00000000-0000-4000-8000-000000000001";
@@ -51,6 +52,11 @@ export async function requireUser() {
 }
 
 export const SHOP_COOKIE = "barberos_shop";
+export const SUPPORT_COOKIE = "barberos_soporte";
+
+/** Correos con acceso a /admin (tú, como dueño de BarberOS). */
+export const isSuperadmin = (email: string) =>
+  (process.env.SUPERADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase());
 
 /**
  * Barbería activa + mi perfil de staff en ella.
@@ -73,11 +79,18 @@ export const currentContext = cache(async () => {
     user = await ensureUser(s, Boolean(user), Boolean(invite));
     memberships = await membershipsQuery();
   }
+
+  // Modo soporte: un superadmin ve la barbería como su dueño (con aviso visible en el panel)
+  const support = (await cookies()).get(SUPPORT_COOKIE)?.value;
+  if (support && isSuperadmin(s.email)) {
+    const owner = await prisma.staff.findFirst({ where: { shopId: support, role: "OWNER" }, include: { shop: true }, orderBy: { createdAt: "asc" } });
+    if (owner) return { user, me: owner, shop: owner.shop, shops: [owner.shop], support: true };
+  }
   if (memberships.length === 0) redirect("/onboarding");
 
   const wanted = (await cookies()).get(SHOP_COOKIE)?.value;
   const me = memberships.find((m) => m.shopId === wanted) ?? memberships[0];
-  return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop) };
+  return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop), support: false };
 });
 
 export type Section =
@@ -94,10 +107,13 @@ const ACCESS: Record<Role, Section[]> = {
 export const canAccess = (role: Role, s: Section) => ACCESS[role].includes(s);
 export const sectionsFor = (role: Role) => ACCESS[role];
 
-/** Para páginas y server actions: corta si el rol no tiene acceso. */
+/** Para páginas y server actions: corta si el rol no tiene acceso o si la suscripción no lo permite. */
 export async function requireSection(s: Section) {
   const ctx = await currentContext();
   if (!canAccess(ctx.me.role, s)) redirect("/hoy");
+  const access = accessFor(ctx.shop);
+  if (!canUsePanel(access)) redirect("/suscripcion");
+  if ((PRO_SECTIONS as readonly string[]).includes(s) && !hasPro(access)) redirect(`/suscripcion?pro=${s}`);
   return ctx;
 }
 

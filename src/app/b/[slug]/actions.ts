@@ -3,11 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { book, BookingError, slotsFor } from "@/lib/booking";
 import { addDays, dateLabel, isDate, timeLabel, toLocalDate, today } from "@/lib/time";
 import { allow, clientIp, verifyTurnstile } from "@/lib/guard";
+import { accessFor, canUsePanel } from "@/lib/billing";
 
 const BUSY = "Demasiados intentos. Espera unos minutos y vuelve a intentar.";
 
+/** Solo barberías con suscripción vigente reciben reservas en línea. */
 async function shopBySlug(slug: string) {
-  return prisma.barbershop.findUnique({ where: { slug } });
+  const shop = await prisma.barbershop.findUnique({ where: { slug } });
+  return shop && canUsePanel(accessFor(shop)) ? shop : null;
 }
 
 async function candidates(shopId: string, serviceId: string, staffId: string) {

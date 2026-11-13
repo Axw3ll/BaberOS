@@ -1,5 +1,7 @@
 import { after } from "next/server";
-import { LogOut, Scissors } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, LogOut, Scissors } from "lucide-react";
+import { accessFor, billingEnabled } from "@/lib/billing";
 import { baseUrl, syncSoon } from "@/lib/messages";
 import { currentContext, devAuth, ROLE_LABEL, sectionsFor } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -8,9 +10,10 @@ import { initials } from "@/lib/format";
 import { MobileNav, Nav } from "@/components/nav";
 import { signOut } from "../(auth)/actions";
 import { switchShop } from "./actions";
+import { exitSupport } from "../admin/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  const { me, shop, shops } = await currentContext();
+  const { me, shop, shops, support } = await currentContext();
   const sections = sectionsFor(me.role);
   // Prepara recordatorios y avisos después de responder, sin hacer esperar a la página
   const base = await baseUrl();
@@ -27,6 +30,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     }),
   ]);
   const badges = { seguimiento: due + messages };
+  const access = accessFor(shop);
+  const banner = access.state === "past_due"
+    ? { tone: "bg-warning/10 text-warning", text: "No pudimos cobrar tu suscripción. Actualiza tu tarjeta para no perder el acceso." }
+    : access.state === "trial" && (access.daysLeft ?? 99) <= 7
+      ? { tone: "bg-brand-soft text-brand", text: `Te quedan ${access.daysLeft} ${access.daysLeft === 1 ? "día" : "días"} de prueba gratis.` }
+      : null;
 
   const logo = (
     <span className="flex items-center gap-2.5">
@@ -65,7 +74,14 @@ export default async function PanelLayout({ children }: { children: React.ReactN
           <div className="mt-4">{shopSwitch ?? <p className="truncate rounded-lg bg-hover px-3 py-2 text-sm text-muted">{shop.name}</p>}</div>
         </div>
         <div className="-mx-1 flex-1 overflow-y-auto px-1"><Nav sections={sections} badges={badges} /></div>
-        <div className="mt-4 border-t border-line-soft px-2 pt-4">{user}</div>
+        <div className="mt-4 border-t border-line-soft px-2 pt-4">
+          {me.role === "OWNER" && billingEnabled() && (
+            <Link href="/suscripcion" className="mb-3 flex items-center gap-2 rounded-lg px-1 text-sm text-muted hover:text-fg">
+              <CreditCard className="size-4" />Suscripción{access.state === "trial" && <span className="ml-auto rounded-full bg-brand-soft px-2 text-xs text-brand">Prueba</span>}
+            </Link>
+          )}
+          {user}
+        </div>
       </aside>
 
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
@@ -74,10 +90,24 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       </header>
 
       <main className="panel min-w-0 px-4 pt-6 pb-28 sm:px-6 lg:px-10 lg:py-10">
-        <div className="mx-auto max-w-[1200px]">{children}</div>
+        <div className="mx-auto max-w-[1200px]">
+          {support && (
+            <form action={exitSupport} className="mb-6 flex items-center justify-between gap-3 rounded-xl bg-danger px-4 py-3 text-sm font-medium text-white">
+              <span>Modo soporte: estás dentro de la cuenta de {shop.name}. Lo que hagas queda a nombre de su dueño.</span>
+              <button className="shrink-0 underline">Salir</button>
+            </form>
+          )}
+          {banner && (
+            <Link href="/suscripcion" className={`mb-6 flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-medium ${banner.tone}`}>
+              <span>{banner.text}</span>
+              <span className="shrink-0 underline">{me.role === "OWNER" ? "Elegir plan" : "Ver"}</span>
+            </Link>
+          )}
+          {children}
+        </div>
       </main>
 
-      <MobileNav sections={sections} badges={badges} footer={<div className="space-y-3">{shopSwitch}{user}</div>} />
+      <MobileNav sections={sections} badges={badges} footer={<div className="space-y-3">{shopSwitch}{me.role === "OWNER" && billingEnabled() && <Link href="/suscripcion" className="flex items-center gap-2 text-sm text-muted"><CreditCard className="size-4" />Suscripción</Link>}{user}</div>} />
     </div>
   );
 }
