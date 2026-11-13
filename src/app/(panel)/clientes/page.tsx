@@ -64,6 +64,7 @@ export default async function ClientesPage({ searchParams }: {
             {canAccess(me.role, "campanas") && !term && list.length > 0 && seg !== "todos" && (
               <Link href={`/campanas/nueva?seg=${encodeURIComponent(seg)}`} className="btn-quiet">Mandar mensaje a {list.length}</Link>
             )}
+            {me.role !== "BARBER" && <Link href="/clientes/importar" className="btn-ghost">Importar</Link>}
             {me.role !== "BARBER" && <a href={exportHref} className="btn-ghost">Exportar CSV</a>}
             <Link href={href({ nuevo: "1" })} className="btn-primary">Agregar cliente</Link>
           </>
