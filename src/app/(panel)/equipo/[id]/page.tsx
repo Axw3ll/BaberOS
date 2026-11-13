@@ -31,12 +31,12 @@ export default async function StaffPage({ params }: { params: Promise<{ id: stri
         subtitle={`${ROLE_LABEL[s.role]}${s.userId ? "" : s.email ? `. Invitación pendiente para ${s.email}` : ". Sin cuenta"}`}
         actions={s.role !== "OWNER" && s.id !== me.id && (
           <form action={toggleStaff}><input type="hidden" name="id" value={s.id} />
-            <button className={s.active ? "btn-ghost text-rose" : "btn-quiet"}>{s.active ? "Dar de baja" : "Reactivar"}</button>
+            <button className={s.active ? "btn-ghost text-danger" : "btn-quiet"}>{s.active ? "Dar de baja" : "Reactivar"}</button>
           </form>
         )} />
 
-      {locked ? <p className="text-ash">Solo el dueño puede editar este perfil.</p> : (
-        <div className="space-y-16">
+      {locked ? <p className="text-muted">Solo el dueño puede editar este perfil.</p> : (
+        <div className="space-y-6">
           <section className="max-w-2xl">
             <SectionTitle>Perfil</SectionTitle>
             <ActionForm action={updateStaff}>
@@ -58,7 +58,7 @@ export default async function StaffPage({ params }: { params: Promise<{ id: stri
                 <Field label="Comisión por productos (%)"><input name="productCommission" inputMode="numeric" defaultValue={pct(s.productCommission)} className="field tnum" /></Field>
               </div>
               <label className="mt-5 flex items-center gap-2">
-                <input type="checkbox" name="takesAppointments" defaultChecked={s.takesAppointments} className="accent-[var(--color-nickel)]" />
+                <input type="checkbox" name="takesAppointments" defaultChecked={s.takesAppointments} className="accent-[var(--color-brand)]" />
                 Atiende clientes y aparece en la agenda
               </label>
               <div className="mt-6"><Submit>Guardar perfil</Submit></div>
@@ -83,8 +83,8 @@ export default async function StaffPage({ params }: { params: Promise<{ id: stri
                   <div className="grid gap-2 sm:grid-cols-2">
                     {services.map((x) => (
                       <label key={x.id} className="flex items-center gap-3">
-                        <input type="checkbox" name="serviceId" value={x.id} defaultChecked={s.services.some((y) => y.serviceId === x.id)} className="accent-[var(--color-nickel)]" />
-                        <span>{x.name} <span className="text-sm text-ash">{minutesLabel(x.minutes)}</span></span>
+                        <input type="checkbox" name="serviceId" value={x.id} defaultChecked={s.services.some((y) => y.serviceId === x.id)} className="accent-[var(--color-brand)]" />
+                        <span>{x.name} <span className="text-sm text-muted">{minutesLabel(x.minutes)}</span></span>
                       </label>
                     ))}
                   </div>
@@ -98,7 +98,7 @@ export default async function StaffPage({ params }: { params: Promise<{ id: stri
                   <ul className="mb-8 space-y-2">
                     {s.timeOff.map((t) => (
                       <li key={t.id} className="flex items-center justify-between gap-4 text-sm">
-                        <span><span className="tnum">{dateTimeLabel(t.startsAt, shop.timezone)}</span> a <span className="tnum">{dateTimeLabel(t.endsAt, shop.timezone)}</span>{t.reason && <span className="text-ash">. {t.reason}</span>}</span>
+                        <span><span className="tnum">{dateTimeLabel(t.startsAt, shop.timezone)}</span> a <span className="tnum">{dateTimeLabel(t.endsAt, shop.timezone)}</span>{t.reason && <span className="text-muted">. {t.reason}</span>}</span>
                         <form action={removeTimeOff}><input type="hidden" name="id" value={s.id} /><input type="hidden" name="timeOffId" value={t.id} />
                           <button className="btn-ghost text-sm">Quitar</button></form>
                       </li>

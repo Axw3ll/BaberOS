@@ -36,7 +36,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         }
       />
 
-      <div className="grid gap-14 lg:grid-cols-[1fr_340px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <section>
           <SectionTitle>Datos</SectionTitle>
           <ActionForm action={updateProduct}>
@@ -47,7 +47,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </ActionForm>
         </section>
 
-        <aside className="space-y-12">
+        <aside className="space-y-6">
           <section>
             <SectionTitle>Mover inventario</SectionTitle>
             <ActionForm action={moveStock} resetOnOk className="space-y-4">
@@ -71,18 +71,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <section>
             <SectionTitle>Movimientos</SectionTitle>
             {p.moves.length === 0 ? (
-              <p className="text-sm text-ash">Sin movimientos todavía.</p>
+              <p className="text-sm text-muted">Sin movimientos todavía.</p>
             ) : (
               <ul className="space-y-3 text-sm">
                 {p.moves.map((m) => (
                   <li key={m.id} className="flex justify-between gap-4">
                     <span>
                       {MOVE[m.type]}{m.sale && ` #${m.sale.folio}`}
-                      <span className="block text-xs text-ash">{dateTimeLabel(m.createdAt, shop.timezone)}{m.note && `. ${m.note}`}</span>
+                      <span className="block text-xs text-muted">{dateTimeLabel(m.createdAt, shop.timezone)}{m.note && `. ${m.note}`}</span>
                     </span>
                     <span className="text-right tnum">
-                      <span className={m.quantity < 0 ? "text-ash" : "text-foam"}>{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</span>
-                      <span className="block text-xs text-ash-2">quedan {m.stockAfter}</span>
+                      <span className={m.quantity < 0 ? "text-muted" : "text-fg"}>{m.quantity > 0 ? `+${m.quantity}` : m.quantity}</span>
+                      <span className="block text-xs text-faint">quedan {m.stockAfter}</span>
                     </span>
                   </li>
                 ))}

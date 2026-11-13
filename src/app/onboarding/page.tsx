@@ -9,9 +9,9 @@ export default async function Onboarding() {
   const user = await requireUser();
   return (
     <main className="mx-auto max-w-lg px-6 py-20">
-      <span className="font-display text-lg text-ash">BarberOS</span>
+      <span className="font-display text-lg text-muted">BarberOS</span>
       <h1 className="mt-10 font-display text-4xl leading-tight">Hola, {user.name.split(" ")[0]}. Registra tu barbería.</h1>
-      <p className="mt-3 text-ash">Podrás cambiar todo después en Ajustes. Empezamos con horario de lunes a sábado, de 10:00 a 20:00.</p>
+      <p className="mt-3 text-muted">Podrás cambiar todo después en Ajustes. Empezamos con horario de lunes a sábado, de 10:00 a 20:00.</p>
 
       <ActionForm action={createShop} className="mt-12 space-y-5">
         <Field label="Nombre de la barbería"><input name="name" required className="field" placeholder="Barbería La Navaja" /></Field>
@@ -21,12 +21,12 @@ export default async function Onboarding() {
         </div>
         <fieldset className="space-y-3 pt-2">
           <label className="flex items-start gap-3">
-            <input type="checkbox" name="works" defaultChecked className="mt-1 accent-[var(--color-nickel)]" />
-            <span>También atiendo clientes<span className="block text-sm text-ash">Te agregamos como barbero en la agenda.</span></span>
+            <input type="checkbox" name="works" defaultChecked className="mt-1 accent-[var(--color-brand)]" />
+            <span>También atiendo clientes<span className="block text-sm text-muted">Te agregamos como barbero en la agenda.</span></span>
           </label>
           <label className="flex items-start gap-3">
-            <input type="checkbox" name="starter" defaultChecked className="mt-1 accent-[var(--color-nickel)]" />
-            <span>Crear servicios básicos<span className="block text-sm text-ash">Corte, barba, y corte con barba. Ajusta precios después.</span></span>
+            <input type="checkbox" name="starter" defaultChecked className="mt-1 accent-[var(--color-brand)]" />
+            <span>Crear servicios básicos<span className="block text-sm text-muted">Corte, barba, y corte con barba. Ajusta precios después.</span></span>
           </label>
         </fieldset>
         <div className="pt-4"><Submit pending="Creando…">Crear barbería</Submit></div>

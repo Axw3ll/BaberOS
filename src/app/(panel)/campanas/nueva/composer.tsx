@@ -33,7 +33,7 @@ export function Composer({ audiences, presets, initialAudience, sample }: {
           <div className="flex flex-wrap gap-2">
             {presets.map((p) => (
               <button key={p.id} type="button" onClick={() => { setMessage(p.text); if (!name) setName(p.label); }}
-                className="rounded-full border border-line px-3 py-1 text-sm text-ash transition-colors hover:border-ash-2 hover:text-foam">
+                className="rounded-full border border-line px-3 py-1 text-sm text-muted transition-colors hover:border-faint hover:text-fg">
                 {p.label}
               </button>
             ))}
@@ -47,10 +47,10 @@ export function Composer({ audiences, presets, initialAudience, sample }: {
 
       <aside>
         <span className="label">Así le llega a {sample.nombre}</span>
-        <div className="rounded-lg border border-line bg-ink-2 p-4">
-          <p className="max-w-[28ch] rounded-lg rounded-tl-sm bg-ink-3 px-3 py-2 text-sm whitespace-pre-line">{fill(message, sample) || "…"}</p>
+        <div className="rounded-lg border border-line bg-hover p-4">
+          <p className="max-w-[28ch] rounded-lg rounded-tl-sm bg-selected px-3 py-2 text-sm whitespace-pre-line">{fill(message, sample) || "…"}</p>
         </div>
-        <p className="mt-4 text-sm text-ash">
+        <p className="mt-4 text-sm text-muted">
           Después verás la lista de clientes con un botón para abrir WhatsApp con el mensaje escrito. Así no hace falta una cuenta de WhatsApp Business ni plantillas aprobadas.
         </p>
       </aside>

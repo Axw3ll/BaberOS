@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarCheck, Clock, Send, TrendingUp, Users } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
@@ -45,35 +46,35 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
           <form action={closeCampaign}><input type="hidden" name="id" value={c.id} /><button className="btn-ghost">Dar por terminada</button></form>
         )} />
 
-      <div className="mb-14 grid grid-cols-2 gap-x-10 gap-y-6 sm:flex sm:flex-wrap">
-        <Figure value={c.recipients.length} label="Destinatarios" />
-        <Figure value={sentList.length} label="Enviados" />
-        <Figure value={pending.length} label="Por enviar" />
-        <Figure value={responded.size} label="Agendaron después" />
-        {sentList.length > 0 && <Figure value={`${Math.round((responded.size / sentList.length) * 100)}%`} label="Respuesta" />}
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+        <Figure value={c.recipients.length} label="Destinatarios" icon={Users} />
+        <Figure value={sentList.length} label="Enviados" icon={Send} tone="success" />
+        <Figure value={pending.length} label="Por enviar" icon={Clock} tone="warning" />
+        <Figure value={responded.size} label="Agendaron después" icon={CalendarCheck} tone="success" />
+        {sentList.length > 0 && <Figure value={`${Math.round((responded.size / sentList.length) * 100)}%`} label="Respuesta" icon={TrendingUp} />}
       </div>
 
-      <div className="grid gap-14 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <section className="min-w-0">
           <SectionTitle aside={
             <nav className="flex gap-3">
               {[["", "Por enviar"], ["enviados", "Enviados"], ["todos", "Todos"]].map(([k, l]) => (
-                <Link key={k} href={`/campanas/${c.id}${k ? `?ver=${k}` : ""}`} className={(ver ?? "") === k ? "text-foam" : "hover:text-foam"}>{l}</Link>
+                <Link key={k} href={`/campanas/${c.id}${k ? `?ver=${k}` : ""}`} className={(ver ?? "") === k ? "text-fg" : "hover:text-fg"}>{l}</Link>
               ))}
             </nav>
           }>Destinatarios</SectionTitle>
-          {shown.length === 0 ? <p className="text-ash">Nadie en esta lista.</p> : (
-            <ul className="divide-y divide-line-soft border-y border-line-soft">
+          {shown.length === 0 ? <p className="text-muted">Nadie en esta lista.</p> : (
+            <ul className="divide-y divide-line-soft">
               {shown.map((r) => {
                 const text = fillTemplate(c.message, { nombre: r.customer.name, barberia: shop.name, enlace: link, puntos: r.customer.points });
                 return (
                   <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                     <span className="min-w-0 flex-1">
-                      <Link href={`/clientes/${r.customerId}`} className="hover:text-foam">{r.customer.name}</Link>
-                      <span className="block text-sm text-ash tnum">
+                      <Link href={`/clientes/${r.customerId}`} className="hover:text-fg">{r.customer.name}</Link>
+                      <span className="block text-sm text-muted tnum">
                         {r.customer.phone}
                         {r.sentAt && ` · enviado ${dateTimeLabel(r.sentAt, tz)}`}
-                        {responded.has(r.customerId) && <span className="text-sage"> · agendó</span>}
+                        {responded.has(r.customerId) && <span className="text-success"> · agendó</span>}
                       </span>
                     </span>
                     <SendButton recipientId={r.id} url={whatsappUrl(r.customer.phone, text)} sent={Boolean(r.sentAt)} />
@@ -83,14 +84,14 @@ export default async function CampanaPage({ params, searchParams }: { params: Pr
             </ul>
           )}
         </section>
-        <aside className="space-y-10">
+        <aside className="space-y-6">
           <section>
             <SectionTitle>Mensaje</SectionTitle>
-            <p className="rounded-lg border border-line bg-ink-2 p-4 text-sm whitespace-pre-line">{c.message}</p>
+            <p className="rounded-lg border border-line bg-hover p-4 text-sm whitespace-pre-line">{c.message}</p>
           </section>
           <form action={deleteCampaign}>
             <input type="hidden" name="id" value={c.id} />
-            <button className="text-sm text-ash-2 hover:text-rose">Borrar campaña</button>
+            <button className="text-sm text-faint hover:text-danger">Borrar campaña</button>
           </form>
         </aside>
       </div>

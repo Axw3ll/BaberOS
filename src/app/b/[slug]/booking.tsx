@@ -10,14 +10,14 @@ function Step({ n, title, done, summary, onEdit, children }: {
   n: number; title: string; done: boolean; summary?: React.ReactNode; onEdit?: () => void; children?: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-line-soft py-8">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="flex items-baseline gap-4 font-display text-2xl">
-          <span className="w-5 font-sans text-sm text-ash-2 tnum">{n}</span>{title}
+    <section className="border-t border-line-soft py-7 first:border-t-0 first:pt-0">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="flex items-center gap-3 font-display text-xl">
+          <span className={`grid size-7 place-items-center rounded-full font-sans text-sm font-semibold tnum ${done ? "bg-success/15 text-success" : "bg-brand-soft text-brand"}`}>{n}</span>{title}
         </h2>
         {done && onEdit && <button type="button" onClick={onEdit} className="btn-ghost text-sm">Cambiar</button>}
       </div>
-      {done && summary ? <p className="mt-2 pl-9 text-ash">{summary}</p> : children && <div className="mt-6 sm:pl-9">{children}</div>}
+      {done && summary ? <p className="mt-2 pl-9 text-muted">{summary}</p> : children && <div className="mt-6 sm:pl-9">{children}</div>}
     </section>
   );
 }
@@ -68,7 +68,7 @@ export function Booking({ slug, tz, days, services, staff }: {
       <div className="border-t border-line-soft pt-10" role="status">
         <p className="font-display text-3xl">Listo, {name.split(" ")[0]}.</p>
         <p className="mt-4 text-lg">{service?.name}, {done}.</p>
-        <p className="mt-4 text-ash">La barbería confirmará tu cita. Si necesitas cambiarla, llámales.</p>
+        <p className="mt-4 text-muted">La barbería confirmará tu cita. Si necesitas cambiarla, llámales.</p>
       </div>
     );
   }
@@ -81,10 +81,10 @@ export function Booking({ slug, tz, days, services, staff }: {
           {services.map((s) => (
             <li key={s.id}>
               <button type="button" onClick={() => { setServiceId(s.id); setStaffId(s.staffIds.length === 1 ? s.staffIds[0] : ""); }}
-                className="-mx-3 flex w-[calc(100%+1.5rem)] items-baseline justify-between gap-6 rounded-md px-3 py-4 text-left transition-colors hover:bg-ink-2">
+                className="-mx-3 flex w-[calc(100%+1.5rem)] items-baseline justify-between gap-6 rounded-md px-3 py-4 text-left transition-colors hover:bg-hover">
                 <span>
                   <span className="block text-lg">{s.name}</span>
-                  <span className="block text-sm text-ash">{s.description ? `${s.description}. ` : ""}{minutesLabel(s.minutes)}</span>
+                  <span className="block text-sm text-muted">{s.description ? `${s.description}. ` : ""}{minutesLabel(s.minutes)}</span>
                 </span>
                 <span className="font-display text-xl tnum">{money(s.price, true)}</span>
               </button>
@@ -110,20 +110,20 @@ export function Booking({ slug, tz, days, services, staff }: {
           <div className="-mx-5 flex gap-1 overflow-x-auto px-5 pb-2 sm:mx-0 sm:px-0" role="listbox" aria-label="Día">
             {days.map((d, i) => (
               <button type="button" key={d} role="option" aria-selected={d === date} onClick={() => setDate(d)}
-                className={`flex w-14 shrink-0 flex-col items-center rounded-md border py-2 transition-colors ${d === date ? "border-foam bg-foam text-ink" : "border-transparent text-ash hover:text-foam"}`}>
+                className={`flex w-14 shrink-0 flex-col items-center rounded-md border py-2 transition-colors ${d === date ? "border-brand bg-brand text-on-brand" : "border-transparent text-muted hover:text-fg"}`}>
                 <span className="text-xs">{i === 0 ? "Hoy" : dayName(d, { weekday: "short" }).replace(".", "")}</span>
                 <span className="font-display text-xl tnum">{dayName(d, { day: "numeric" })}</span>
               </button>
             ))}
           </div>
           <div className="mt-6 min-h-24">
-            {loading || slots === null ? <p className="text-ash">Buscando horarios…</p> : slots.length === 0 ? (
-              <p className="text-ash">No quedan horarios este día. Prueba otro.</p>
+            {loading || slots === null ? <p className="text-muted">Buscando horarios…</p> : slots.length === 0 ? (
+              <p className="text-muted">No quedan horarios este día. Prueba otro.</p>
             ) : (
               <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                 {slots.map((s) => (
                   <button type="button" key={s.at} onClick={() => setSlot(s)} aria-pressed={slot?.at === s.at}
-                    className={`rounded-md border py-2.5 text-sm tnum transition-colors ${slot?.at === s.at ? "border-foam bg-foam text-ink" : "border-line hover:border-ash-2"}`}>
+                    className={`rounded-md border py-2.5 text-sm tnum transition-colors ${slot?.at === s.at ? "border-brand bg-brand text-on-brand" : "border-line hover:border-faint"}`}>
                     {fmt(s.at)}
                   </button>
                 ))}
@@ -138,7 +138,7 @@ export function Booking({ slug, tz, days, services, staff }: {
           <form onSubmit={confirm} className="space-y-5">
             <label className="block"><span className="label">Nombre</span><input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" className="field" /></label>
             <label className="block"><span className="label">Teléfono</span><input value={phone} onChange={(e) => setPhone(e.target.value)} required inputMode="tel" autoComplete="tel" className="field" placeholder="10 dígitos" /></label>
-            {error && <p role="alert" className="text-sm text-rose">{error}</p>}
+            {error && <p role="alert" className="text-sm text-danger">{error}</p>}
             <button disabled={sending} className="btn-primary w-full py-3">
               {sending ? "Reservando…" : `Reservar ${dayName(date, { weekday: "long", day: "numeric" })} a las ${fmt(slot.at)}`}
             </button>

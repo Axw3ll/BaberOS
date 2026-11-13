@@ -7,7 +7,7 @@ import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
 import { addClosure, removeClosure, saveCrm, saveShop, saveShopHours } from "./actions";
 import { createTag, deleteTag } from "../clientes/actions";
-import { TAG_COLORS, tagColor } from "@/lib/crm";
+import { TAG_COLORS, TAG_LABEL, tagColor } from "@/lib/crm";
 import { money } from "@/lib/format";
 
 export const metadata = { title: "Ajustes" };
@@ -26,10 +26,10 @@ export default async function AjustesPage() {
     <>
       <PageHeader title="Ajustes" subtitle="Datos de la barbería, horario y reglas para reservar." />
 
-      <div className="space-y-16">
+      <div className="space-y-6">
         <section className="max-w-2xl">
           <SectionTitle>Reservas en línea</SectionTitle>
-          <p className="text-ash">Comparte este enlace en Instagram, WhatsApp o Google para que tus clientes reserven solos.</p>
+          <p className="text-muted">Comparte este enlace en Instagram, WhatsApp o Google para que tus clientes reserven solos.</p>
           <p className="mt-4 break-all font-display text-xl"><a href={`/b/${shop.slug}`} target="_blank" className="link">{link.replace(/^https?:\/\//, "")}</a></p>
         </section>
 
@@ -43,7 +43,7 @@ export default async function AjustesPage() {
               <Field label="Dirección"><input name="address" defaultValue={shop.address ?? ""} className="field" /></Field>
               <Field label="IVA incluido en precios (%)"><input name="taxRate" inputMode="decimal" defaultValue={Number(shop.taxRate) * 100} className="field tnum" /></Field>
             </div>
-            <h3 className="mt-10 mb-4 text-foam">Reglas para reservar</h3>
+            <h3 className="mt-10 mb-4 text-fg">Reglas para reservar</h3>
             <div className="grid gap-5 sm:grid-cols-3">
               <Field label="Horarios cada">
                 <select name="slotMinutes" defaultValue={shop.slotMinutes} className="field">
@@ -61,10 +61,10 @@ export default async function AjustesPage() {
           <SectionTitle>Clientes y lealtad</SectionTitle>
           <ActionForm action={saveCrm}>
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="loyalty" defaultChecked={Number(shop.loyaltyPointsPerPeso) > 0} className="size-4 accent-[var(--color-nickel)]" />
+              <input type="checkbox" name="loyalty" defaultChecked={Number(shop.loyaltyPointsPerPeso) > 0} className="size-4 accent-[var(--color-brand)]" />
               Programa de puntos
             </label>
-            <p className="mt-1 text-sm text-ash">El cliente gana puntos con cada cobro (sin contar propina) y los canjea como descuento en caja.</p>
+            <p className="mt-1 text-sm text-muted">El cliente gana puntos con cada cobro (sin contar propina) y los canjea como descuento en caja.</p>
             <div className="mt-5 grid gap-5 sm:grid-cols-3">
               <Field label="Puntos por cada peso" hint="1 = un punto por peso"><input name="pointsPerPeso" inputMode="decimal" defaultValue={Number(shop.loyaltyPointsPerPeso) || 1} className="field tnum" /></Field>
               <Field label="Cada punto vale ($)" hint={`Gastar ${money(1000, true)} regresa ${money(1000 * (Number(shop.loyaltyPointsPerPeso) || 1) * Number(shop.loyaltyPesoPerPoint), true)}`}>
@@ -79,12 +79,12 @@ export default async function AjustesPage() {
         <section className="max-w-2xl">
           <SectionTitle>Etiquetas de clientes</SectionTitle>
           {tags.length > 0 && (
-            <ul className="mb-6 divide-y divide-line-soft border-y border-line-soft">
+            <ul className="mb-6 divide-y divide-line-soft">
               {tags.map((t) => (
                 <li key={t.id} className="flex items-center justify-between gap-4 py-2.5">
                   <span className="inline-flex items-center gap-2">
                     <span className="size-1.5 rounded-full" style={{ background: tagColor(t.color) }} aria-hidden />{t.name}
-                    <span className="text-sm text-ash-2 tnum">{t._count.customers}</span>
+                    <span className="text-sm text-faint tnum">{t._count.customers}</span>
                   </span>
                   <form action={deleteTag}><input type="hidden" name="id" value={t.id} /><button className="btn-ghost text-sm">Borrar</button></form>
                 </li>
@@ -95,7 +95,7 @@ export default async function AjustesPage() {
             <div className="flex gap-2">
               <input name="name" className="field" placeholder="Estudiante, Barba, Niño…" aria-label="Nueva etiqueta" maxLength={30} />
               <select name="color" className="field w-32" aria-label="Color" defaultValue="nickel">
-                {TAG_COLORS.map((col) => <option key={col} value={col}>{{ nickel: "Níquel", sage: "Salvia", rose: "Rosa", sand: "Arena", ash: "Ceniza" }[col]}</option>)}
+                {TAG_COLORS.map((col) => <option key={col} value={col}>{TAG_LABEL[col]}</option>)}
               </select>
               <Submit className="btn-quiet">Agregar</Submit>
             </div>
@@ -104,7 +104,7 @@ export default async function AjustesPage() {
 
         <section>
           <SectionTitle>Horario de la barbería</SectionTitle>
-          <p className="mb-5 max-w-2xl text-ash">Nadie puede tener citas fuera de este horario, aunque su turno sea más largo.</p>
+          <p className="mb-5 max-w-2xl text-muted">Nadie puede tener citas fuera de este horario, aunque su turno sea más largo.</p>
           <ActionForm action={saveShopHours}>
             <ScheduleEditor key={JSON.stringify(toEditor(hours))} days={toEditor(hours)} offLabel="Cerrado" />
             <div className="mt-6"><Submit>Guardar horario</Submit></div>
@@ -119,7 +119,7 @@ export default async function AjustesPage() {
                 const a = toLocalDate(c.startsAt, shop.timezone), b = addDays(toLocalDate(c.endsAt, shop.timezone), -1);
                 return (
                   <li key={c.id} className="flex items-center justify-between gap-4">
-                    <span>{dateLabel(a)}{b !== a && ` al ${dateLabel(b)}`}{c.reason && <span className="text-ash">. {c.reason}</span>}</span>
+                    <span>{dateLabel(a)}{b !== a && ` al ${dateLabel(b)}`}{c.reason && <span className="text-muted">. {c.reason}</span>}</span>
                     <form action={removeClosure}><input type="hidden" name="id" value={c.id} /><button className="btn-ghost text-sm">Quitar</button></form>
                   </li>
                 );

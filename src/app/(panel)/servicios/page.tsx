@@ -23,7 +23,7 @@ export default async function ServiciosPage({ searchParams }: { searchParams: Pr
         actions={<Link href="/servicios?nuevo=1" className="btn-primary">Agregar servicio</Link>} />
 
       {nuevo && (
-        <section className="mb-14 rounded-lg border border-line p-6 sm:p-8">
+        <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">
           <h2 className="mb-6 font-display text-xl">Nuevo servicio</h2>
           <ActionForm action={createService}>
             <ServiceFields staff={staff} assigned={staff.map((s) => s.id)} />
@@ -40,14 +40,14 @@ export default async function ServiciosPage({ searchParams }: { searchParams: Pr
         <Rows>
           {services.map((s) => (
             <RowLink key={s.id} href={`/servicios/${s.id}`}>
-              <span className={`min-w-0 flex-1 ${s.active ? "" : "text-ash-2"}`}>
+              <span className={`min-w-0 flex-1 ${s.active ? "" : "text-faint"}`}>
                 <span className="block">{s.name}{!s.active && " (pausado)"}</span>
-                <span className="block truncate text-sm text-ash">
+                <span className="block truncate text-sm text-muted">
                   {s.staff.length ? s.staff.map((x) => x.staff.name).join(", ") : "Nadie lo tiene asignado"}
                   {!s.bookableOnline && ". Solo en mostrador"}
                 </span>
               </span>
-              <span className="w-20 text-right text-sm text-ash tnum">{minutesLabel(s.minutes)}</span>
+              <span className="w-20 text-right text-sm text-muted tnum">{minutesLabel(s.minutes)}</span>
               <span className="w-24 text-right font-display text-lg tnum">{money(s.price, true)}</span>
             </RowLink>
           ))}

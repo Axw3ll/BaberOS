@@ -70,7 +70,7 @@ export default async function ClientesPage({ searchParams }: {
         } />
 
       {sp.nuevo && (
-        <section className="mb-14 rounded-lg border border-line p-6 sm:p-8">
+        <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">
           <h2 className="mb-6 font-display text-xl">Nuevo cliente</h2>
           <ActionForm action={createCustomer}>
             <input type="hidden" name="marketingShown" value="1" />
@@ -94,8 +94,8 @@ export default async function ClientesPage({ searchParams }: {
               <Field label="Lo recomendó (teléfono)" hint="Otro cliente de la barbería"><input name="referredByPhone" inputMode="tel" className="field" /></Field>
               <Field label="Nota" className="sm:col-span-2"><input name="notes" className="field" placeholder="Cómo le gusta el corte" /></Field>
             </div>
-            <label className="mt-5 flex items-center gap-2 text-sm text-ash">
-              <input type="checkbox" name="acceptsMarketing" defaultChecked className="size-4 accent-[var(--color-nickel)]" />
+            <label className="mt-5 flex items-center gap-2 text-sm text-muted">
+              <input type="checkbox" name="acceptsMarketing" defaultChecked className="size-4 accent-[var(--color-brand)]" />
               Acepta recibir promociones por WhatsApp
             </label>
             <div className="mt-6 flex gap-2"><Submit>Guardar cliente</Submit><Link href={href({})} className="btn-ghost">Cancelar</Link></div>
@@ -109,11 +109,11 @@ export default async function ClientesPage({ searchParams }: {
           {sort !== "reciente" && <input type="hidden" name="sort" value={sort} />}
           <input name="q" defaultValue={term} placeholder="Buscar por nombre, teléfono o email" aria-label="Buscar cliente" className="field" />
         </form>
-        <nav aria-label="Ordenar" className="flex items-center gap-2 text-sm text-ash">
+        <nav aria-label="Ordenar" className="flex items-center gap-2 text-sm text-muted">
           Ordenar por
           {(Object.keys(SORTS) as Sort[]).filter((k) => seesMoney || k !== "gasto").map((k) => (
             <Link key={k} href={href({ sort: k === "reciente" ? undefined : k })}
-              className={k === sort ? "text-foam" : "hover:text-foam"} aria-current={k === sort ? "true" : undefined}>
+              className={k === sort ? "text-fg" : "hover:text-fg"} aria-current={k === sort ? "true" : undefined}>
               {SORTS[k]}
             </Link>
           ))}
@@ -124,12 +124,12 @@ export default async function ClientesPage({ searchParams }: {
         {SEGMENTS.map((s) => (
           <Chip key={s.id} href={href({ seg: s.id === "todos" ? undefined : s.id })} active={seg === s.id}
             color={s.id in STAGE ? STAGE[s.id as keyof typeof STAGE].color : undefined}>
-            {s.label} <span className="tnum text-ash-2">{count(s.id)}</span>
+            {s.label} <span className="tnum text-faint">{count(s.id)}</span>
           </Chip>
         ))}
         {tags.map((tg) => (
           <Chip key={tg.id} href={href({ seg: `tag:${tg.id}` })} active={seg === `tag:${tg.id}`} color={tagColor(tg.color)}>
-            {tg.name} <span className="tnum text-ash-2">{count(`tag:${tg.id}`)}</span>
+            {tg.name} <span className="tnum text-faint">{count(`tag:${tg.id}`)}</span>
           </Chip>
         ))}
       </nav>
@@ -139,9 +139,9 @@ export default async function ClientesPage({ searchParams }: {
           {term ? "Revisa el nombre o prueba con el teléfono." : all.length ? "Prueba con otro filtro." : "Se registran solos al agendar o cobrar con teléfono."}
         </Empty>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="table-card">
           <table className="w-full min-w-[720px] text-left">
-            <thead className="text-sm text-ash">
+            <thead className="text-sm text-muted">
               <tr className="border-b border-line">
                 <th className="py-2 pr-4 font-normal">Cliente</th>
                 <th className="py-2 pr-4 font-normal">Etapa</th>
@@ -153,20 +153,20 @@ export default async function ClientesPage({ searchParams }: {
             </thead>
             <tbody className="divide-y divide-line-soft">
               {shown.map((c) => (
-                <tr key={c.id} className="transition-colors hover:bg-ink-2">
+                <tr key={c.id} className="transition-colors hover:bg-hover">
                   <td className="py-3 pr-4">
-                    <Link href={`/clientes/${c.id}`} className="block hover:text-foam">
-                      {c.name}{c.vip && <span className="ml-2 text-xs text-sand">VIP</span>}
-                      <span className="block text-sm text-ash tnum">{c.phone}</span>
+                    <Link href={`/clientes/${c.id}`} className="block hover:text-fg">
+                      {c.name}{c.vip && <span className="ml-2 text-xs text-warning">VIP</span>}
+                      <span className="block text-sm text-muted tnum">{c.phone}</span>
                     </Link>
                   </td>
                   <td className="py-3 pr-4"><Dot color={STAGE[c.stage].color}>{STAGE[c.stage].label}</Dot></td>
                   <td className="py-3 pr-4 text-right tnum">{c.visits}</td>
-                  <td className="py-3 pr-4 text-sm text-ash">
+                  <td className="py-3 pr-4 text-sm text-muted">
                     {c.lastVisit ? (
                       <>
                         {dateLabel(toLocalDate(c.lastVisit, tz), { day: "numeric", month: "short", year: "2-digit" })}
-                        <span className="block text-ash-2">{c.daysSince === 0 ? "hoy" : `hace ${c.daysSince} ${c.daysSince === 1 ? "día" : "días"}`}</span>
+                        <span className="block text-faint">{c.daysSince === 0 ? "hoy" : `hace ${c.daysSince} ${c.daysSince === 1 ? "día" : "días"}`}</span>
                       </>
                     ) : "—"}
                   </td>
@@ -183,7 +183,7 @@ export default async function ClientesPage({ searchParams }: {
             </tbody>
           </table>
           {list.length > shown.length && (
-            <p className="mt-4 text-sm text-ash">Mostrando {shown.length} de {list.length}. Usa la búsqueda o los filtros para encontrar a los demás.</p>
+            <p className="mt-4 text-sm text-muted">Mostrando {shown.length} de {list.length}. Usa la búsqueda o los filtros para encontrar a los demás.</p>
           )}
         </div>
       )}

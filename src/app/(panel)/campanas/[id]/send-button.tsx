@@ -9,7 +9,7 @@ export function SendButton({ recipientId, url, sent }: { recipientId: string; ur
   return (
     <a href={url} target="_blank" rel="noopener"
       onClick={() => { if (!done) start(async () => { setDone(true); await markSent(recipientId); }); }}
-      className={done ? "btn-ghost text-sm" : "btn-quiet py-1.5 text-sm"}>
+      className={done ? "btn-ghost text-sm" : "btn border border-success/25 bg-success/10 py-1.5 text-success hover:bg-success/15"}>
       {done ? "Enviado · reenviar" : "Enviar por WhatsApp"}
     </a>
   );

@@ -101,7 +101,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           <div role="tablist" className="flex gap-6">
             {(["SERVICE", "PRODUCT"] as const).map((t) => (
               <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
-                className={`border-b pb-1 font-display text-xl transition-colors ${tab === t ? "border-nickel text-foam" : "border-transparent text-ash hover:text-foam"}`}>
+                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${tab === t ? "bg-brand-soft text-brand" : "text-muted hover:text-fg"}`}>
                 {t === "SERVICE" ? "Servicios" : "Productos"}
               </button>
             ))}
@@ -110,15 +110,15 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
         </div>
 
         {list.length === 0 ? (
-          <p className="py-10 text-ash">{q ? "Nada coincide con la búsqueda." : tab === "PRODUCT" ? "Aún no hay productos. Agrégalos en Productos." : "Aún no hay servicios."}</p>
+          <p className="py-10 text-muted">{q ? "Nada coincide con la búsqueda." : tab === "PRODUCT" ? "Aún no hay productos. Agrégalos en Productos." : "Aún no hay servicios."}</p>
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {list.map((x) => (
               <li key={x.id}>
                 <button type="button" disabled={x.disabled} onClick={() => add(tab, x.id, x.name, x.price)}
-                  className="flex h-full w-full flex-col justify-between rounded-md border border-line px-4 py-3 text-left transition-colors hover:border-ash-2 hover:bg-ink-2 disabled:opacity-40 disabled:hover:bg-transparent">
-                  <span>{x.name}{x.sub && <span className="block text-sm text-ash">{x.sub}</span>}</span>
-                  <span className="mt-3 text-sm text-ash tnum">{money(x.price, true)}</span>
+                  className="card flex h-full w-full flex-col justify-between px-4 py-3 text-left transition hover:border-brand hover:shadow-pop disabled:opacity-40 disabled:hover:bg-transparent">
+                  <span>{x.name}{x.sub && <span className="block text-sm text-muted">{x.sub}</span>}</span>
+                  <span className="mt-3 text-sm font-semibold text-brand tnum">{money(x.price, true)}</span>
                 </button>
               </li>
             ))}
@@ -127,10 +127,10 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
       </section>
 
       <aside className="lg:sticky lg:top-14 lg:self-start">
-        <div className="rounded-lg border border-line p-6">
+        <div className="card p-6">
           <p className="font-display text-xl">Ticket</p>
           {lines.length === 0 ? (
-            <p className="mt-3 text-sm text-ash">Toca un servicio o producto para agregarlo.</p>
+            <p className="mt-3 text-sm text-muted">Toca un servicio o producto para agregarlo.</p>
           ) : (
             <ul className="mt-4 divide-y divide-line-soft">
               {lines.map((l) => (
@@ -142,10 +142,10 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
                   <div className="mt-2 flex items-center gap-2">
                     {l.kind === "PRODUCT" && (
                       <span className="flex items-center rounded-md border border-line text-sm">
-                        <button type="button" className="px-2 py-1 text-ash hover:text-foam" aria-label="Quitar uno"
+                        <button type="button" className="px-2 py-1 text-muted hover:text-fg" aria-label="Quitar uno"
                           onClick={() => (l.quantity > 1 ? update(l.key, { quantity: l.quantity - 1 }) : remove(l.key))}>−</button>
                         <span className="w-6 text-center tnum">{l.quantity}</span>
-                        <button type="button" className="px-2 py-1 text-ash hover:text-foam disabled:opacity-30" aria-label="Agregar uno"
+                        <button type="button" className="px-2 py-1 text-muted hover:text-fg disabled:opacity-30" aria-label="Agregar uno"
                           disabled={l.quantity >= stockOf(l.refId)} onClick={() => update(l.key, { quantity: l.quantity + 1 })}>+</button>
                       </span>
                     )}
@@ -168,11 +168,11 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
 
           {!appointmentId && (
             <details className="mt-4 text-sm">
-              <summary className="cursor-pointer text-ash hover:text-foam">Registrar cliente (opcional)</summary>
+              <summary className="cursor-pointer text-muted hover:text-fg">Registrar cliente (opcional)</summary>
               <div className="mt-3 grid gap-3">
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Teléfono" aria-label="Teléfono" className="field py-1.5" />
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" aria-label="Nombre" className="field py-1.5" />
-                {known && <span className="text-sage">Ya es cliente: {known.name}</span>}
+                {known && <span className="text-success">Ya es cliente: {known.name}</span>}
               </div>
             </details>
           )}
@@ -181,9 +181,9 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
             <label className="mt-4 flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm">
               <span>
                 <span className="block">Canjear puntos</span>
-                <span className="text-ash tnum">Tiene {balance.toLocaleString("es-MX")} pts ≈ {money(balance * loyalty.pesoPerPoint)}</span>
+                <span className="text-muted tnum">Tiene {balance.toLocaleString("es-MX")} pts ≈ {money(balance * loyalty.pesoPerPoint)}</span>
               </span>
-              <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="size-4 accent-[var(--color-nickel)]" />
+              <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />
             </label>
           )}
 
@@ -192,7 +192,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
             <div className="grid grid-cols-3 gap-1 rounded-md border border-line p-1">
               {METHODS.map((m) => (
                 <button key={m.id} type="button" aria-pressed={method === m.id} onClick={() => setMethod(m.id)}
-                  className={`rounded px-2 py-1.5 text-sm transition-colors ${method === m.id ? "bg-ink-3 text-foam" : "text-ash hover:text-foam"}`}>
+                  className={`rounded px-2 py-1.5 text-sm transition-colors ${method === m.id ? "bg-brand text-on-brand shadow-xs" : "text-muted hover:text-fg"}`}>
                   {m.label}
                 </button>
               ))}
@@ -205,13 +205,13 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           </fieldset>
 
           <dl className="mt-5 space-y-1 text-sm">
-            {disc > 0 && <div className="flex justify-between text-ash"><dt>Descuento</dt><dd className="tnum">−{money(disc)}</dd></div>}
-            {pointsValue > 0 && <div className="flex justify-between text-ash"><dt>{redeem} puntos</dt><dd className="tnum">−{money(pointsValue)}</dd></div>}
-            <div className="flex items-baseline justify-between"><dt className="text-ash">Total</dt><dd className="font-display text-3xl tnum">{money(total)}</dd></div>
-            {change > 0 && <div className="flex justify-between"><dt className="text-ash">Cambio</dt><dd className="tnum">{money(change)}</dd></div>}
+            {disc > 0 && <div className="flex justify-between text-muted"><dt>Descuento</dt><dd className="tnum">−{money(disc)}</dd></div>}
+            {pointsValue > 0 && <div className="flex justify-between text-muted"><dt>{redeem} puntos</dt><dd className="tnum">−{money(pointsValue)}</dd></div>}
+            <div className="flex items-baseline justify-between"><dt className="text-muted">Total</dt><dd className="font-display text-3xl tnum">{money(total)}</dd></div>
+            {change > 0 && <div className="flex justify-between"><dt className="text-muted">Cambio</dt><dd className="tnum">{money(change)}</dd></div>}
           </dl>
 
-          {error && <p role="alert" className="mt-3 text-sm text-rose">{error}</p>}
+          {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
           <button type="button" onClick={charge} disabled={pending || lines.length === 0} className="btn-primary mt-5 w-full py-3">
             {pending ? "Cobrando…" : `Cobrar ${money(total)}`}
           </button>

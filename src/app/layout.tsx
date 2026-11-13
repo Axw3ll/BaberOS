@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import "@fontsource/marcellus/400.css";
 import "@fontsource-variable/albert-sans/index.css";
 import "./globals.css";
 

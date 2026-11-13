@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarCheck, CalendarClock, Repeat, Scissors, Star, TrendingUp, UserX, Wallet } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
@@ -6,7 +7,7 @@ import { dateLabel, dateTimeLabel, toLocalDate, today } from "@/lib/time";
 import { money } from "@/lib/format";
 import {
   ACTIVITY, birthdayLabel, bookingUrl, customerStats, daysToBirthday, fillTemplate, loyaltyOn, ORIGIN,
-  QUICK_MESSAGES, STAGE, TAG_COLORS, tagColor, whatsappUrl,
+  QUICK_MESSAGES, STAGE, TAG_COLORS, TAG_LABEL, tagColor, whatsappUrl,
 } from "@/lib/crm";
 import { Chip, Dot, Field, Figure, PageHeader, SectionTitle, Status } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -107,13 +108,13 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader back={{ href: "/clientes", label: "Clientes" }}
-        title={<>{c.name}{stats.vip && <span className="ml-3 align-middle font-sans text-sm text-sand">VIP</span>}</>}
+        title={<>{c.name}{stats.vip && <span className="ml-3 align-middle font-sans text-sm text-warning">VIP</span>}</>}
         subtitle={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <a href={`tel:${c.phone}`} className="link tnum">{c.phone}</a>
             <Dot color={STAGE[stats.stage].color}>{STAGE[stats.stage].label}</Dot>
-            {bday !== null && bday <= 7 && <span className="text-sm text-sand">{bday === 0 ? "¡Hoy es su cumpleaños!" : `Cumple en ${bday} ${bday === 1 ? "día" : "días"}`}</span>}
-            {!c.acceptsMarketing && <span className="text-sm text-ash-2">No quiere promociones</span>}
+            {bday !== null && bday <= 7 && <span className="text-sm text-warning">{bday === 0 ? "¡Hoy es su cumpleaños!" : `Cumple en ${bday} ${bday === 1 ? "día" : "días"}`}</span>}
+            {!c.acceptsMarketing && <span className="text-sm text-faint">No quiere promociones</span>}
           </span>
         }
         actions={
@@ -124,38 +125,38 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
           </>
         } />
 
-      {error === "citas" && <p role="alert" className="-mt-4 mb-10 text-rose">No se puede borrar: tiene citas en el historial.</p>}
+      {error === "citas" && <p role="alert" className="-mt-4 mb-10 text-danger">No se puede borrar: tiene citas en el historial.</p>}
 
-      <div className="mb-14 grid grid-cols-2 gap-x-10 gap-y-6 sm:flex sm:flex-wrap">
-        <Figure value={stats.visits} label="Visitas" />
-        {seesMoney && <Figure value={money(stats.spent, true)} label="Ha gastado" />}
-        {seesMoney && paidTickets > 0 && <Figure value={money(avgTicket, true)} label="Ticket promedio" />}
-        {stats.cadence && <Figure value={`${stats.cadence} días`} label="Viene cada" />}
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+        <Figure value={stats.visits} label="Visitas" icon={Scissors} />
+        {seesMoney && <Figure value={money(stats.spent, true)} label="Ha gastado" icon={Wallet} />}
+        {seesMoney && paidTickets > 0 && <Figure value={money(avgTicket, true)} label="Ticket promedio" icon={TrendingUp} />}
+        {stats.cadence && <Figure value={`${stats.cadence} días`} label="Viene cada" icon={Repeat} />}
         {nextAppt ? (
-          <Figure value={dateTimeLabel(nextAppt.startsAt, tz)} label="Próxima cita" />
+          <Figure value={dateTimeLabel(nextAppt.startsAt, tz)} label="Próxima cita" icon={CalendarCheck} tone="success" />
         ) : stats.expectedBack && stats.stage !== "perdido" ? (
-          <Figure value={dateLabel(toLocalDate(stats.expectedBack, tz), { day: "numeric", month: "short" })} label={stats.expectedBack.getTime() < now ? "Debió volver" : "Debería volver"} />
+          <Figure value={dateLabel(toLocalDate(stats.expectedBack, tz), { day: "numeric", month: "short" })} label={stats.expectedBack.getTime() < now ? "Debió volver" : "Debería volver"} icon={CalendarClock} tone="warning" />
         ) : null}
-        {loyalty && <Figure value={c.points.toLocaleString("es-MX")} label="Puntos" />}
-        {stats.noShows > 0 && <Figure value={stats.noShows} label="Veces que no llegó" />}
+        {loyalty && <Figure value={c.points.toLocaleString("es-MX")} label="Puntos" icon={Star} tone="warning" />}
+        {stats.noShows > 0 && <Figure value={stats.noShows} label="Veces que no llegó" icon={UserX} tone="danger" />}
       </div>
 
-      <div className="grid gap-14 lg:grid-cols-[1fr_340px]">
-        <div className="min-w-0 space-y-14">
+      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="min-w-0 space-y-6">
           {(favService || favStaff || products.length > 0 || c.notes) && (
             <section>
               <SectionTitle>Lo que le gusta</SectionTitle>
               <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
-                {favService && <div><dt className="text-sm text-ash">Servicio de siempre</dt><dd>{favService[0]} <span className="text-ash">· {favService[1]} {favService[1] === 1 ? "vez" : "veces"}</span></dd></div>}
+                {favService && <div><dt className="text-sm text-muted">Servicio de siempre</dt><dd>{favService[0]} <span className="text-muted">· {favService[1]} {favService[1] === 1 ? "vez" : "veces"}</span></dd></div>}
                 {(c.preferredStaff || favStaff) && (
-                  <div><dt className="text-sm text-ash">Barbero</dt>
-                    <dd>{c.preferredStaff?.name ?? favStaff![0]}{!c.preferredStaff && <span className="text-ash"> · lo atiende más seguido</span>}</dd></div>
+                  <div><dt className="text-sm text-muted">Barbero</dt>
+                    <dd>{c.preferredStaff?.name ?? favStaff![0]}{!c.preferredStaff && <span className="text-muted"> · lo atiende más seguido</span>}</dd></div>
                 )}
                 {products.length > 0 && (
-                  <div className="sm:col-span-2"><dt className="text-sm text-ash">Productos que compra</dt>
+                  <div className="sm:col-span-2"><dt className="text-sm text-muted">Productos que compra</dt>
                     <dd>{products.map((p) => `${p.name}${p.qty > 1 ? ` (${p.qty})` : ""}`).join(", ")}</dd></div>
                 )}
-                {c.notes && <div className="sm:col-span-2"><dt className="text-sm text-ash">Nota</dt><dd className="whitespace-pre-line">{c.notes}</dd></div>}
+                {c.notes && <div className="sm:col-span-2"><dt className="text-sm text-muted">Nota</dt><dd className="whitespace-pre-line">{c.notes}</dd></div>}
               </dl>
             </section>
           )}
@@ -173,33 +174,33 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
               </div>
             </ActionForm>
 
-            {events.length === 0 ? <p className="text-ash">Sin movimientos todavía.</p> : (
+            {events.length === 0 ? <p className="text-muted">Sin movimientos todavía.</p> : (
               <ol className="relative space-y-0 border-l border-line-soft pl-6">
                 {events.slice(0, 50).map((e) => (
                   <li key={`${e.kind}-${e.id}`} className="relative pb-6">
-                    <span className="absolute top-2 -left-[27px] size-[7px] rounded-full border border-ink"
-                      style={{ background: e.kind === "activity" ? (e.type === "COMPLAINT" ? "var(--color-rose)" : "var(--color-ash)") : e.kind === "sale" ? "var(--color-sage)" : "var(--color-nickel)" }} aria-hidden />
-                    <p className="text-sm text-ash-2 tnum">{dateTimeLabel(e.at, tz)}</p>
+                    <span className="absolute top-2 -left-[27px] size-[7px] rounded-full border border-canvas"
+                      style={{ background: e.kind === "activity" ? (e.type === "COMPLAINT" ? "var(--color-danger)" : "var(--color-muted)") : e.kind === "sale" ? "var(--color-success)" : "var(--color-brand)" }} aria-hidden />
+                    <p className="text-sm text-faint tnum">{dateTimeLabel(e.at, tz)}</p>
                     {e.kind === "appt" && (
                       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-                        <Link href={`/citas/${e.id}`} className="hover:text-foam">{e.title}<span className="text-ash"> con {e.who}</span></Link>
+                        <Link href={`/citas/${e.id}`} className="hover:text-fg">{e.title}<span className="text-muted"> con {e.who}</span></Link>
                         <span className="flex items-center gap-4">
-                          {e.sale && seesMoney && <Link href={`/ventas/${e.sale.id}`} className="text-sm text-ash tnum hover:text-foam">#{e.sale.folio} · {money(e.sale.total)}</Link>}
+                          {e.sale && seesMoney && <Link href={`/ventas/${e.sale.id}`} className="text-sm text-muted tnum hover:text-fg">#{e.sale.folio} · {money(e.sale.total)}</Link>}
                           <Status status={e.status} />
                         </span>
                       </div>
                     )}
                     {e.kind === "sale" && (
-                      <div className={`flex flex-wrap items-baseline justify-between gap-x-4 ${e.voided ? "text-ash-2 line-through" : ""}`}>
-                        <span>Compra sin cita: <span className="text-ash">{e.title}</span></span>
-                        {seesMoney && <Link href={`/ventas/${e.id}`} className="text-sm text-ash tnum hover:text-foam">#{e.folio} · {money(e.total)}</Link>}
+                      <div className={`flex flex-wrap items-baseline justify-between gap-x-4 ${e.voided ? "text-faint line-through" : ""}`}>
+                        <span>Compra sin cita: <span className="text-muted">{e.title}</span></span>
+                        {seesMoney && <Link href={`/ventas/${e.id}`} className="text-sm text-muted tnum hover:text-fg">#{e.folio} · {money(e.total)}</Link>}
                       </div>
                     )}
                     {e.kind === "activity" && (
                       <div className="flex items-start justify-between gap-4">
                         <p>
-                          <span className={e.type === "COMPLAINT" ? "text-rose" : "text-ash"}>{ACTIVITY[e.type]}</span>
-                          {e.who && <span className="text-ash-2"> · {e.who}</span>}
+                          <span className={e.type === "COMPLAINT" ? "text-danger" : "text-muted"}>{ACTIVITY[e.type]}</span>
+                          {e.who && <span className="text-faint"> · {e.who}</span>}
                           <span className="mt-0.5 block whitespace-pre-line">{e.body}</span>
                         </p>
                         {(e.mine || isAdmin) && (
@@ -214,7 +215,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
           </section>
         </div>
 
-        <aside className="space-y-12">
+        <aside className="space-y-6">
           <section>
             <SectionTitle>Seguimiento</SectionTitle>
             {openTasks.length > 0 && (
@@ -224,10 +225,10 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                   return (
                     <li key={t.id} className="flex items-start gap-3">
                       <form action={toggleTask}><input type="hidden" name="id" value={t.id} />
-                        <button className="mt-0.5 size-4 rounded-sm border border-ash-2 hover:border-foam" aria-label={`Marcar hecho: ${t.title}`} /></form>
+                        <button className="mt-0.5 size-4 rounded-sm border border-faint hover:border-fg" aria-label={`Marcar hecho: ${t.title}`} /></form>
                       <span className="min-w-0 flex-1 text-sm">
                         {t.title}
-                        <span className={`block ${due < day ? "text-rose" : "text-ash"}`}>
+                        <span className={`block ${due < day ? "text-danger" : "text-muted"}`}>
                           {due === day ? "Hoy" : dateLabel(due, { day: "numeric", month: "short" })}{t.assignedTo && ` · ${t.assignedTo.name}`}
                         </span>
                       </span>
@@ -237,11 +238,11 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
               </ul>
             )}
             {doneTasks.length > 0 && (
-              <ul className="mb-5 space-y-1 text-sm text-ash-2">
+              <ul className="mb-5 space-y-1 text-sm text-faint">
                 {doneTasks.map((t) => (
                   <li key={t.id} className="flex items-center justify-between gap-2">
                     <span className="line-through">{t.title}</span>
-                    <form action={deleteTask}><input type="hidden" name="id" value={t.id} /><button className="text-xs hover:text-foam">Quitar</button></form>
+                    <form action={deleteTask}><input type="hidden" name="id" value={t.id} /><button className="text-xs hover:text-fg">Quitar</button></form>
                   </li>
                 ))}
               </ul>
@@ -270,7 +271,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                   <form key={t.id} action={toggleTag}>
                     <input type="hidden" name="customerId" value={c.id} /><input type="hidden" name="tagId" value={t.id} />
                     <button aria-pressed={myTagIds.has(t.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${myTagIds.has(t.id) ? "border-nickel bg-ink-3 text-foam" : "border-line text-ash-2 hover:text-foam"}`}>
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${myTagIds.has(t.id) ? "border-brand bg-selected text-fg" : "border-line text-faint hover:text-fg"}`}>
                       <span className="size-1.5 rounded-full" style={{ background: tagColor(t.color) }} aria-hidden />{t.name}
                     </button>
                   </form>
@@ -282,7 +283,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
               <div className="flex gap-2">
                 <input name="name" className="field py-1.5 text-sm" placeholder="Nueva etiqueta" aria-label="Nueva etiqueta" maxLength={30} />
                 <select name="color" className="field w-28 py-1.5 text-sm" aria-label="Color" defaultValue="nickel">
-                  {TAG_COLORS.map((col) => <option key={col} value={col}>{{ nickel: "Níquel", sage: "Salvia", rose: "Rosa", sand: "Arena", ash: "Ceniza" }[col]}</option>)}
+                  {TAG_COLORS.map((col) => <option key={col} value={col}>{TAG_LABEL[col]}</option>)}
                 </select>
                 <Submit className="btn-ghost" pending="…">Crear</Submit>
               </div>
@@ -296,8 +297,8 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                 <ul className="mb-5 space-y-1.5 text-sm">
                   {c.loyalty.map((m) => (
                     <li key={m.id} className="flex justify-between gap-3">
-                      <span className="truncate text-ash">{m.note ?? { EARN: "Ganados", REDEEM: "Canje", ADJUST: "Ajuste" }[m.kind]}</span>
-                      <span className={`tnum ${m.points < 0 ? "text-rose" : "text-sage"}`}>{m.points > 0 ? "+" : ""}{m.points}</span>
+                      <span className="truncate text-muted">{m.note ?? { EARN: "Ganados", REDEEM: "Canje", ADJUST: "Ajuste" }[m.kind]}</span>
+                      <span className={`tnum ${m.points < 0 ? "text-danger" : "text-success"}`}>{m.points > 0 ? "+" : ""}{m.points}</span>
                     </li>
                   ))}
                 </ul>
@@ -342,24 +343,24 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
                 </select>
               </Field>
               <Field label="Nota"><textarea name="notes" rows={4} defaultValue={c.notes ?? ""} className="field" placeholder="Cómo le gusta el corte, preferencias…" /></Field>
-              <label className="flex items-center gap-2 text-sm text-ash">
-                <input type="checkbox" name="acceptsMarketing" defaultChecked={c.acceptsMarketing} className="size-4 accent-[var(--color-nickel)]" />
+              <label className="flex items-center gap-2 text-sm text-muted">
+                <input type="checkbox" name="acceptsMarketing" defaultChecked={c.acceptsMarketing} className="size-4 accent-[var(--color-brand)]" />
                 Acepta recibir promociones
               </label>
               <Submit className="btn-quiet">Guardar</Submit>
             </ActionForm>
             {c.referrals.length > 0 && (
-              <p className="mt-6 text-sm text-ash">
+              <p className="mt-6 text-sm text-muted">
                 Ha recomendado a {c.referrals.map((r, i) => (
                   <span key={r.id}>{i > 0 && ", "}<Link href={`/clientes/${r.id}`} className="link">{r.name}</Link></span>
                 ))}.
               </p>
             )}
-            <p className="mt-6 text-xs text-ash-2">Cliente desde {dateLabel(toLocalDate(c.createdAt, tz), { day: "numeric", month: "long", year: "numeric" })}</p>
+            <p className="mt-6 text-xs text-faint">Cliente desde {dateLabel(toLocalDate(c.createdAt, tz), { day: "numeric", month: "long", year: "numeric" })}</p>
             {isAdmin && (
               <form action={deleteCustomer} className="mt-4">
                 <input type="hidden" name="id" value={c.id} />
-                <button className="text-xs text-ash-2 hover:text-rose">Borrar cliente</button>
+                <button className="text-xs text-faint hover:text-danger">Borrar cliente</button>
               </form>
             )}
           </section>

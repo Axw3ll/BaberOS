@@ -110,16 +110,16 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
   const oppCount = groups.reduce((a, g) => a + g.items.length, 0);
 
   const TaskList = ({ list, tone }: { list: typeof tasks; tone?: string }) => (
-    <ul className="divide-y divide-line-soft border-y border-line-soft">
+    <ul className="divide-y divide-line-soft">
       {list.map((t) => (
         <li key={t.id} className="flex items-start gap-3 py-3">
           <form action={toggleTask}><input type="hidden" name="id" value={t.id} />
-            <button className="mt-1 size-4 rounded-sm border border-ash-2 hover:border-foam" aria-label={`Marcar hecho: ${t.title}`} /></form>
+            <button className="mt-1 size-4 rounded-sm border border-faint hover:border-fg" aria-label={`Marcar hecho: ${t.title}`} /></form>
           <span className="min-w-0 flex-1">
             <span className="block">{t.title}</span>
-            <span className="block text-sm text-ash">
+            <span className="block text-sm text-muted">
               <span className={tone}>{iso(t.dueOn) === day ? "Hoy" : dateLabel(iso(t.dueOn), { weekday: "short", day: "numeric", month: "short" })}</span>
-              {t.customer && <> · <Link href={`/clientes/${t.customer.id}`} className="hover:text-foam">{t.customer.name}</Link></>}
+              {t.customer && <> · <Link href={`/clientes/${t.customer.id}`} className="hover:text-fg">{t.customer.name}</Link></>}
               {t.assignedTo && t.assignedTo.id !== me.id && ` · ${t.assignedTo.name}`}
               {!t.assignedTo && " · Cualquiera"}
             </span>
@@ -128,7 +128,7 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
             <a href={`tel:${t.customer.phone}`} className="btn-ghost text-sm">Llamar</a>
           )}
           {(!own || t.createdById === me.id) && (
-            <form action={deleteTask}><input type="hidden" name="id" value={t.id} /><button className="btn-ghost text-sm text-ash-2" aria-label={`Borrar ${t.title}`}>Borrar</button></form>
+            <form action={deleteTask}><input type="hidden" name="id" value={t.id} /><button className="btn-ghost text-sm text-faint" aria-label={`Borrar ${t.title}`}>Borrar</button></form>
           )}
         </li>
       ))}
@@ -141,32 +141,32 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
         subtitle={`${tasks.length} ${tasks.length === 1 ? "pendiente" : "pendientes"} · ${oppCount} ${oppCount === 1 ? "oportunidad" : "oportunidades"} para traer clientes`}
         actions={!own && (
           <nav aria-label="Ver" className="flex items-center rounded-md border border-line text-sm">
-            <Link href="/seguimiento" className={`px-3 py-2 ${!showAll ? "text-foam" : "text-ash hover:text-foam"}`} aria-current={!showAll ? "true" : undefined}>Míos</Link>
-            <Link href="/seguimiento?todas=1" className={`border-l border-line px-3 py-2 ${showAll ? "text-foam" : "text-ash hover:text-foam"}`} aria-current={showAll ? "true" : undefined}>De todo el equipo</Link>
+            <Link href="/seguimiento" className={`px-3 py-2 ${!showAll ? "text-fg" : "text-muted hover:text-fg"}`} aria-current={!showAll ? "true" : undefined}>Míos</Link>
+            <Link href="/seguimiento?todas=1" className={`border-l border-line px-3 py-2 ${showAll ? "text-fg" : "text-muted hover:text-fg"}`} aria-current={showAll ? "true" : undefined}>De todo el equipo</Link>
           </nav>
         )} />
 
-      <div className="grid gap-14 lg:grid-cols-[1fr_360px]">
-        <div className="min-w-0 space-y-12">
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="min-w-0 space-y-6">
           {groups.length === 0 ? (
             <Empty title="Nada urgente">Cuando alguien cumpla años, le toque volver o se esté perdiendo, aparece aquí.</Empty>
           ) : groups.map((g) => (
             <section key={g.title}>
               <SectionTitle aside={g.hint}>{g.title}</SectionTitle>
-              <ul className="divide-y divide-line-soft border-y border-line-soft">
+              <ul className="divide-y divide-line-soft">
                 {g.items.map(({ c, reason, template, task }) => {
                   const text = fillTemplate(template, vars(c));
                   return (
                     <li key={c.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                       <span className="min-w-0 flex-1">
-                        <Link href={`/clientes/${c.id}`} className="hover:text-foam">{c.name}</Link>
-                        {c.vip && <span className="ml-2 text-xs text-sand">VIP</span>}
-                        <span className="block text-sm text-ash">{reason}</span>
+                        <Link href={`/clientes/${c.id}`} className="hover:text-fg">{c.name}</Link>
+                        {c.vip && <span className="ml-2 text-xs text-warning">VIP</span>}
+                        <span className="block text-sm text-muted">{reason}</span>
                       </span>
                       <span className="hidden text-sm sm:block"><Dot color={STAGE[c.stage].color}>{STAGE[c.stage].label}</Dot></span>
-                      {!own && c.spent > 0 && <span className="hidden w-20 text-right text-sm text-ash tnum md:block">{money(c.spent, true)}</span>}
+                      {!own && c.spent > 0 && <span className="hidden w-20 text-right text-sm text-muted tnum md:block">{money(c.spent, true)}</span>}
                       <span className="flex items-center">
-                        <WhatsAppLink customerId={c.id} url={whatsappUrl(c.phone, text)} text={text} className="btn-quiet py-1.5 text-sm">WhatsApp</WhatsAppLink>
+                        <WhatsAppLink customerId={c.id} url={whatsappUrl(c.phone, text)} text={text}>WhatsApp</WhatsAppLink>
                         <form action={quickTask}>
                           <input type="hidden" name="customerId" value={c.id} /><input type="hidden" name="title" value={task} />
                           <button className="btn-ghost text-sm">Para después</button>
@@ -180,7 +180,7 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
           ))}
         </div>
 
-        <aside className="space-y-12">
+        <aside className="space-y-6">
           <section>
             <SectionTitle>Nuevo pendiente</SectionTitle>
             <ActionForm action={createTask} resetOnOk className="space-y-3">
@@ -201,10 +201,10 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
             </ActionForm>
           </section>
 
-          {overdue.length > 0 && <section><SectionTitle aside={overdue.length}>Atrasados</SectionTitle><TaskList list={overdue} tone="text-rose" /></section>}
+          {overdue.length > 0 && <section><SectionTitle aside={overdue.length}>Atrasados</SectionTitle><TaskList list={overdue} tone="text-danger" /></section>}
           <section>
             <SectionTitle aside={todays.length || undefined}>Hoy</SectionTitle>
-            {todays.length ? <TaskList list={todays} /> : <p className="text-sm text-ash">Sin pendientes para hoy.</p>}
+            {todays.length ? <TaskList list={todays} /> : <p className="text-sm text-muted">Sin pendientes para hoy.</p>}
           </section>
           {later.length > 0 && <section><SectionTitle aside={later.length}>Próximos</SectionTitle><TaskList list={later} /></section>}
         </aside>

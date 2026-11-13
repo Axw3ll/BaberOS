@@ -1,47 +1,58 @@
 @import "tailwindcss";
 
 /*
-  BarberOS — tokens
-  Pizarra (fondo), Cuero (superficie), Línea, Espuma (texto), Ceniza (secundario),
-  Níquel (acento frío, como el acero de la navaja).
+  BarberOS — tokens (tema claro)
+  canvas: fondo de la app · surface: tarjetas y campos · hover/selected: estados
+  fg/muted/faint: texto principal, secundario y tenue · brand: índigo de marca
+  success/warning/danger: estados (también se usan en etapas y etiquetas)
 */
 @theme {
-  --color-ink: #1c1b19;
-  --color-ink-2: #23221f;
-  --color-ink-3: #2b2a26;
-  --color-line: #393732;
-  --color-line-soft: #2f2d29;
-  --color-foam: #eeeae3;
-  --color-ash: #9c978d;
-  --color-ash-2: #6f6b63;
-  --color-nickel: #c9cfd1;
-  --color-sage: #93a88d;
-  --color-rose: #c4918a;
-  --color-sand: #cbb791;
+  --color-canvas: #f5f6fa;
+  --color-surface: #ffffff;
+  --color-hover: #f1f2f7;
+  --color-selected: #eef0ff;
+  --color-line: #e2e5ec;
+  --color-line-soft: #eceef3;
+  --color-fg: #14161c;
+  --color-muted: #596070;
+  --color-faint: #878e9c;
+  --color-brand: #4f46e5;
+  --color-brand-hover: #4338ca;
+  --color-brand-soft: #eef0ff;
+  --color-on-brand: #ffffff;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+  --color-info: #0284c7;
 
-  --font-display: "Marcellus", "Times New Roman", serif;
+  --font-display: "Albert Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Albert Sans Variable", ui-sans-serif, system-ui, sans-serif;
 
-  /* Escala tipográfica (razón ~1.25, base 15) */
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
   --text-base: 0.9375rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.4rem;
-  --text-2xl: 1.75rem;
-  --text-3xl: 2.25rem;
-  --text-4xl: 3rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
 
-  --radius-sm: 4px;
-  --radius-md: 7px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+
+  --shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 2px 8px -2px rgb(16 24 40 / 0.06);
+  --shadow-pop: 0 12px 32px -8px rgb(16 24 40 / 0.18), 0 2px 6px rgb(16 24 40 / 0.06);
 }
 
 @layer base {
   html {
-    color-scheme: dark;
-    background: var(--color-ink);
-    color: var(--color-foam);
+    color-scheme: light;
+    background: var(--color-canvas);
+    color: var(--color-fg);
     font-family: var(--font-sans);
     font-size: 15px;
     -webkit-font-smoothing: antialiased;
@@ -49,13 +60,14 @@
   body {
     min-height: 100dvh;
     line-height: 1.5;
+    background: var(--color-canvas);
   }
   ::selection {
-    background: var(--color-nickel);
-    color: var(--color-ink);
+    background: var(--color-brand-soft);
+    color: var(--color-fg);
   }
   :focus-visible {
-    outline: 1.5px solid var(--color-nickel);
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -64,43 +76,65 @@
   textarea {
     font: inherit;
   }
-  /* Los selectores de fecha/hora nativos en tono claro */
-  input::-webkit-calendar-picker-indicator {
-    filter: invert(0.85);
-    opacity: 0.6;
-  }
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+  /* Títulos y cifras: misma familia, más peso y tracking cerrado */
+  .font-display {
+    font-weight: 650;
+    letter-spacing: -0.02em;
   }
 }
 
 @utility field {
-  @apply block w-full rounded-md border border-line bg-ink-2 px-3 py-2 text-foam placeholder:text-ash-2 transition-colors hover:border-ash-2 focus:border-nickel focus:outline-none;
+  @apply block w-full rounded-lg border border-line bg-surface px-3 py-2 text-fg shadow-xs placeholder:text-faint transition hover:border-faint focus:border-brand focus:ring-4 focus:ring-brand/15 focus:outline-none;
 }
 @utility label {
-  @apply mb-1.5 block text-sm text-ash;
+  @apply mb-1.5 block text-sm font-medium text-muted;
 }
 @utility btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold whitespace-nowrap transition disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility btn-primary {
-  @apply btn bg-foam text-ink hover:bg-nickel;
+  @apply btn bg-brand text-on-brand shadow-xs hover:bg-brand-hover;
 }
 @utility btn-quiet {
-  @apply btn border border-line text-foam hover:border-ash-2 hover:bg-ink-2;
+  @apply btn border border-line bg-surface text-fg shadow-xs hover:bg-hover;
 }
 @utility btn-ghost {
-  @apply btn px-2 text-ash hover:text-foam;
+  @apply btn px-2.5 font-medium text-muted hover:bg-hover hover:text-fg;
 }
 @utility link {
-  @apply text-foam underline decoration-line underline-offset-4 transition-colors hover:decoration-nickel;
+  @apply font-medium text-brand underline-offset-4 transition-colors hover:underline;
+}
+@utility card {
+  @apply rounded-2xl border border-line-soft bg-surface shadow-card;
+}
+
+/*
+  Las secciones con título (<SectionTitle>) se presentan como tarjetas.
+  Así todas las pantallas comparten la misma estructura sin repetir clases.
+*/
+@layer components {
+  .panel section:has(> .section-title) {
+    @apply card p-5 sm:p-6;
+  }
+  /* Listas sueltas: tarjeta propia. Dentro de una tarjeta: solo separadores. */
+  .rows {
+    @apply card divide-y divide-line-soft overflow-hidden px-4;
+  }
+  .panel section:has(> .section-title) .rows {
+    @apply rounded-none border-0 bg-transparent px-0 shadow-none;
+  }
+  .table-card {
+    @apply card overflow-x-auto px-5;
+  }
 }
 
 /* Agenda: la regla horaria se dibuja como los dientes de un peine */
 .comb {
-  /* diente largo cada hora, diente corto cada 15 min, pegados al borde derecho */
   background-image:
-    linear-gradient(to bottom, var(--color-ash-2) 0 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-faint) 0 1px, transparent 1px),
     linear-gradient(to bottom, var(--color-line) 0 1px, transparent 1px);
   background-size:
     14px var(--hour),

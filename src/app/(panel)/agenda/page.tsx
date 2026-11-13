@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { initials } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { addDays, dateLabel, isDate, localToUtc, minuteLabel, timeLabel, today, toLocalMinute, weekday } from "@/lib/time";
@@ -63,9 +64,9 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         actions={
           <>
             <nav aria-label="Cambiar día" className="flex items-center rounded-md border border-line">
-              <Link href={`/agenda?d=${addDays(day, -1)}`} className="px-3 py-2 text-ash hover:text-foam" aria-label="Día anterior">‹</Link>
-              <Link href="/agenda" className={`border-x border-line px-3 py-2 text-sm ${isToday ? "text-ash-2" : "text-foam"}`}>Hoy</Link>
-              <Link href={`/agenda?d=${addDays(day, 1)}`} className="px-3 py-2 text-ash hover:text-foam" aria-label="Día siguiente">›</Link>
+              <Link href={`/agenda?d=${addDays(day, -1)}`} className="px-3 py-2 text-muted hover:text-fg" aria-label="Día anterior">‹</Link>
+              <Link href="/agenda" className={`border-x border-line px-3 py-2 text-sm ${isToday ? "text-faint" : "text-fg"}`}>Hoy</Link>
+              <Link href={`/agenda?d=${addDays(day, 1)}`} className="px-3 py-2 text-muted hover:text-fg" aria-label="Día siguiente">›</Link>
             </nav>
             <form className="hidden sm:block">
               <input type="date" name="d" defaultValue={day} className="field py-1.5" aria-label="Ir a fecha" />
@@ -80,7 +81,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
           Agrega un barbero, dale sus servicios y su horario para empezar a recibir citas.
         </Empty>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="card overflow-x-auto p-4 sm:p-5">
           <div
             className="grid min-w-fit"
             style={{ gridTemplateColumns: `64px repeat(${staff.length}, minmax(190px, 1fr))`, "--hour": `${HOUR}px` } as React.CSSProperties}
@@ -88,20 +89,23 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
             {/* Encabezados */}
             <div />
             {staff.map((s) => (
-              <div key={s.id} className="border-b border-line px-3 pb-3">
-                <p className="truncate font-display text-lg">{s.name}</p>
-                <p className="text-sm text-ash-2">
+              <div key={s.id} className="flex items-center gap-2.5 border-b border-line px-3 pb-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{initials(s.name)}</span>
+                <span className="min-w-0">
+                <p className="truncate font-semibold">{s.name}</p>
+                <p className="truncate text-xs text-faint">
                   {s.schedule.length
                     ? s.schedule.sort((a, b) => a.startMinute - b.startMinute).map((h) => `${minuteLabel(h.startMinute)}–${minuteLabel(h.endMinute)}`).join(" y ")
                     : "Descansa"}
                 </p>
+                </span>
               </div>
             ))}
 
             {/* Regla horaria: peine */}
             <div className="comb relative" style={{ height: px(span), backgroundPositionY: 0 }}>
               {hoursList.map((h) => (
-                <span key={h} className="absolute right-5 -translate-y-1/2 text-xs text-ash tnum" style={{ top: px(h - startMin) }}>
+                <span key={h} className="absolute right-5 -translate-y-1/2 text-xs text-muted tnum" style={{ top: px(h - startMin) }}>
                   {h > startMin && minuteLabel(h)}
                 </span>
               ))}
@@ -130,22 +134,23 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                         key={a.id}
                         href={`/citas/${a.id}`}
                         title={`${timeLabel(a.startsAt, tz)}–${timeLabel(a.endsAt, tz)} ${a.customer.name}`}
-                        className={`absolute inset-x-1.5 overflow-hidden rounded-md border border-line bg-ink-3 px-3 transition-colors hover:border-ash-2 ${compact ? "flex items-center gap-2" : "py-1.5"}`}
-                        style={{ top: px(st - startMin) + 1, height: h - 2, borderLeft: `2px solid ${STATUS[a.status].color}` }}
+                        className={`absolute inset-x-1.5 overflow-hidden rounded-lg px-3 transition hover:brightness-95 ${compact ? "flex items-center gap-2" : "py-1.5"}`}
+                        style={{ top: px(st - startMin) + 1, height: h - 2, borderLeft: `3px solid ${STATUS[a.status].color}`,
+                          background: `color-mix(in srgb, ${STATUS[a.status].color} 12%, var(--color-surface))` }}
                       >
                         {compact ? (
                           <>
-                            <span className="shrink-0 text-xs text-ash tnum">{timeLabel(a.startsAt, tz)}</span>
-                            <span className="truncate text-sm text-foam">{a.customer.name}</span>
+                            <span className="shrink-0 text-xs text-muted tnum">{timeLabel(a.startsAt, tz)}</span>
+                            <span className="truncate text-sm font-medium text-fg">{a.customer.name}</span>
                           </>
                         ) : (
                           <>
-                            <span className="flex items-baseline justify-between gap-2 text-xs text-ash tnum">
+                            <span className="flex items-baseline justify-between gap-2 text-xs text-muted tnum">
                               {timeLabel(a.startsAt, tz)}–{timeLabel(a.endsAt, tz)}
-                              {a.status === "PENDING" && <span className="text-sand">Por confirmar</span>}
+                              {a.status === "PENDING" && <span className="text-warning">Por confirmar</span>}
                             </span>
-                            <span className="block truncate text-sm text-foam">{a.customer.name}</span>
-                            {h > 56 && <span className="block truncate text-xs text-ash">{a.services.map((x) => x.name).join(", ")}</span>}
+                            <span className="block truncate text-sm font-medium text-fg">{a.customer.name}</span>
+                            {h > 56 && <span className="block truncate text-xs text-muted">{a.services.map((x) => x.name).join(", ")}</span>}
                           </>
                         )}
                       </Link>
@@ -153,7 +158,9 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
                   })}
 
                   {nowMin >= startMin && nowMin <= endMin && (
-                    <div className="pointer-events-none absolute inset-x-0 h-px bg-nickel" style={{ top: px(nowMin - startMin) }} aria-hidden />
+                    <div className="pointer-events-none absolute inset-x-0 h-0.5 bg-danger" style={{ top: px(nowMin - startMin) }} aria-hidden>
+                      <span className="absolute -top-[3px] -left-1 size-2 rounded-full bg-danger" />
+                    </div>
                   )}
                 </div>
               );
@@ -164,11 +171,11 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
 
       {hidden > 0 && (
         <details className="mt-10 text-sm">
-          <summary className="cursor-pointer text-ash hover:text-foam">Ver canceladas y sin llegar</summary>
+          <summary className="cursor-pointer text-muted hover:text-fg">Ver canceladas y sin llegar</summary>
           <ul className="mt-3 space-y-2">
             {appts.filter((a) => !visible.includes(a)).map((a) => (
               <li key={a.id}>
-                <Link href={`/citas/${a.id}`} className="text-ash hover:text-foam">
+                <Link href={`/citas/${a.id}`} className="text-muted hover:text-fg">
                   <span className="tnum">{timeLabel(a.startsAt, tz)}</span> {a.customer.name}, {STATUS[a.status].label.toLowerCase()}
                 </Link>
               </li>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Globe, HandCoins, Receipt, Repeat, RotateCcw, TrendingUp, UserPlus, UserX, Users, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import { addDays, dateLabel, localToUtc, today } from "@/lib/time";
@@ -23,7 +24,7 @@ function range(p: Period, day: string): [string, string] {
 const delta = (now: number, before: number) => {
   if (!before) return null;
   const d = (now - before) / before;
-  return <span className={d >= 0 ? "text-sage" : "text-rose"}>{d >= 0 ? "▲" : "▼"} {Math.abs(Math.round(d * 100))}%</span>;
+  return <span className={d >= 0 ? "text-success" : "text-danger"}>{d >= 0 ? "▲" : "▼"} {Math.abs(Math.round(d * 100))}%</span>;
 };
 
 type Agg = { revenue: number; tickets: number; tips: number; customers: number };
@@ -114,11 +115,11 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
 
   const Ranked = ({ rows, empty }: { rows: { key: string; label: React.ReactNode; value: number; text: React.ReactNode }[]; empty: string }) => {
     const max = Math.max(0, ...rows.map((r) => r.value));
-    return rows.length === 0 ? <p className="text-sm text-ash">{empty}</p> : (
+    return rows.length === 0 ? <p className="text-sm text-muted">{empty}</p> : (
       <ul className="space-y-3">
         {rows.map((r) => (
           <li key={r.key}>
-            <div className="mb-1 flex justify-between gap-4 text-sm"><span className="truncate">{r.label}</span><span className="shrink-0 text-ash tnum">{r.text}</span></div>
+            <div className="mb-1 flex justify-between gap-4 text-sm"><span className="truncate">{r.label}</span><span className="shrink-0 text-muted tnum">{r.text}</span></div>
             <Bar value={r.value} max={max} />
           </li>
         ))}
@@ -133,47 +134,47 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
           <nav aria-label="Periodo" className="flex flex-wrap items-center rounded-md border border-line text-sm">
             {(Object.keys(PERIODS) as Period[]).map((k, i) => (
               <Link key={k} href={k === "30" ? "/reportes" : `/reportes?p=${k}`} aria-current={k === p ? "true" : undefined}
-                className={`px-3 py-2 ${i ? "border-l border-line" : ""} ${k === p ? "bg-ink-2 text-foam" : "text-ash hover:text-foam"}`}>
+                className={`px-3 py-2 ${i ? "border-l border-line" : ""} ${k === p ? "bg-hover text-fg" : "text-muted hover:text-fg"}`}>
                 {PERIODS[k]}
               </Link>
             ))}
           </nav>
         } />
 
-      <section className="mb-14">
-        <SectionTitle>Ventas</SectionTitle>
-        <div className="grid grid-cols-2 gap-x-10 gap-y-6 sm:flex sm:flex-wrap">
-          <Figure value={money(c.revenue, true)} label="Ingresos" />
-          <Figure value={c.tickets} label="Tickets" />
-          <Figure value={money(avg, true)} label="Ticket promedio" />
-          <Figure value={money(c.tips, true)} label="Propinas" />
+      <section className="mb-8">
+        <h2 className="mb-3 font-display text-lg">Ventas</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+          <Figure value={money(c.revenue, true)} label="Ingresos" icon={Wallet} />
+          <Figure value={c.tickets} label="Tickets" icon={Receipt} />
+          <Figure value={money(avg, true)} label="Ticket promedio" icon={TrendingUp} />
+          <Figure value={money(c.tips, true)} label="Propinas" icon={HandCoins} tone="success" />
         </div>
-        <p className="mt-4 flex flex-wrap gap-x-6 text-sm text-ash">
+        <p className="mt-4 flex flex-wrap gap-x-6 text-sm text-muted">
           {delta(c.revenue, b.revenue) && <span>Ingresos {delta(c.revenue, b.revenue)}</span>}
           {delta(c.tickets, b.tickets) && <span>Tickets {delta(c.tickets, b.tickets)}</span>}
           {delta(avg, avgPrev) && <span>Ticket promedio {delta(avg, avgPrev)}</span>}
         </p>
       </section>
 
-      <section className="mb-14">
-        <SectionTitle>Clientes</SectionTitle>
-        <div className="grid grid-cols-2 gap-x-10 gap-y-6 sm:flex sm:flex-wrap">
-          <Figure value={visited.length} label="Atendidos" />
-          <Figure value={newOnes} label="Primera vez" />
-          <Figure value={visited.length ? pct(returning / visited.length) : "—"} label="Ya habían venido" />
-          <Figure value={retention === null ? "—" : pct(retention)} label="Regresaron del periodo anterior" />
-          <Figure value={booked ? pct(noShows / booked) : "—"} label="No llegaron" />
-          <Figure value={totalAppts ? pct(online / totalAppts) : "—"} label="Reservaron en línea" />
+      <section className="mb-8">
+        <h2 className="mb-3 font-display text-lg">Clientes</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+          <Figure value={visited.length} label="Atendidos" icon={Users} />
+          <Figure value={newOnes} label="Primera vez" icon={UserPlus} tone="success" />
+          <Figure value={visited.length ? pct(returning / visited.length) : "—"} label="Ya habían venido" icon={Repeat} />
+          <Figure value={retention === null ? "—" : pct(retention)} label="Regresaron del periodo anterior" icon={RotateCcw} tone="success" />
+          <Figure value={booked ? pct(noShows / booked) : "—"} label="No llegaron" icon={UserX} tone="danger" />
+          <Figure value={totalAppts ? pct(online / totalAppts) : "—"} label="Reservaron en línea" icon={Globe} />
         </div>
-        {cancelled > 0 && <p className="mt-4 text-sm text-ash">{cancelled} {cancelled === 1 ? "cita cancelada" : "citas canceladas"} en el periodo.</p>}
+        {cancelled > 0 && <p className="mt-4 text-sm text-muted">{cancelled} {cancelled === 1 ? "cita cancelada" : "citas canceladas"} en el periodo.</p>}
       </section>
 
-      <section className="mb-14">
+      <section className="mb-8">
         <SectionTitle aside="Comisión calculada al momento de cada venta">Por barbero</SectionTitle>
-        {byStaff.length === 0 ? <p className="text-ash">Sin ventas en el periodo.</p> : (
+        {byStaff.length === 0 ? <p className="text-muted">Sin ventas en el periodo.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left">
-              <thead className="text-sm text-ash">
+              <thead className="text-sm text-muted">
                 <tr className="border-b border-line">
                   <th className="py-2 pr-4 font-normal">Barbero</th>
                   <th className="py-2 pr-4 text-right font-normal">Servicios</th>
@@ -186,7 +187,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
               <tbody className="divide-y divide-line-soft">
                 {byStaff.map((s) => (
                   <tr key={s.id}>
-                    <td className="py-3 pr-4"><Link href={`/equipo/${s.id}`} className="hover:text-foam">{s.name}</Link></td>
+                    <td className="py-3 pr-4"><Link href={`/equipo/${s.id}`} className="hover:text-fg">{s.name}</Link></td>
                     <td className="py-3 pr-4 text-right tnum">{s.services}</td>
                     <td className="py-3 pr-4 text-right tnum">{s.customers}</td>
                     <td className="py-3 pr-4 text-right tnum">{money(n(s.svc))}</td>
@@ -195,7 +196,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="text-sm text-ash">
+              <tfoot className="text-sm text-muted">
                 <tr className="border-t border-line">
                   <td className="py-2 pr-4">Total</td>
                   <td className="py-2 pr-4 text-right tnum">{byStaff.reduce((a, s) => a + s.services, 0)}</td>
@@ -210,7 +211,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
         )}
       </section>
 
-      <div className="mb-14 grid gap-14 md:grid-cols-2">
+      <div className="mb-8 grid gap-6 md:grid-cols-2">
         <section>
           <SectionTitle>Servicios más vendidos</SectionTitle>
           <Ranked empty="Sin servicios vendidos." rows={topServices.map((s) => ({ key: s.name, label: s.name, value: n(s.total), text: <>{s.qty} · {money(n(s.total), true)}</> }))} />
@@ -222,7 +223,7 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
         <section>
           <SectionTitle>Mejores clientes del periodo</SectionTitle>
           <Ranked empty="Sin ventas con cliente registrado." rows={topClients.map((s) => ({
-            key: s.id, label: <Link href={`/clientes/${s.id}`} className="hover:text-foam">{s.name}</Link>, value: n(s.total),
+            key: s.id, label: <Link href={`/clientes/${s.id}`} className="hover:text-fg">{s.name}</Link>, value: n(s.total),
             text: <>{s.tickets} {s.tickets === 1 ? "visita" : "visitas"} · {money(n(s.total), true)}</>,
           }))} />
         </section>
@@ -234,12 +235,12 @@ export default async function ReportesPage({ searchParams }: { searchParams: Pro
 
       <section>
         <SectionTitle aside="Hoy, sin importar el periodo">Tu cartera de clientes</SectionTitle>
-        <div className="grid gap-x-10 gap-y-6 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {(["nuevo", "activo", "en_riesgo", "perdido", "sin_visitas"] as Stage[]).map((s) => (
-            <Link key={s} href={`/clientes?seg=${s}`} className="group">
-              <div className="font-display text-2xl tnum group-hover:text-foam">{stageCount(s)}</div>
+            <Link key={s} href={`/clientes?seg=${s}`} className="rounded-xl border border-line-soft p-4 transition-colors hover:bg-hover">
+              <div className="mb-1 font-display text-2xl tnum">{stageCount(s)}</div>
               <Dot color={STAGE[s].color}>{STAGE[s].label}{base > 0 && ` · ${pct(stageCount(s) / base)}`}</Dot>
-              <p className="mt-1 text-xs text-ash-2">{STAGE[s].hint}</p>
+              <p className="mt-1 text-xs text-faint">{STAGE[s].hint}</p>
             </Link>
           ))}
         </div>

@@ -107,14 +107,15 @@ src/
 
 ## Diseño
 
-Oscuro y sobrio, inspirado en la barbería clásica:
+Claro y moderno, pensado para usarse igual en el celular que en el mostrador:
 
-- **Colores:** pizarra `#1C1B19` de fondo, espuma `#EEEAE3` para el texto, ceniza `#9C978D` para lo secundario, y un solo acento frío, níquel `#C9CFD1`, como el acero de una navaja. Los estados de las citas usan tonos apagados (arena, salvia, rosa viejo).
-- **Tipografía:** Marcellus para títulos y cifras (letras romanas grabadas, como en los letreros y las navajas), Albert Sans para la interfaz.
-- **El detalle:** la regla de horas de la agenda se dibuja como los dientes de un peine: diente largo cada hora, corto cada 15 minutos. Aparece también en el login.
-- Sin sombras ni degradados: líneas finas, mucho espacio, y bordes redondeados según la jerarquía.
+- **Colores:** fondo gris muy claro `#F5F6FA`, tarjetas blancas con sombra suave y un solo color de marca, índigo `#4F46E5`. Verde, ámbar y rojo quedan reservados para estados (cita terminada, por confirmar, no llegó; cliente activo, en riesgo, perdido).
+- **Tipografía:** Albert Sans en toda la interfaz; títulos y cifras con más peso y tracking cerrado.
+- **Estructura:** cada sección con título es una tarjeta (`section:has(> .section-title)` en `globals.css`), las cifras clave van en tarjetas con ícono (`<Figure icon={…}>`) y los estados son pastillas teñidas (`<Dot>`).
+- **Navegación:** menú lateral con íconos y grupos en computadora; barra inferior tipo app con "Más" en el celular. El número junto a *Seguimiento* son los pendientes de hoy.
+- **Íconos:** [lucide-react](https://lucide.dev).
 
-Los tokens están al inicio de `src/app/globals.css`.
+Los tokens están al inicio de `src/app/globals.css`. Para cambiar el color de marca basta con `--color-brand`, `--color-brand-hover` y `--color-brand-soft`.
 
 ## Pendiente para producción
 

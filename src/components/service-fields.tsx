@@ -16,11 +16,11 @@ export function ServiceFields({ s, staff, assigned }: {
       </Field>
       <fieldset>
         <legend className="label">Lo hacen</legend>
-        {staff.length === 0 ? <p className="text-sm text-ash">Aún no hay barberos en Equipo.</p> : (
+        {staff.length === 0 ? <p className="text-sm text-muted">Aún no hay barberos en Equipo.</p> : (
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             {staff.map((p) => (
               <label key={p.id} className="flex items-center gap-2">
-                <input type="checkbox" name="staffId" value={p.id} defaultChecked={assigned.includes(p.id)} className="accent-[var(--color-nickel)]" />
+                <input type="checkbox" name="staffId" value={p.id} defaultChecked={assigned.includes(p.id)} className="accent-[var(--color-brand)]" />
                 {p.name}
               </label>
             ))}
@@ -28,7 +28,7 @@ export function ServiceFields({ s, staff, assigned }: {
         )}
       </fieldset>
       <label className="flex items-center gap-2">
-        <input type="checkbox" name="bookableOnline" defaultChecked={s?.bookableOnline ?? true} className="accent-[var(--color-nickel)]" />
+        <input type="checkbox" name="bookableOnline" defaultChecked={s?.bookableOnline ?? true} className="accent-[var(--color-brand)]" />
         Se puede reservar en línea
       </label>
     </div>

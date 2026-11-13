@@ -49,21 +49,21 @@ export function NewAppointmentForm({ services, staff, tz, initialDate, initialSt
 
   return (
     <ActionForm action={createAppointment} className="grid gap-12 lg:grid-cols-[1fr_300px]">
-      <div className="space-y-10">
+      <div className="space-y-6">
         <fieldset>
           <legend className="mb-3 font-display text-xl">Servicios</legend>
-          {services.length === 0 && <p className="text-ash">Primero crea servicios en la sección Servicios.</p>}
+          {services.length === 0 && <p className="text-muted">Primero crea servicios en la sección Servicios.</p>}
           <div className="grid gap-2 sm:grid-cols-2">
             {services.map((s) => {
               const on = picked.includes(s.id);
               return (
-                <label key={s.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-4 py-3 transition-colors ${on ? "border-nickel bg-ink-2" : "border-line hover:border-ash-2"}`}>
+                <label key={s.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-4 py-3 transition-colors ${on ? "border-brand bg-hover" : "border-line hover:border-faint"}`}>
                   <span className="flex items-center gap-3">
                     <input type="checkbox" name="serviceId" value={s.id} checked={on} onChange={() => toggle(s.id)} className="sr-only" />
-                    <span className={`size-3.5 rounded-sm border ${on ? "border-nickel bg-nickel" : "border-ash-2"}`} aria-hidden />
-                    <span>{s.name}<span className="block text-sm text-ash">{minutesLabel(s.minutes)}</span></span>
+                    <span className={`size-3.5 rounded-sm border ${on ? "border-brand bg-brand" : "border-faint"}`} aria-hidden />
+                    <span>{s.name}<span className="block text-sm text-muted">{minutesLabel(s.minutes)}</span></span>
                   </span>
-                  <span className="text-sm text-ash tnum">{money(s.price, true)}</span>
+                  <span className="text-sm text-muted tnum">{money(s.price, true)}</span>
                 </label>
               );
             })}
@@ -87,16 +87,16 @@ export function NewAppointmentForm({ services, staff, tz, initialDate, initialSt
           <legend className="mb-3 font-display text-xl">Hora</legend>
           <input type="hidden" name="startsAt" value={slot} />
           {slots === null ? (
-            <p className="text-ash">Elige servicios, barbero y día para ver los horarios libres.</p>
+            <p className="text-muted">Elige servicios, barbero y día para ver los horarios libres.</p>
           ) : loading ? (
-            <p className="text-ash">Buscando horarios…</p>
+            <p className="text-muted">Buscando horarios…</p>
           ) : slots.length === 0 ? (
-            <p className="text-ash">No hay espacio libre ese día. Prueba otro día u otro barbero.</p>
+            <p className="text-muted">No hay espacio libre ese día. Prueba otro día u otro barbero.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {slots.map((s) => (
                 <button type="button" key={s} onClick={() => setSlot(s)} aria-pressed={slot === s}
-                  className={`w-[4.5rem] rounded-md border py-2 text-sm tnum transition-colors ${slot === s ? "border-foam bg-foam text-ink" : "border-line text-foam hover:border-ash-2"}`}>
+                  className={`w-[4.5rem] rounded-md border py-2 text-sm tnum transition-colors ${slot === s ? "border-brand bg-brand text-on-brand" : "border-line text-fg hover:border-faint"}`}>
                   {fmtTime(s, tz)}
                 </button>
               ))}
@@ -128,18 +128,18 @@ export function NewAppointmentForm({ services, staff, tz, initialDate, initialSt
         <div className="rounded-lg border border-line p-6">
           <p className="font-display text-xl">Resumen</p>
           {total.length === 0 ? (
-            <p className="mt-3 text-sm text-ash">Aún no eliges servicios.</p>
+            <p className="mt-3 text-sm text-muted">Aún no eliges servicios.</p>
           ) : (
             <ul className="mt-4 space-y-2 text-sm">
               {total.map((s) => (
-                <li key={s.id} className="flex justify-between gap-3"><span>{s.name}</span><span className="text-ash tnum">{money(s.price, true)}</span></li>
+                <li key={s.id} className="flex justify-between gap-3"><span>{s.name}</span><span className="text-muted tnum">{money(s.price, true)}</span></li>
               ))}
             </ul>
           )}
           <dl className="mt-5 space-y-1 border-t border-line-soft pt-4 text-sm">
-            <div className="flex justify-between"><dt className="text-ash">Duración</dt><dd className="tnum">{minutes ? minutesLabel(minutes) : "—"}</dd></div>
-            <div className="flex justify-between"><dt className="text-ash">Total</dt><dd className="font-display text-lg tnum">{money(total.reduce((a, s) => a + s.price, 0))}</dd></div>
-            {slot && <div className="flex justify-between"><dt className="text-ash">Hora</dt><dd className="tnum">{fmtTime(slot, tz)}</dd></div>}
+            <div className="flex justify-between"><dt className="text-muted">Duración</dt><dd className="tnum">{minutes ? minutesLabel(minutes) : "—"}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Total</dt><dd className="font-display text-lg tnum">{money(total.reduce((a, s) => a + s.price, 0))}</dd></div>
+            {slot && <div className="flex justify-between"><dt className="text-muted">Hora</dt><dd className="tnum">{fmtTime(slot, tz)}</dd></div>}
           </dl>
           <div className="mt-6">
             <Submit pending="Agendando…" className="btn-primary w-full">Agendar cita</Submit>

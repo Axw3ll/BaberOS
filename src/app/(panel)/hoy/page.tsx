@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarDays, CheckCircle2, Clock, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
@@ -66,18 +67,18 @@ export default async function HoyPage() {
         }
       />
 
-      <div className="mb-14 grid grid-cols-2 gap-x-10 gap-y-6 sm:flex sm:flex-wrap">
-        <Figure value={active.length} label={own ? "Tus citas hoy" : "Citas hoy"} />
-        <Figure value={done} label="Atendidas" />
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(190px,1fr))]">
+        <Figure value={active.length} label={own ? "Tus citas hoy" : "Citas hoy"} icon={CalendarDays} />
+        <Figure value={done} label="Atendidas" icon={CheckCircle2} tone="success" />
         {own && ownItems ? (
-          <Figure value={money(ownItems._sum.commission ?? 0)} label="Tu comisión hoy" />
+          <Figure value={money(ownItems._sum.commission ?? 0)} label="Tu comisión hoy" icon={Wallet} />
         ) : (
-          <Figure value={money(sales._sum.total ?? 0)} label="Vendido hoy" />
+          <Figure value={money(sales._sum.total ?? 0)} label="Vendido hoy" icon={Wallet} />
         )}
-        {pending > 0 && <Figure value={pending} label="Por confirmar" />}
+        {pending > 0 && <Figure value={pending} label="Por confirmar" icon={Clock} tone="warning" />}
       </div>
 
-      <div className="grid gap-14 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
         <section>
           <SectionTitle aside={<Link href="/agenda" className="link">Ver agenda</Link>}>Lo que sigue</SectionTitle>
           {next.length === 0 ? (
@@ -88,10 +89,10 @@ export default async function HoyPage() {
             <Rows>
               {next.map((a) => (
                 <RowLink key={a.id} href={`/citas/${a.id}`}>
-                  <span className="w-14 shrink-0 font-display text-lg text-foam tnum">{timeLabel(a.startsAt, tz)}</span>
+                  <span className="w-14 shrink-0 font-display text-lg text-fg tnum">{timeLabel(a.startsAt, tz)}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{a.customer.name}</span>
-                    <span className="block truncate text-sm text-ash">
+                    <span className="block truncate text-sm text-muted">
                       {a.services.map((s) => s.name).join(", ")}{!own && ` con ${a.staff.name}`}
                     </span>
                   </span>
@@ -102,22 +103,22 @@ export default async function HoyPage() {
           )}
         </section>
 
-        <aside className="space-y-10">
+        <aside className="space-y-6">
         {(tasks.length > 0 || birthdays.length > 0) && (
           <section>
             <SectionTitle aside={<Link href="/seguimiento" className="link">Ver todo</Link>}>Clientes</SectionTitle>
             <ul className="space-y-3 text-sm">
               {birthdays.map((b) => (
                 <li key={b.id} className="flex justify-between gap-4">
-                  <Link href={`/clientes/${b.id}`} className="truncate text-ash hover:text-foam">{b.name}</Link>
-                  <span className="shrink-0 text-sand">Cumple hoy</span>
+                  <Link href={`/clientes/${b.id}`} className="truncate text-muted hover:text-fg">{b.name}</Link>
+                  <span className="shrink-0 text-warning">Cumple hoy</span>
                 </li>
               ))}
               {tasks.map((t) => (
                 <li key={t.id}>
-                  <Link href={t.customer ? `/clientes/${t.customer.id}` : "/seguimiento"} className="block text-ash hover:text-foam">
+                  <Link href={t.customer ? `/clientes/${t.customer.id}` : "/seguimiento"} className="block text-muted hover:text-fg">
                     {t.title}
-                    {t.dueOn.toISOString().slice(0, 10) < day && <span className="text-rose"> · atrasado</span>}
+                    {t.dueOn.toISOString().slice(0, 10) < day && <span className="text-danger"> · atrasado</span>}
                   </Link>
                 </li>
               ))}
@@ -130,8 +131,8 @@ export default async function HoyPage() {
             <ul className="space-y-3">
               {low.map((p) => (
                 <li key={p.id} className="flex justify-between gap-4 text-sm">
-                  <Link href={`/productos/${p.id}`} className="truncate hover:text-foam text-ash">{p.name}</Link>
-                  <span className={p.stock === 0 ? "text-rose tnum" : "text-foam tnum"}>{p.stock === 0 ? "Agotado" : `${p.stock} pzas`}</span>
+                  <Link href={`/productos/${p.id}`} className="truncate hover:text-fg text-muted">{p.name}</Link>
+                  <span className={p.stock === 0 ? "text-danger tnum" : "text-fg tnum"}>{p.stock === 0 ? "Agotado" : `${p.stock} pzas`}</span>
                 </li>
               ))}
             </ul>

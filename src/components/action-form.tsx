@@ -18,8 +18,8 @@ export function ActionForm({ action, children, className = "", resetOnOk = false
   return (
     <form ref={ref} action={run} className={className}>
       {children}
-      {state?.error && <p role="alert" className="mt-3 text-sm text-rose">{state.error}</p>}
-      {state?.ok && <p role="status" className="mt-3 text-sm text-sage">{state.ok}</p>}
+      {state?.error && <p role="alert" className="mt-3 text-sm text-danger">{state.error}</p>}
+      {state?.ok && <p role="status" className="mt-3 text-sm text-success">{state.ok}</p>}
     </form>
   );
 }

@@ -50,14 +50,14 @@ export default async function CampanasPage() {
               <RowLink key={c.id} href={`/campanas/${c.id}`}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{c.name}</span>
-                  <span className="block truncate text-sm text-ash">
+                  <span className="block truncate text-sm text-muted">
                     {segmentLabel(c.audience, tags)} · {dateLabel(toLocalDate(c.createdAt, shop.timezone), { day: "numeric", month: "short" })}
                     {c.createdBy && ` · ${c.createdBy.name}`}
                   </span>
                 </span>
                 <span className="text-right text-sm tnum">
                   <span className="block">{done} de {total} enviados</span>
-                  <span className="block text-ash">{back > 0 ? `${back} ${back === 1 ? "regresó" : "regresaron"}` : c.status === "DONE" ? "Terminada" : "En curso"}</span>
+                  <span className="block text-muted">{back > 0 ? `${back} ${back === 1 ? "regresó" : "regresaron"}` : c.status === "DONE" ? "Terminada" : "En curso"}</span>
                 </span>
               </RowLink>
             );

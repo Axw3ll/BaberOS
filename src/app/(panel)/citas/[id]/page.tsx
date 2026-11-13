@@ -45,20 +45,20 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
       />
 
       {error === "ocupado" && (
-        <p role="alert" className="-mt-4 mb-10 text-rose">Ese horario ya lo tomó otra cita. Agenda una nueva en otro horario.</p>
+        <p role="alert" className="-mt-4 mb-10 text-danger">Ese horario ya lo tomó otra cita. Agenda una nueva en otro horario.</p>
       )}
-      <div className="grid gap-14 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-12">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-6">
           <section>
             <SectionTitle aside={minutesLabel(minutes)}>Servicios</SectionTitle>
             <ul className="space-y-3">
               {a.services.map((s) => (
                 <li key={s.id} className="flex justify-between gap-4">
-                  <span>{s.name}</span><span className="text-ash tnum">{money(s.price)}</span>
+                  <span>{s.name}</span><span className="text-muted tnum">{money(s.price)}</span>
                 </li>
               ))}
               <li className="flex justify-between gap-4 border-t border-line-soft pt-3">
-                <span className="text-ash">Total</span><span className="font-display text-lg tnum">{money(total)}</span>
+                <span className="text-muted">Total</span><span className="font-display text-lg tnum">{money(total)}</span>
               </li>
             </ul>
           </section>
@@ -73,7 +73,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
           </section>
         </div>
 
-        <aside className="space-y-10">
+        <aside className="space-y-6">
           {open && (
             <section>
               <SectionTitle>Siguiente paso</SectionTitle>
@@ -85,7 +85,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
                 {a.status !== "IN_PROGRESS" && action("IN_PROGRESS", "Pasar a la silla")}
                 <div className="mt-4 flex gap-2">
                   {action("NO_SHOW", "No llegó", "btn-ghost")}
-                  {action("CANCELLED", "Cancelar cita", "btn-ghost text-rose")}
+                  {action("CANCELLED", "Cancelar cita", "btn-ghost text-danger")}
                 </div>
               </div>
             </section>
@@ -97,7 +97,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
             </section>
           )}
           {(a.status === "CANCELLED" || a.status === "NO_SHOW") && (
-            <section className="text-sm text-ash">
+            <section className="text-sm text-muted">
               <p>El horario quedó libre.</p>
               <div className="mt-3">{action("CONFIRMED", "Reactivar cita")}</div>
             </section>
@@ -105,8 +105,8 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
           <section>
             <SectionTitle>Cliente</SectionTitle>
             <dl className="space-y-2 text-sm">
-              <div><dt className="text-ash">Teléfono</dt><dd><a href={`tel:${a.customer.phone}`} className="link tnum">{a.customer.phone}</a></dd></div>
-              <div><dt className="text-ash">Origen</dt><dd>{SOURCE[a.source]}</dd></div>
+              <div><dt className="text-muted">Teléfono</dt><dd><a href={`tel:${a.customer.phone}`} className="link tnum">{a.customer.phone}</a></dd></div>
+              <div><dt className="text-muted">Origen</dt><dd>{SOURCE[a.source]}</dd></div>
             </dl>
             <Link href={`/clientes/${a.customer.id}`} className="mt-4 inline-block text-sm link">Ver historial</Link>
           </section>

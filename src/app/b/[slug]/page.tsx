@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { addDays, today } from "@/lib/time";
+import { MapPin, Phone, Scissors } from "lucide-react";
 import { Booking } from "./booking";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -25,20 +26,23 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
   const days = Array.from({ length: Math.min(shop.maxAdvanceDays, 21) + 1 }, (_, i) => addDays(start, i));
 
   return (
-    <main className="mx-auto max-w-xl px-5 pt-16 pb-24 sm:pt-24">
-      <header className="mb-14">
-        <h1 className="font-display text-4xl leading-tight sm:text-5xl">{shop.name}</h1>
-        {(shop.address || shop.phone) && (
-          <p className="mt-3 text-ash">
-            {shop.address}
-            {shop.address && shop.phone && <br />}
-            {shop.phone && <a href={`tel:${shop.phone}`} className="link tnum">{shop.phone}</a>}
-          </p>
-        )}
-      </header>
-
+    <main className="min-h-dvh">
+      <div className="bg-brand px-5 pt-12 pb-24 text-on-brand sm:pt-16">
+        <header className="mx-auto max-w-xl">
+          <span className="mb-5 grid size-12 place-items-center rounded-2xl bg-white/15"><Scissors className="size-6" aria-hidden /></span>
+          <h1 className="font-display text-3xl leading-tight sm:text-4xl">{shop.name}</h1>
+          {(shop.address || shop.phone) && (
+            <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-white/80">
+              {shop.address && <span className="inline-flex items-center gap-1.5"><MapPin className="size-4" aria-hidden />{shop.address}</span>}
+              {shop.phone && <a href={`tel:${shop.phone}`} className="inline-flex items-center gap-1.5 tnum hover:text-white"><Phone className="size-4" aria-hidden />{shop.phone}</a>}
+            </p>
+          )}
+        </header>
+      </div>
+      <div className="mx-auto -mt-16 max-w-xl px-4 pb-16">
+      <div className="card p-5 sm:p-7">
       {services.length === 0 ? (
-        <p className="text-ash">Por ahora no hay reservas en línea. Llama o escribe a la barbería.</p>
+        <p className="text-muted">Por ahora no hay reservas en línea. Llama o escribe a la barbería.</p>
       ) : (
         <Booking
           slug={shop.slug}
@@ -48,7 +52,9 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           staff={staff.map((s) => ({ id: s.id, name: s.name }))}
         />
       )}
-      <footer className="mt-24 text-sm text-ash-2">Reservas con BarberOS</footer>
+      </div>
+      <footer className="mt-8 text-center text-sm text-faint">Reservas con BarberOS</footer>
+      </div>
     </main>
   );
 }

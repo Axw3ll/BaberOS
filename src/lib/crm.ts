@@ -9,11 +9,11 @@ import type { ActivityType, CustomerOrigin } from "@/generated/prisma/enums";
 export type Stage = "sin_visitas" | "nuevo" | "activo" | "en_riesgo" | "perdido";
 
 export const STAGE: Record<Stage, { label: string; color: string; hint: string }> = {
-  sin_visitas: { label: "Sin visitas", color: "var(--color-ash-2)", hint: "Registrados que aún no vienen" },
-  nuevo: { label: "Nuevo", color: "var(--color-nickel)", hint: "Primera visita en los últimos 30 días" },
-  activo: { label: "Activo", color: "var(--color-sage)", hint: "Vienen con su frecuencia habitual" },
-  en_riesgo: { label: "En riesgo", color: "var(--color-sand)", hint: "Ya se tardaron más de lo normal" },
-  perdido: { label: "Perdido", color: "var(--color-rose)", hint: "No vienen desde hace mucho" },
+  sin_visitas: { label: "Sin visitas", color: "var(--color-faint)", hint: "Registrados que aún no vienen" },
+  nuevo: { label: "Nuevo", color: "var(--color-brand)", hint: "Primera visita en los últimos 30 días" },
+  activo: { label: "Activo", color: "var(--color-success)", hint: "Vienen con su frecuencia habitual" },
+  en_riesgo: { label: "En riesgo", color: "var(--color-warning)", hint: "Ya se tardaron más de lo normal" },
+  perdido: { label: "Perdido", color: "var(--color-danger)", hint: "No vienen desde hace mucho" },
 };
 
 export const ORIGIN: Record<CustomerOrigin, string> = {
@@ -37,7 +37,10 @@ export const ACTIVITY: Record<ActivityType, string> = {
 };
 
 export const TAG_COLORS = ["nickel", "sage", "rose", "sand", "ash"] as const;
-export const tagColor = (c: string) => `var(--color-${(TAG_COLORS as readonly string[]).includes(c) ? c : "nickel"})`;
+/** Los valores guardados en la base conservan sus nombres originales; aquí se traducen al tema. */
+const TAG_TOKEN: Record<string, string> = { nickel: "brand", sage: "success", rose: "danger", sand: "warning", ash: "faint" };
+export const TAG_LABEL: Record<(typeof TAG_COLORS)[number], string> = { nickel: "Índigo", sage: "Verde", rose: "Rojo", sand: "Ámbar", ash: "Gris" };
+export const tagColor = (c: string) => `var(--color-${TAG_TOKEN[c] ?? "brand"})`;
 
 const DAY = 86_400_000;
 
