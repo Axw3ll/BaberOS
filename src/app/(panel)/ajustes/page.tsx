@@ -6,7 +6,8 @@ import { Field, PageHeader, SectionTitle } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
 import { LoyaltySettings } from "./loyalty-settings";
-import { addClosure, removeClosure, saveCrm, saveMessages, saveShop, saveShopHours } from "./actions";
+import { FREQUENCY_LABEL, WEEKDAYS } from "@/lib/payroll";
+import { addClosure, removeClosure, saveCrm, saveMessages, savePayroll, saveShop, saveShopHours } from "./actions";
 import { createTag, deleteTag } from "../clientes/actions";
 import { TAG_COLORS, TAG_LABEL, tagColor } from "@/lib/crm";
 import { money } from "@/lib/format";
@@ -55,6 +56,26 @@ export default async function AjustesPage() {
               <Field label="Reservar hasta (días)"><input name="maxAdvanceDays" inputMode="numeric" defaultValue={shop.maxAdvanceDays} className="field tnum" /></Field>
             </div>
             <div className="mt-6"><Submit>Guardar ajustes</Submit></div>
+          </ActionForm>
+        </section>
+
+        <section id="comisiones" className="max-w-2xl scroll-mt-6">
+          <SectionTitle>Pago de comisiones</SectionTitle>
+          <p className="mb-4 text-sm text-muted">Con esto sabes cuándo toca pagar y cuánto. El día de pago te avisamos en Hoy y en Ventas → Comisiones.</p>
+          <ActionForm action={savePayroll}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Cada cuánto pagas">
+                <select name="payoutFrequency" defaultValue={shop.payoutFrequency} className="field">
+                  {Object.entries(FREQUENCY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </Field>
+              <Field label="Día de pago (si es semanal)" hint="El periodo son los 7 días que terminan ese día">
+                <select name="payoutWeekday" defaultValue={shop.payoutWeekday} className="field">
+                  {WEEKDAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              </Field>
+            </div>
+            <div className="mt-5"><Submit>Guardar</Submit></div>
           </ActionForm>
         </section>
 

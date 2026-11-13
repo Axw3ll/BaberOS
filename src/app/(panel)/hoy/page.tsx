@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { GettingStarted } from "@/components/getting-started";
-import { CalendarDays, CheckCircle2, ChevronRight, Clock, MessageCircle, Wallet } from "lucide-react";
+import { payrollInfo } from "@/lib/payroll";
+import { unpaidCommissions } from "@/lib/cash";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock, HandCoins, MessageCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
@@ -22,7 +24,8 @@ export default async function HoyPage() {
   const staffFilter = own ? { staffId: me.id } : {};
 
   const [m, d] = day.slice(5).split("-").map(Number);
-  const [appts, sales, ownItems, low, birthdays, tasks, outbox] = await Promise.all([
+  const pay = payrollInfo(shop);
+  const [appts, sales, ownItems, low, birthdays, tasks, outbox, payRows] = await Promise.all([
     prisma.appointment.findMany({
       where: { shopId: shop.id, startsAt: { gte: from, lt: to }, ...staffFilter },
       include: { customer: true, staff: true, services: true },
@@ -50,7 +53,9 @@ export default async function HoyPage() {
     prisma.outboundMessage.count({
       where: { shopId: shop.id, status: "PENDING", dueAt: { lte: new Date() }, ...(own && { appointment: { staffId: me.id } }) },
     }),
+    canAccess(me.role, "ajustes") ? unpaidCommissions(shop.id, undefined, pay.cutoff) : [],
   ]);
+  const payDue = payRows.reduce((a, r) => a + Number(r.due), 0);
 
   const active = appts.filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW");
   const now = Date.now();
@@ -83,6 +88,17 @@ export default async function HoyPage() {
       </div>
 
       {canAccess(me.role, "ajustes") && <GettingStarted shop={shop} />}
+
+      {payDue > 0 && (
+        <Link href="/ventas/comisiones" className="card mb-6 flex items-center gap-4 border-warning/40 p-4 transition hover:border-warning">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-warning/10 text-warning"><HandCoins className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{pay.isPayday ? "Hoy toca pagar comisiones" : "Comisiones atrasadas"}: {money(payDue)}</span>
+            <span className="block text-sm text-muted">{pay.isPayday ? `Periodo ${pay.periodLabel}.` : "De periodos que ya cerraron."} Toca para ver cuánto le toca a cada quien.</span>
+          </span>
+          <ChevronRight className="size-5 text-faint" />
+        </Link>
+      )}
 
       {outbox > 0 && (
         <Link href="/seguimiento/mensajes" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">

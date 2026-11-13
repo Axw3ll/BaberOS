@@ -23,12 +23,15 @@ export async function periodTotals(shopId: string, start: Date, end: Date) {
 }
 
 /** Comisiones aún no pagadas, por persona. */
-export async function unpaidCommissions(shopId: string, staffId?: string) {
-  return prisma.$queryRaw<{ staffId: string; name: string; items: number; services: string; products: string; commission: string; since: Date }[]>`
+export async function unpaidCommissions(shopId: string, staffId?: string, cutoff: Date = new Date(8.64e15)) {
+  return prisma.$queryRaw<{ staffId: string; name: string; items: number; services: string; products: string; commission: string; since: Date; due: string; dueItems: number; running: string }[]>`
     SELECT st.id AS "staffId", st.name, count(*)::int AS items,
            COALESCE(sum(i.commission) FILTER (WHERE i.kind = 'SERVICE'), 0)::text AS services,
            COALESCE(sum(i.commission) FILTER (WHERE i.kind = 'PRODUCT'), 0)::text AS products,
-           sum(i.commission)::text AS commission, min(s."createdAt") AS since
+           sum(i.commission)::text AS commission, min(s."createdAt") AS since,
+           COALESCE(sum(i.commission) FILTER (WHERE s."createdAt" < ${cutoff}), 0)::text AS due,
+           count(*) FILTER (WHERE s."createdAt" < ${cutoff})::int AS "dueItems",
+           COALESCE(sum(i.commission) FILTER (WHERE s."createdAt" >= ${cutoff}), 0)::text AS running
       FROM sale_items i JOIN sales s ON s.id = i."saleId" JOIN staff st ON st.id = i."staffId"
      WHERE s."shopId" = ${shopId}::uuid AND s.status = 'PAID' AND i."payoutId" IS NULL AND i.commission > 0
        AND (${staffId ?? null}::uuid IS NULL OR st.id = ${staffId ?? null}::uuid)

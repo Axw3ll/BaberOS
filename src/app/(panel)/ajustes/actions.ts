@@ -101,6 +101,18 @@ export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionRe
   return { ok: "Ajustes de clientes guardados." };
 }
 
+export async function savePayroll(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const { shop } = await requireSection("ajustes");
+  const freq = String(data.get("payoutFrequency"));
+  if (!["WEEKLY", "BIWEEKLY", "MONTHLY"].includes(freq)) return { error: "Elige cada cuánto pagas." };
+  await prisma.barbershop.update({
+    where: { id: shop.id },
+    data: { payoutFrequency: freq as "WEEKLY" | "BIWEEKLY" | "MONTHLY", payoutWeekday: int(data.get("payoutWeekday"), 0, 6, shop.payoutWeekday) },
+  });
+  revalidatePath("/", "layout");
+  return { ok: "Calendario de pago guardado." };
+}
+
 export async function saveMessages(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("ajustes");
   const url = String(data.get("googleReviewUrl") ?? "").trim();

@@ -34,7 +34,7 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 | **Cita** | Confirmar, en silla, no llegó, cancelar. Cobrar en efectivo, tarjeta o transferencia con un toque |
 | **Ventas** | Punto de venta con propina, descuento, canje de puntos y cambio. Ticket imprimible. Después de cobrar: "¿Le agendamos la próxima?" según su frecuencia |
 | **Corte de caja** | Totales del turno por forma de pago, fondo, retiros y efectivo contado con la diferencia en vivo |
-| **Comisiones** | Lo que se le debe a cada quien desde su último pago, y "Marcar pagado" |
+| **Comisiones** | Calendario de pago (semanal en el día que elijas, quincenal o mensual). Muestra lo que ya toca pagar a cada quien, lo que se junta para el siguiente pago y avisa en Hoy el día de pago o si hay atrasos. Pagar el periodo cerrado o adelantar todo |
 | **Clientes** | Etapas (nuevo, activo, en riesgo, perdido, sin visitas), VIP, etiquetas, búsqueda, orden, importación desde Excel/CSV y exportación |
 | **Ficha del cliente** | Métricas, lo que le gusta, línea de tiempo con citas, compras y bitácora, seguimientos, etiquetas, tarjeta de sellos o puntos, WhatsApp con mensajes listos, "Cobrar lo de siempre" |
 | **Lealtad** | Cada barbería elige en Ajustes: **tarjeta de sellos** (un sello por visita; al completarla, servicio gratis o descuento), **puntos** (por cada peso pagado, canjeables como descuento) o nada |
@@ -44,7 +44,8 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 | **Reportes** | Ventas, retención, comisiones, más vendidos, mejores clientes y canales de adquisición |
 | **Productos, Servicios, Equipo, Ajustes** | Inventario con kardex, servicios por barbero, roles, horarios, invitaciones, mensajes automáticos, puntos y etiquetas |
 | **/b/tu-barberia** | Reservas públicas (protegidas contra abuso) |
-| **/c/…** | Enlace privado del cliente: confirmar, cambiar o cancelar su cita y agregarla a su calendario |
+| **/c/…** | Enlace privado de cada cita: confirmar, cambiar o cancelar y agregarla al calendario |
+| **/mi/…** | Página personal del cliente, sin cuenta: su tarjeta de sellos o puntos, su próxima cita, sus visitas, reservar con sus datos ya puestos y decidir si quiere promociones |
 | **/suscripcion** | Prueba gratis, planes, pago y portal de Stripe |
 | **/admin** | Tu panel: barberías, estado, uso, ingreso mensual, activar planes a mano y modo soporte |
 
@@ -139,7 +140,7 @@ Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (
 ```
 prisma/
   schema.prisma                 modelos (28 tablas)
-  migrations/                   init, reglas, crm, mejoras, whatsapp, sellos
+  migrations/                   init, reglas, crm, mejoras, whatsapp, sellos, enlace_cliente_y_pagos
   seed.ts                       datos de demostración
 src/
   proxy.ts                      sesión de Supabase y rutas públicas
@@ -154,6 +155,7 @@ src/
     whatsapp.ts                 WhatsApp Cloud API
     billing.ts                  planes, acceso y Stripe
     cash.ts                     corte de caja y comisiones
+    payroll.ts                  calendario y periodos de pago de comisiones
     guard.ts                    límite de intentos y Turnstile
   app/
     (auth)/  onboarding/  (panel)/  b/[slug]/  c/[token]/  suscripcion/  admin/
