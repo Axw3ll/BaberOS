@@ -68,7 +68,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   return (
     <div className="lg:grid lg:min-h-dvh lg:grid-cols-[256px_1fr]">
-      <aside className="hidden border-r border-line bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:px-4 lg:py-6">
+      <aside className="hidden border-r border-line bg-surface print:!hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:px-4 lg:py-6">
         <div className="mb-6 px-2">
           {logo}
           <div className="mt-4">{shopSwitch ?? <p className="truncate rounded-lg bg-hover px-3 py-2 text-sm text-muted">{shop.name}</p>}</div>
@@ -84,12 +84,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </div>
       </aside>
 
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="sticky top-0 z-30 flex print:hidden items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
         {logo}
         <span className="min-w-0 truncate text-sm text-muted">{shop.name}</span>
       </header>
 
-      <main className="panel min-w-0 px-4 pt-6 pb-28 sm:px-6 lg:px-10 lg:py-10">
+      <main className="panel min-w-0 px-4 pt-6 pb-28 sm:px-6 lg:px-10 lg:py-10 print:p-0">
         <div className="mx-auto max-w-[1200px]">
           {support && (
             <form action={exitSupport} className="mb-6 flex items-center justify-between gap-3 rounded-xl bg-danger px-4 py-3 text-sm font-medium text-white">

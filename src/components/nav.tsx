@@ -112,7 +112,7 @@ export function MobileNav({ sections, badges = {}, footer }: { sections: string[
           {footer && <div className="mt-3 border-t border-line-soft px-1 pt-3">{footer}</div>}
         </div>
       )}
-      <nav aria-label="Secciones" className="fixed inset-x-0 bottom-0 z-50 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      <nav aria-label="Secciones" className="fixed inset-x-0 bottom-0 z-50 flex border-t border-line bg-surface/95 print:hidden pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
         {main.map((s) => {
           const { label, icon: Icon } = ITEMS[s];
           const active = isActive(s);

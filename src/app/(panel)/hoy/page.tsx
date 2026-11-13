@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GettingStarted } from "@/components/getting-started";
 import { payrollInfo } from "@/lib/payroll";
 import { unpaidCommissions } from "@/lib/cash";
-import { CalendarDays, CheckCircle2, ChevronRight, Clock, HandCoins, MessageCircle, Wallet } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronRight, Clock, HandCoins, ListOrdered, MessageCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
@@ -25,7 +25,7 @@ export default async function HoyPage() {
 
   const [m, d] = day.slice(5).split("-").map(Number);
   const pay = payrollInfo(shop);
-  const [appts, sales, ownItems, low, birthdays, tasks, outbox, payRows] = await Promise.all([
+  const [appts, sales, ownItems, low, birthdays, tasks, outbox, payRows, inQueue] = await Promise.all([
     prisma.appointment.findMany({
       where: { shopId: shop.id, startsAt: { gte: from, lt: to }, ...staffFilter },
       include: { customer: true, staff: true, services: true },
@@ -54,6 +54,7 @@ export default async function HoyPage() {
       where: { shopId: shop.id, status: "PENDING", dueAt: { lte: new Date() }, ...(own && { appointment: { staffId: me.id } }) },
     }),
     canAccess(me.role, "ajustes") ? unpaidCommissions(shop.id, undefined, pay.cutoff) : [],
+    prisma.queueEntry.count({ where: { shopId: shop.id, status: { in: ["WAITING", "CALLED"] }, createdAt: { gt: new Date(Date.now() - 16 * 3_600_000) } } }),
   ]);
   const payDue = payRows.reduce((a, r) => a + Number(r.due), 0);
 
@@ -88,6 +89,17 @@ export default async function HoyPage() {
       </div>
 
       {canAccess(me.role, "ajustes") && <GettingStarted shop={shop} />}
+
+      {inQueue > 0 && (
+        <Link href="/fila" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand"><ListOrdered className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{inQueue} {inQueue === 1 ? "persona espera" : "personas esperan"} en la fila</span>
+            <span className="block text-sm text-muted">Clientes sin cita. Toca para pasarlos con un barbero.</span>
+          </span>
+          <ChevronRight className="size-5 text-faint" />
+        </Link>
+      )}
 
       {payDue > 0 && (
         <Link href="/ventas/comisiones" className="card mb-6 flex items-center gap-4 border-warning/40 p-4 transition hover:border-warning">

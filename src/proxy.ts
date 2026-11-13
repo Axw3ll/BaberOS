@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Refresca la sesión de Supabase en cada request y protege el panel.
-const PUBLIC = ["/login", "/registro", "/recuperar", "/b/", "/c/", "/mi/", "/auth/", "/privacidad", "/terminos", "/api/cron/", "/api/stripe/", "/manifest.webmanifest"];
+const PUBLIC = ["/login", "/registro", "/recuperar", "/b/", "/c/", "/mi/", "/f/", "/auth/", "/privacidad", "/terminos", "/api/cron/", "/api/stripe/", "/manifest.webmanifest"];
 
 export async function proxy(request: NextRequest) {
   if (process.env.NODE_ENV !== "production" && process.env.DEV_AUTH_EMAIL) return NextResponse.next();
