@@ -45,6 +45,8 @@ export default async function VentasPage({ searchParams }: { searchParams: Promi
               <Link href="/ventas" className="border-x border-line px-3 py-2 text-sm">Hoy</Link>
               <Link href={`/ventas?d=${addDays(day, 1)}`} className="px-3 py-2 text-muted hover:text-fg" aria-label="Día siguiente">›</Link>
             </nav>
+            {!own && <Link href="/ventas/corte" className="btn-quiet">Corte de caja</Link>}
+            <Link href="/ventas/comisiones" className="btn-quiet">Comisiones</Link>
             <Link href="/ventas/nueva" className="btn-primary">Nueva venta</Link>
           </>
         }
