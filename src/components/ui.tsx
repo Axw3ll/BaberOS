@@ -93,3 +93,36 @@ export function Figure({ value, label }: { value: React.ReactNode; label: string
     </div>
   );
 }
+
+/** Punto de color + texto, como los estados de cita. Para etapas del cliente. */
+export function Dot({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-sm text-ash">
+      <span className="size-1.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+      {children}
+    </span>
+  );
+}
+
+export function Chip({ color, children, href, active }: { color?: string; children: React.ReactNode; href?: string; active?: boolean }) {
+  const cls = `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+    active ? "border-nickel bg-ink-3 text-foam" : "border-line text-ash"
+  } ${href ? "hover:border-ash-2 hover:text-foam" : ""}`;
+  const inner = (
+    <>
+      {color && <span className="size-1.5 rounded-full" style={{ background: color }} aria-hidden />}
+      {children}
+    </>
+  );
+  return href ? <Link href={href} className={cls} aria-current={active ? "true" : undefined}>{inner}</Link> : <span className={cls}>{inner}</span>;
+}
+
+/** Barra horizontal simple para reportes. value/max en la misma unidad. */
+export function Bar({ value, max }: { value: number; max: number }) {
+  const w = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
+  return (
+    <span className="block h-1.5 w-full overflow-hidden rounded-full bg-ink-3" aria-hidden>
+      <span className="block h-full rounded-full bg-nickel" style={{ width: `${w}%` }} />
+    </span>
+  );
+}

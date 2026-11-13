@@ -5,14 +5,18 @@ import { addDays, dateLabel, toLocalDate } from "@/lib/time";
 import { Field, PageHeader, SectionTitle } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
-import { addClosure, removeClosure, saveShop, saveShopHours } from "./actions";
+import { addClosure, removeClosure, saveCrm, saveShop, saveShopHours } from "./actions";
+import { createTag, deleteTag } from "../clientes/actions";
+import { TAG_COLORS, tagColor } from "@/lib/crm";
+import { money } from "@/lib/format";
 
 export const metadata = { title: "Ajustes" };
 
 export default async function AjustesPage() {
   const { shop } = await requireSection("ajustes");
-  const [hours, closures] = await Promise.all([
+  const [hours, tags, closures] = await Promise.all([
     prisma.shopHours.findMany({ where: { shopId: shop.id } }),
+    prisma.tag.findMany({ where: { shopId: shop.id }, include: { _count: { select: { customers: true } } }, orderBy: { name: "asc" } }),
     prisma.closure.findMany({ where: { shopId: shop.id, endsAt: { gt: new Date() } }, orderBy: { startsAt: "asc" } }),
   ]);
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
@@ -50,6 +54,51 @@ export default async function AjustesPage() {
               <Field label="Reservar hasta (días)"><input name="maxAdvanceDays" inputMode="numeric" defaultValue={shop.maxAdvanceDays} className="field tnum" /></Field>
             </div>
             <div className="mt-6"><Submit>Guardar ajustes</Submit></div>
+          </ActionForm>
+        </section>
+
+        <section className="max-w-2xl">
+          <SectionTitle>Clientes y lealtad</SectionTitle>
+          <ActionForm action={saveCrm}>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="loyalty" defaultChecked={Number(shop.loyaltyPointsPerPeso) > 0} className="size-4 accent-[var(--color-nickel)]" />
+              Programa de puntos
+            </label>
+            <p className="mt-1 text-sm text-ash">El cliente gana puntos con cada cobro (sin contar propina) y los canjea como descuento en caja.</p>
+            <div className="mt-5 grid gap-5 sm:grid-cols-3">
+              <Field label="Puntos por cada peso" hint="1 = un punto por peso"><input name="pointsPerPeso" inputMode="decimal" defaultValue={Number(shop.loyaltyPointsPerPeso) || 1} className="field tnum" /></Field>
+              <Field label="Cada punto vale ($)" hint={`Gastar ${money(1000, true)} regresa ${money(1000 * (Number(shop.loyaltyPointsPerPeso) || 1) * Number(shop.loyaltyPesoPerPoint), true)}`}>
+                <input name="pesoPerPoint" inputMode="decimal" defaultValue={Number(shop.loyaltyPesoPerPoint)} className="field tnum" />
+              </Field>
+              <Field label="Cliente perdido después de (días)" hint="Sin venir"><input name="lostAfterDays" inputMode="numeric" defaultValue={shop.lostAfterDays} className="field tnum" /></Field>
+            </div>
+            <div className="mt-6"><Submit>Guardar</Submit></div>
+          </ActionForm>
+        </section>
+
+        <section className="max-w-2xl">
+          <SectionTitle>Etiquetas de clientes</SectionTitle>
+          {tags.length > 0 && (
+            <ul className="mb-6 divide-y divide-line-soft border-y border-line-soft">
+              {tags.map((t) => (
+                <li key={t.id} className="flex items-center justify-between gap-4 py-2.5">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="size-1.5 rounded-full" style={{ background: tagColor(t.color) }} aria-hidden />{t.name}
+                    <span className="text-sm text-ash-2 tnum">{t._count.customers}</span>
+                  </span>
+                  <form action={deleteTag}><input type="hidden" name="id" value={t.id} /><button className="btn-ghost text-sm">Borrar</button></form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <ActionForm action={createTag} resetOnOk>
+            <div className="flex gap-2">
+              <input name="name" className="field" placeholder="Estudiante, Barba, Niño…" aria-label="Nueva etiqueta" maxLength={30} />
+              <select name="color" className="field w-32" aria-label="Color" defaultValue="nickel">
+                {TAG_COLORS.map((col) => <option key={col} value={col}>{{ nickel: "Níquel", sage: "Salvia", rose: "Rosa", sand: "Arena", ash: "Ceniza" }[col]}</option>)}
+              </select>
+              <Submit className="btn-quiet">Agregar</Submit>
+            </div>
           </ActionForm>
         </section>
 

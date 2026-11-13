@@ -78,7 +78,10 @@ export async function book(input: {
     const c = await prisma.customer.upsert({
       where: { shopId_phone: { shopId: input.shopId, phone } },
       update: { name: input.customer.name.trim(), ...(input.customer.email && { email: input.customer.email }) },
-      create: { shopId: input.shopId, phone, name: input.customer.name.trim(), email: input.customer.email || null },
+      create: {
+        shopId: input.shopId, phone, name: input.customer.name.trim(), email: input.customer.email || null,
+        ...(input.source === "ONLINE" && { origin: "ONLINE_BOOKING" as const }),
+      },
     });
     customerId = c.id;
   }

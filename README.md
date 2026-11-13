@@ -1,6 +1,6 @@
 # BarberOS
 
-Sistema para barberías: agenda con disponibilidad real, equipo, servicios, productos con inventario, ventas con ticket y comisiones, clientes y una página pública de reservas.
+Sistema para barberías con CRM: agenda con disponibilidad real, equipo, servicios, productos con inventario, ventas con ticket y comisiones, ficha 360° de clientes con segmentos, seguimiento, campañas por WhatsApp, programa de puntos, reportes y una página pública de reservas.
 
 **Stack:** Next.js 16 (App Router, Server Actions) · Prisma 7 · PostgreSQL en Supabase · Supabase Auth · Tailwind CSS 4
 
@@ -47,27 +47,32 @@ Con `DEV_AUTH_EMAIL="tu@email.com"` en `.env`, la app entra directo con ese usua
 | **Productos** | Ceras, geles, pomadas, etc. Precio, costo, margen, mínimo para avisar, entradas, uso interno, conteo físico y kardex |
 | **Servicios** | Duración, precio y quién lo hace |
 | **Equipo** | Roles, comisiones, horario semanal (con turno partido), servicios y ausencias. Invitación por email |
-| **Clientes** | Historial de visitas, lo que ha gastado, veces que no llegó, notas |
-| **Ajustes** | Datos de la barbería, horario, días cerrados, reglas de reserva, IVA |
+| **Clientes** | Lista con etapa (nuevo, activo, en riesgo, perdido, sin visitas), VIP, etiquetas, orden por gasto o última visita, y exportación a CSV |
+| **Ficha del cliente** | Visitas, gasto, ticket promedio, cada cuánto viene y cuándo debería volver. Servicio y barbero favoritos, productos que compra. Línea de tiempo con citas, compras y bitácora (llamadas, WhatsApp, quejas). Seguimientos, etiquetas, puntos, cumpleaños, cómo nos conoció, quién lo recomendó y si acepta promociones |
+| **Seguimiento** | Pendientes atrasados, de hoy y próximos. Oportunidades automáticas: cumpleaños, primera visita, no llegaron, ya les toca volver y en riesgo de perderse, con WhatsApp listo en un clic |
+| **Campañas** | Mensaje a un segmento o etiqueta con variables (`{nombre}`, `{barberia}`, `{enlace}`, `{puntos}`). Se envía uno por uno con wa.me y mide quién agendó después |
+| **Reportes** | Ingresos, ticket promedio y comparación con el periodo anterior. Clientes nuevos y recurrentes, retención, no-shows, reservas en línea. Comisiones por barbero, servicios y productos más vendidos, mejores clientes y canales de adquisición |
+| **Ajustes** | Datos de la barbería, horario, días cerrados, reglas de reserva, IVA, programa de puntos, días para "cliente perdido" y etiquetas |
 | **/b/tu-barberia** | Página pública: servicio → barbero (o "quien esté libre") → día y hora → datos |
 
 ### Roles
 
-| | Hoy | Agenda | Ventas | Clientes | Productos | Servicios, Equipo, Ajustes |
-|---|---|---|---|---|---|---|
-| Dueño / Encargado | ✓ | Toda | ✓ | ✓ | ✓ | ✓ |
-| Recepción | ✓ | Toda | ✓ | ✓ | ✓ | — |
-| Barbero | Suya | Solo la suya | ✓ | ✓ | — | — |
+| | Hoy | Agenda | Ventas | Clientes | Seguimiento | Campañas | Reportes | Productos | Servicios, Equipo, Ajustes |
+|---|---|---|---|---|---|---|---|---|---|
+| Dueño / Encargado | ✓ | Toda | ✓ | ✓ | Todo el equipo | ✓ | ✓ | ✓ | ✓ |
+| Recepción | ✓ | Toda | ✓ | ✓ + CSV | Todo el equipo | ✓ | — | ✓ | — |
+| Barbero | Suya | Solo la suya | ✓ | ✓, sin montos | Suyo y sus clientes | — | — | — | — |
 
-Solo dueño y encargado pueden cancelar ventas. Nadie más que el dueño edita el perfil del dueño.
+Solo dueño y encargado pueden cancelar ventas y borrar clientes. Los barberos no ajustan puntos ni exportan. Nadie más que el dueño edita el perfil del dueño.
 
 ## Cómo está hecho
 
 ```
 prisma/
-  schema.prisma                 17 tablas
+  schema.prisma                 24 tablas
   migrations/…_init             generada por Prisma
   migrations/…_reglas           reglas que Prisma no expresa (ver abajo)
+  migrations/…_crm              etiquetas, bitácora, tareas, puntos, campañas
   seed.ts
 src/
   proxy.ts                      sesión de Supabase y protección de rutas
@@ -75,7 +80,8 @@ src/
     auth.ts                     usuario, barbería activa, permisos por rol
     availability.ts             cálculo de horarios libres (funciones puras)
     booking.ts                  reservar con validación de disponibilidad
-    sales.ts                    cobro en una transacción
+    sales.ts                    cobro en una transacción (incluye puntos)
+    crm.ts                      etapas, VIP, segmentos, cumpleaños, plantillas de WhatsApp
     time.ts                     zonas horarias sin librerías
   app/
     (auth)/                     login y registro
@@ -90,6 +96,10 @@ src/
 **Doble reserva imposible.** La migración `reglas` agrega una restricción `EXCLUDE USING gist` en Postgres: dos citas activas del mismo barbero no pueden encimarse aunque se reserven al mismo milisegundo. Las canceladas y los no-show no bloquean.
 
 **Ventas.** Cada cobro corre en una transacción: copia precio y comisión al ticket, desglosa el IVA incluido, descuenta inventario solo si alcanza (`stock >= cantidad`), asigna folio consecutivo por barbería y marca la cita como terminada. Si algo falla, no se guarda nada.
+
+**Etapas del cliente.** Una visita es una cita terminada o una venta sin cita. Con dos visitas o más se calcula cada cuánto viene. Es *en riesgo* si ya pasó 1.5 veces esa frecuencia (mínimo 14 días más), *perdido* después de los días configurados en Ajustes (90 por defecto) y *nuevo* si su primera visita fue hace menos de 30 días. *VIP* es el 10% que más gasta, con al menos 3 visitas.
+
+**Puntos.** Se ganan sobre lo pagado sin propina y se canjean como descuento en caja, en la misma transacción del cobro. Cancelar la venta regresa lo canjeado y quita lo ganado. El saldo nunca baja de cero (restricción en la base).
 
 **Historial intacto.** Citas y tickets guardan nombre y precio del servicio al momento. Subir el precio del corte no cambia ventas ni comisiones pasadas.
 
@@ -109,6 +119,6 @@ Los tokens están al inicio de `src/app/globals.css`.
 ## Pendiente para producción
 
 - Limitar intentos en la página pública de reservas (por ejemplo, con Upstash Rate Limit o Cloudflare Turnstile).
-- Recordatorios por WhatsApp o SMS.
-- Corte de caja por turno y reporte de comisiones por periodo.
+- Envío automático por WhatsApp Business API (hoy las campañas y los recordatorios abren wa.me uno por uno).
+- Corte de caja por turno.
 - Si vas a leer tablas desde el navegador con `supabase-js`, activa RLS. Esta app solo entra a la base desde el servidor con Prisma, y cada consulta filtra por la barbería activa.

@@ -11,8 +11,9 @@ type St = { id: string; name: string; serviceIds: string[] };
 const fmtTime = (iso: string, tz: string) =>
   new Intl.DateTimeFormat("es-MX", { timeZone: tz, hour: "numeric", minute: "2-digit", hourCycle: "h23" }).format(new Date(iso));
 
-export function NewAppointmentForm({ services, staff, tz, initialDate, initialStaff }: {
+export function NewAppointmentForm({ services, staff, tz, initialDate, initialStaff, initialCustomer }: {
   services: Svc[]; staff: St[]; tz: string; initialDate: string; initialStaff?: string;
+  initialCustomer?: { phone: string; name: string } | null;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [staffId, setStaffId] = useState(initialStaff ?? (staff.length === 1 ? staff[0].id : ""));
@@ -20,9 +21,9 @@ export function NewAppointmentForm({ services, staff, tz, initialDate, initialSt
   const [slots, setSlots] = useState<string[] | null>(null);
   const [slot, setSlot] = useState("");
   const [loading, startLoading] = useTransition();
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [known, setKnown] = useState(false);
+  const [phone, setPhone] = useState(initialCustomer?.phone ?? "");
+  const [name, setName] = useState(initialCustomer?.name ?? "");
+  const [known, setKnown] = useState(Boolean(initialCustomer));
 
   const eligible = useMemo(() => staff.filter((s) => picked.every((id) => s.serviceIds.includes(id))), [staff, picked]);
   const total = services.filter((s) => picked.includes(s.id));

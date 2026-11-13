@@ -30,6 +30,8 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       />
       <Pos
         me={me.id}
+        loyalty={Number(shop.loyaltyPointsPerPeso) > 0 ? { pesoPerPoint: Number(shop.loyaltyPesoPerPoint) } : null}
+        customerPoints={appt?.customer.points ?? null}
         appointmentId={appt?.id ?? null}
         initial={initial}
         services={services.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) }))}

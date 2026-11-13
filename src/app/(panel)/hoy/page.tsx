@@ -19,7 +19,8 @@ export default async function HoyPage() {
   const own = seesOnlyOwnAgenda(me.role);
   const staffFilter = own ? { staffId: me.id } : {};
 
-  const [appts, sales, ownItems, low] = await Promise.all([
+  const [m, d] = day.slice(5).split("-").map(Number);
+  const [appts, sales, ownItems, low, birthdays, tasks] = await Promise.all([
     prisma.appointment.findMany({
       where: { shopId: shop.id, startsAt: { gte: from, lt: to }, ...staffFilter },
       include: { customer: true, staff: true, services: true },
@@ -37,6 +38,13 @@ export default async function HoyPage() {
           SELECT id, name, stock FROM products
           WHERE "shopId" = ${shop.id}::uuid AND active AND stock <= "minStock" ORDER BY stock LIMIT 6`
       : [],
+    prisma.$queryRaw<{ id: string; name: string }[]>`
+      SELECT id, name FROM customers WHERE "shopId" = ${shop.id}::uuid
+         AND EXTRACT(MONTH FROM birthday) = ${m} AND EXTRACT(DAY FROM birthday) = ${d} ORDER BY name LIMIT 8`,
+    prisma.task.findMany({
+      where: { shopId: shop.id, doneAt: null, dueOn: { lte: new Date(`${day}T00:00:00Z`) }, OR: [{ assignedToId: me.id }, { assignedToId: null }] },
+      include: { customer: true }, orderBy: { dueOn: "asc" }, take: 6,
+    }),
   ]);
 
   const active = appts.filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW");
@@ -94,8 +102,30 @@ export default async function HoyPage() {
           )}
         </section>
 
+        <aside className="space-y-10">
+        {(tasks.length > 0 || birthdays.length > 0) && (
+          <section>
+            <SectionTitle aside={<Link href="/seguimiento" className="link">Ver todo</Link>}>Clientes</SectionTitle>
+            <ul className="space-y-3 text-sm">
+              {birthdays.map((b) => (
+                <li key={b.id} className="flex justify-between gap-4">
+                  <Link href={`/clientes/${b.id}`} className="truncate text-ash hover:text-foam">{b.name}</Link>
+                  <span className="shrink-0 text-sand">Cumple hoy</span>
+                </li>
+              ))}
+              {tasks.map((t) => (
+                <li key={t.id}>
+                  <Link href={t.customer ? `/clientes/${t.customer.id}` : "/seguimiento"} className="block text-ash hover:text-foam">
+                    {t.title}
+                    {t.dueOn.toISOString().slice(0, 10) < day && <span className="text-rose"> · atrasado</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {low.length > 0 && (
-          <aside>
+          <section>
             <SectionTitle>Por surtir</SectionTitle>
             <ul className="space-y-3">
               {low.map((p) => (
@@ -105,8 +135,9 @@ export default async function HoyPage() {
                 </li>
               ))}
             </ul>
-          </aside>
+          </section>
         )}
+        </aside>
       </div>
     </>
   );

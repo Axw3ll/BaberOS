@@ -7,7 +7,7 @@ import { checkout, SaleError, voidSale, type CartLine } from "@/lib/sales";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export async function chargeSale(input: {
-  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod;
+  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number;
   appointmentId?: string | null; customer?: { phone: string; name: string } | null;
 }): Promise<{ error: string } | void> {
   const { shop, me } = await requireSection("ventas");
@@ -35,6 +35,7 @@ export async function chargeSale(input: {
     const sale = await checkout({
       shopId: shop.id, chargedById: me.id, customerId, appointmentId: input.appointmentId,
       lines: input.lines, discount: Number(input.discount) || 0, tip: Number(input.tip) || 0, method: input.method,
+      redeemPoints: Number(input.redeemPoints) || 0,
     });
     saleId = sale.id;
   } catch (e) {
@@ -43,6 +44,7 @@ export async function chargeSale(input: {
   }
   revalidatePath("/ventas");
   revalidatePath("/hoy");
+  if (customerId) revalidatePath(`/clientes/${customerId}`);
   redirect(`/ventas/${saleId}?nueva=1`);
 }
 
@@ -53,4 +55,13 @@ export async function cancelSale(data: FormData) {
   await voidSale(shop.id, id);
   revalidatePath(`/ventas/${id}`);
   revalidatePath("/ventas");
+}
+
+/** Para el ticket: ¿el teléfono ya es cliente? Con su saldo de puntos. */
+export async function lookupCustomer(phone: string) {
+  const { shop } = await requireSection("ventas");
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  const c = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone: digits } } });
+  return c && { name: c.name, points: c.points };
 }

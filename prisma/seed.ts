@@ -23,6 +23,7 @@ async function main() {
   const shop = await prisma.barbershop.create({
     data: {
       name: "Barbería El Filo", slug, ownerId: user.id, phone: "312 555 0142", address: "Av. Constitución 210, Colima",
+      loyaltyPointsPerPeso: 1, loyaltyPesoPerPoint: 0.05,
       hours: { create: week.map((weekday) => ({ weekday, startMinute: 600, endMinute: 1200 })) },
     },
   });
@@ -69,7 +70,7 @@ async function main() {
 
   const names = ["Carlos Ramírez", "Jorge Valencia", "Emiliano Ochoa", "Diego Cárdenas", "Ricardo Núñez", "Andrés Silva",
     "Fernando Topete", "Iván Larios", "Raúl Preciado", "Sebastián Gil", "Óscar Ceballos", "Hugo Brizuela"];
-  const customers = [];
+  const customers: { id: string; name: string }[] = [];
   for (const [i, name] of names.entries()) {
     customers.push(await prisma.customer.create({ data: { shopId: shop.id, name, phone: `312${String(5550100 + i * 37).padStart(7, "0")}` } }));
   }
@@ -127,6 +128,102 @@ async function main() {
       await prisma.stockMovement.create({ data: { shopId: shop.id, productId: p.id, type: "SALE", quantity: -1, stockAfter: up.stock } });
     }
   }
+
+  // ── CRM: historial de meses, etiquetas, bitácora, seguimientos y una campaña ──
+  // Patrón por cliente: [visitas pasadas, cada cuántos días, días desde la última]
+  const history: [number, number, number][] = [
+    [9, 21, 6], [6, 28, 12], [5, 30, 70], [4, 35, 20], [8, 14, 30], [2, 25, 130],
+    [3, 30, 3], [7, 20, 15], [1, 0, 2], [5, 40, 160], [10, 18, 9], [3, 21, 55],
+  ];
+  const barbers = [owner, toño, luis];
+  const svcs = [corte, fade, barba, corte, fade];
+  let pastFolio = 1000;
+  for (const [i, [n, every, since]] of history.entries()) {
+    const cust = customers[i];
+    let points = 0;
+    for (let k = 0; k < n; k++) {
+      const st = barbers[(i + k) % 3], sv = svcs[(i + k) % svcs.length];
+      const startsAt = localToUtc(addDays(d0, -(since + k * every)), 600 + (i % 8) * 60 + (k % 2) * 30, TZ);
+      const a = await prisma.appointment.create({
+        data: {
+          shopId: shop.id, staffId: st.id, customerId: cust.id, status: "COMPLETED", source: k % 3 ? "WALK_IN" : "ONLINE",
+          startsAt, endsAt: new Date(startsAt.getTime() + sv.minutes * 60_000),
+          services: { create: { serviceId: sv.id, name: sv.name, minutes: sv.minutes, price: sv.price } },
+        },
+      });
+      const price = Number(sv.price);
+      points += price;
+      await prisma.sale.create({
+        data: {
+          shopId: shop.id, folio: ++pastFolio, customerId: cust.id, appointmentId: a.id, chargedById: owner.id,
+          subtotal: price, tax: +(price - price / 1.16).toFixed(2), total: price, createdAt: a.endsAt,
+          items: { create: { kind: "SERVICE", serviceId: sv.id, staffId: st.id, name: sv.name, unitPrice: price, total: price,
+            commission: +(price * Number(st.serviceCommission)).toFixed(2) } },
+          payments: { create: { method: k % 2 ? "CARD" : "CASH", amount: price } },
+          loyalty: { create: { shopId: shop.id, customerId: cust.id, kind: "EARN", points: price, balance: points, note: "Visita" } },
+        },
+      });
+    }
+    await prisma.customer.update({ where: { id: cust.id }, data: { points } });
+  }
+
+  const origins = ["WALK_BY", "REFERRAL", "INSTAGRAM", "GOOGLE", "INSTAGRAM", "TIKTOK", "WALK_BY", "FACEBOOK", "ONLINE_BOOKING", "REFERRAL", "INSTAGRAM", "WALK_BY"] as const;
+  const [, m0, dd0] = d0.split("-").map(Number);
+  for (const [i, c] of customers.entries()) {
+    // Uno cumple hoy, otro en 3 días, y el resto repartido en el año
+    const bd = i === 0 ? new Date(Date.UTC(1992, m0 - 1, dd0)) : i === 3 ? new Date(Date.UTC(1988, m0 - 1, dd0 + 3)) : new Date(Date.UTC(1985 + i, (i * 5) % 12, 1 + ((i * 7) % 27)));
+    await prisma.customer.update({
+      where: { id: c.id },
+      data: {
+        origin: origins[i], birthday: bd, preferredStaffId: i % 4 === 0 ? toño.id : null,
+        referredById: origins[i] === "REFERRAL" ? customers[0].id : null, acceptsMarketing: i !== 7,
+        notes: ["Degradado bajo, nunca muy corto arriba", null, "Alérgico a la loción con alcohol", null, "Trae a su hijo los sábados"][i % 5],
+        createdAt: localToUtc(addDays(d0, -(history[i][2] + history[i][0] * history[i][1] + 2)), 600, TZ),
+      },
+    });
+  }
+
+  const extra = [["Mauricio Peña", "INSTAGRAM"], ["Alonso Vega", "GOOGLE"], ["Tomás Rangel", "REFERRAL"]] as const;
+  for (const [k, [name, origin]] of extra.entries()) {
+    await prisma.customer.create({ data: { shopId: shop.id, name, origin, phone: `312555${String(9100 + k).padStart(4, "0")}` } });
+  }
+
+  const tag = (name: string, color: string) => prisma.tag.create({ data: { shopId: shop.id, name, color } });
+  const [tBarba, tEstudiante, tNino, tPuntual] = await Promise.all([tag("Barba", "sand"), tag("Estudiante", "sage"), tag("Trae niños", "nickel"), tag("Siempre puntual", "ash")]);
+  await prisma.customerTag.createMany({
+    data: [
+      [0, tBarba], [0, tPuntual], [1, tEstudiante], [4, tNino], [4, tBarba], [6, tEstudiante], [10, tPuntual], [10, tBarba],
+    ].map(([i, t]) => ({ customerId: customers[i as number].id, tagId: (t as { id: string }).id })),
+  });
+
+  const ago = (h: number) => new Date(Date.now() - h * 3_600_000);
+  await prisma.customerActivity.createMany({
+    data: [
+      { customerId: customers[0].id, staffId: owner.id, type: "CALL", body: "Confirmó la cita de mañana. Quiere probar el diseño de líneas.", createdAt: ago(30) },
+      { customerId: customers[0].id, staffId: toño.id, type: "NOTE", body: "Le gustó la cera mate, preguntó por la de 200 g.", createdAt: ago(200) },
+      { customerId: customers[2].id, staffId: owner.id, type: "COMPLAINT", body: "Esperó 25 minutos aunque tenía cita. Le ofrecimos 10% en su próxima visita.", createdAt: ago(24 * 75) },
+      { customerId: customers[5].id, staffId: owner.id, type: "WHATSAPP", body: "Te extrañamos. No respondió.", createdAt: ago(24 * 40) },
+    ].map((a) => ({ ...a, type: a.type as "CALL" | "NOTE" | "COMPLAINT" | "WHATSAPP", shopId: shop.id })),
+  });
+
+  const due = (n: number) => new Date(`${addDays(d0, n)}T00:00:00Z`);
+  await prisma.task.createMany({
+    data: [
+      { customerId: customers[2].id, assignedToId: owner.id, title: "Llamar a Emiliano: ofrecerle el 10% que le prometimos", dueOn: due(-2) },
+      { customerId: customers[4].id, assignedToId: owner.id, title: "Avisar a Ricardo que ya llegó el bálsamo", dueOn: due(0) },
+      { customerId: null, assignedToId: null, title: "Pedir más polvo texturizante al proveedor", dueOn: due(1) },
+      { customerId: customers[9].id, assignedToId: luis.id, title: "Mandar promoción de regreso a Sebastián", dueOn: due(3) },
+    ].map((t) => ({ ...t, shopId: shop.id, createdById: owner.id })),
+  });
+
+  const lost = [customers[5], customers[9]];
+  await prisma.campaign.create({
+    data: {
+      shopId: shop.id, createdById: owner.id, name: "Te extrañamos, octubre", audience: "perdido",
+      message: "¡Hola {nombre}! Hace rato que no te vemos en {barberia}. Esta semana tu corte va con 15% de descuento: {enlace}",
+      recipients: { create: lost.map((c, i) => ({ customerId: c.id, sentAt: i === 0 ? ago(24 * 40) : null })) },
+    },
+  });
 
   console.log(`Listo: ${shop.name} (/b/${shop.slug}) para ${email}`);
 }

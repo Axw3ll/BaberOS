@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { money } from "@/lib/format";
-import { chargeSale } from "../actions";
+import { chargeSale, lookupCustomer } from "../actions";
 
 export type PosLine = {
   key: string; kind: "SERVICE" | "PRODUCT"; refId: string; name: string; price: number; quantity: number; staffId: string | null;
@@ -11,11 +11,12 @@ const METHODS: { id: Method; label: string }[] = [
   { id: "CASH", label: "Efectivo" }, { id: "CARD", label: "Tarjeta" }, { id: "TRANSFER", label: "Transferencia" },
 ];
 
-export function Pos({ services, products, staff, me, appointmentId, initial }: {
+export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerPoints }: {
   services: { id: string; name: string; price: number }[];
   products: { id: string; name: string; brand: string | null; price: number; stock: number }[];
   staff: { id: string; name: string }[];
   me: string; appointmentId: string | null; initial: PosLine[];
+  loyalty: { pesoPerPoint: number } | null; customerPoints: number | null;
 }) {
   const [tab, setTab] = useState<"SERVICE" | "PRODUCT">(initial.length ? "PRODUCT" : "SERVICE");
   const [q, setQ] = useState("");
@@ -28,6 +29,22 @@ export function Pos({ services, products, staff, me, appointmentId, initial }: {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  const [known, setKnown] = useState<{ name: string; points: number } | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
+
+  // Cliente sin cita: al escribir 10 dígitos busca si ya existe (nombre y puntos)
+  useEffect(() => {
+    if (appointmentId) return;
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) { setKnown(null); return; }
+    let live = true;
+    lookupCustomer(digits).then((c) => {
+      if (!live) return;
+      setKnown(c);
+      if (c) setName((n) => n || c.name);
+    });
+    return () => { live = false; };
+  }, [phone, appointmentId]);
 
   const defaultStaff = staff.some((s) => s.id === me) ? me : null;
   const stockOf = (id: string) => products.find((p) => p.id === id)?.stock ?? 0;
@@ -47,7 +64,12 @@ export function Pos({ services, products, staff, me, appointmentId, initial }: {
 
   const subtotal = lines.reduce((a, l) => a + l.price * l.quantity, 0);
   const disc = Math.min(Number(discount) || 0, subtotal);
-  const total = subtotal - disc + (Number(tip) || 0);
+  const balance = appointmentId ? customerPoints : known?.points ?? null;
+  const redeem = loyalty && usePoints && balance
+    ? Math.min(balance, Math.floor((subtotal - disc) / loyalty.pesoPerPoint))
+    : 0;
+  const pointsValue = loyalty ? Math.round(redeem * loyalty.pesoPerPoint * 100) / 100 : 0;
+  const total = subtotal - disc - pointsValue + (Number(tip) || 0);
   const change = method === "CASH" && Number(received) > total ? Number(received) - total : 0;
 
   const list = useMemo(() => {
@@ -65,7 +87,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial }: {
         lines: lines.map((l) => l.kind === "SERVICE"
           ? { kind: "SERVICE", serviceId: l.refId, staffId: l.staffId ?? "", quantity: l.quantity }
           : { kind: "PRODUCT", productId: l.refId, staffId: l.staffId, quantity: l.quantity }),
-        discount: disc, tip: Number(tip) || 0, method, appointmentId,
+        discount: disc, tip: Number(tip) || 0, method, appointmentId, redeemPoints: redeem,
         customer: appointmentId ? null : { phone, name },
       });
       if (res?.error) setError(res.error);
@@ -150,8 +172,19 @@ export function Pos({ services, products, staff, me, appointmentId, initial }: {
               <div className="mt-3 grid gap-3">
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Teléfono" aria-label="Teléfono" className="field py-1.5" />
                 <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre" aria-label="Nombre" className="field py-1.5" />
+                {known && <span className="text-sage">Ya es cliente: {known.name}</span>}
               </div>
             </details>
+          )}
+
+          {loyalty && balance != null && balance > 0 && (
+            <label className="mt-4 flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm">
+              <span>
+                <span className="block">Canjear puntos</span>
+                <span className="text-ash tnum">Tiene {balance.toLocaleString("es-MX")} pts ≈ {money(balance * loyalty.pesoPerPoint)}</span>
+              </span>
+              <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="size-4 accent-[var(--color-nickel)]" />
+            </label>
           )}
 
           <fieldset className="mt-5">
@@ -173,6 +206,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial }: {
 
           <dl className="mt-5 space-y-1 text-sm">
             {disc > 0 && <div className="flex justify-between text-ash"><dt>Descuento</dt><dd className="tnum">−{money(disc)}</dd></div>}
+            {pointsValue > 0 && <div className="flex justify-between text-ash"><dt>{redeem} puntos</dt><dd className="tnum">−{money(pointsValue)}</dd></div>}
             <div className="flex items-baseline justify-between"><dt className="text-ash">Total</dt><dd className="font-display text-3xl tnum">{money(total)}</dd></div>
             {change > 0 && <div className="flex justify-between"><dt className="text-ash">Cambio</dt><dd className="tnum">{money(change)}</dd></div>}
           </dl>

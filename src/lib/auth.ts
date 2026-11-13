@@ -54,13 +54,15 @@ export const currentContext = cache(async () => {
   return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop) };
 });
 
-export type Section = "hoy" | "agenda" | "ventas" | "clientes" | "productos" | "servicios" | "equipo" | "ajustes";
+export type Section =
+  | "hoy" | "agenda" | "ventas" | "clientes" | "seguimiento" | "campanas" | "reportes"
+  | "productos" | "servicios" | "equipo" | "ajustes";
 
 const ACCESS: Record<Role, Section[]> = {
-  OWNER: ["hoy", "agenda", "ventas", "clientes", "productos", "servicios", "equipo", "ajustes"],
-  MANAGER: ["hoy", "agenda", "ventas", "clientes", "productos", "servicios", "equipo", "ajustes"],
-  RECEPTIONIST: ["hoy", "agenda", "ventas", "clientes", "productos"],
-  BARBER: ["hoy", "agenda", "ventas", "clientes"],
+  OWNER: ["hoy", "agenda", "ventas", "clientes", "seguimiento", "campanas", "reportes", "productos", "servicios", "equipo", "ajustes"],
+  MANAGER: ["hoy", "agenda", "ventas", "clientes", "seguimiento", "campanas", "reportes", "productos", "servicios", "equipo", "ajustes"],
+  RECEPTIONIST: ["hoy", "agenda", "ventas", "clientes", "seguimiento", "campanas", "productos"],
+  BARBER: ["hoy", "agenda", "ventas", "clientes", "seguimiento"],
 };
 
 export const canAccess = (role: Role, s: Section) => ACCESS[role].includes(s);

@@ -64,3 +64,22 @@ export async function removeClosure(data: FormData) {
   await prisma.closure.deleteMany({ where: { id: String(data.get("id")), shopId: shop.id } });
   revalidatePath("/ajustes");
 }
+
+export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const { shop } = await requireSection("ajustes");
+  const on = data.get("loyalty") === "on";
+  const perPeso = Number(data.get("pointsPerPeso"));
+  const value = Number(data.get("pesoPerPoint"));
+  if (on && !(perPeso > 0 && perPeso <= 10)) return { error: "Los puntos por peso deben ser entre 0.001 y 10." };
+  if (on && !(value > 0 && value <= 100)) return { error: "El valor de cada punto debe ser mayor a 0." };
+  await prisma.barbershop.update({
+    where: { id: shop.id },
+    data: {
+      loyaltyPointsPerPeso: on ? perPeso : 0,
+      ...(on && { loyaltyPesoPerPoint: value }),
+      lostAfterDays: int(data.get("lostAfterDays"), 15, 730, shop.lostAfterDays),
+    },
+  });
+  revalidatePath("/", "layout");
+  return { ok: "Ajustes de clientes guardados." };
+}

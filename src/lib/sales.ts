@@ -16,7 +16,7 @@ export type CartLine =
  */
 export async function checkout(input: {
   shopId: string; chargedById: string; customerId?: string | null; appointmentId?: string | null;
-  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod;
+  lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number;
 }) {
   if (input.lines.length === 0) throw new SaleError("Agrega al menos un servicio o producto.");
 
@@ -51,7 +51,27 @@ export async function checkout(input: {
         }
 
         const subtotal = items.reduce((s, i) => s.plus(i.total as Prisma.Decimal), D(0));
-        const discount = Prisma.Decimal.min(D(Math.max(0, input.discount)), subtotal);
+        let discount = Prisma.Decimal.min(D(Math.max(0, input.discount)), subtotal);
+
+        // Canje de puntos: se vuelve descuento. Nunca más de lo que falta por pagar.
+        let pointsUsed = 0;
+        const wanted = Math.max(0, Math.floor(input.redeemPoints ?? 0));
+        if (wanted > 0) {
+          if (!input.customerId) throw new SaleError("Para canjear puntos registra al cliente.");
+          if (shop.loyaltyPointsPerPeso.lte(0)) throw new SaleError("El programa de puntos está apagado.");
+          const maxByTotal = subtotal.minus(discount).div(shop.loyaltyPesoPerPoint).floor().toNumber();
+          pointsUsed = Math.min(wanted, maxByTotal);
+          if (pointsUsed > 0) {
+            const ok = await tx.customer.updateMany({
+              where: { id: input.customerId, shopId: shop.id, points: { gte: pointsUsed } },
+              data: { points: { decrement: pointsUsed } },
+            });
+            if (ok.count === 0) throw new SaleError("El cliente no tiene esos puntos.");
+            discount = discount.plus(shop.loyaltyPesoPerPoint.mul(pointsUsed)).toDecimalPlaces(2);
+            discount = Prisma.Decimal.min(discount, subtotal);
+          }
+        }
+
         const net = subtotal.minus(discount);
         const tax = net.minus(net.div(D(1).plus(shop.taxRate))).toDecimalPlaces(2);
         const tip = D(Math.max(0, input.tip));
@@ -62,7 +82,7 @@ export async function checkout(input: {
           data: {
             shopId: shop.id, folio: (last._max.folio ?? 0) + 1,
             customerId: input.customerId || null, appointmentId: input.appointmentId || null,
-            chargedById: input.chargedById, subtotal, discount, tax, tip, total,
+            chargedById: input.chargedById, subtotal, discount, tax, tip, total, pointsRedeemed: pointsUsed,
             items: { createMany: { data: items } },
             ...(total.gt(0) && { payments: { create: { method: input.method, amount: total } } }),
           },
@@ -77,6 +97,23 @@ export async function checkout(input: {
           await tx.stockMovement.create({
             data: { shopId: shop.id, productId: p.id, type: "SALE", quantity: -s.qty, stockAfter: p.stock, saleId: sale.id },
           });
+        }
+
+        // Puntos: se canjean y se ganan sobre lo pagado (sin propina).
+        if (input.customerId) {
+          const earned = shop.loyaltyPointsPerPeso.gt(0) ? net.mul(shop.loyaltyPointsPerPeso).floor().toNumber() : 0;
+          let balance = (await tx.customer.findUniqueOrThrow({ where: { id: input.customerId }, select: { points: true } })).points;
+          if (pointsUsed > 0) {
+            await tx.loyaltyMovement.create({
+              data: { shopId: shop.id, customerId: input.customerId, kind: "REDEEM", points: -pointsUsed, balance, saleId: sale.id, note: `Canje en venta #${sale.folio}` },
+            });
+          }
+          if (earned > 0) {
+            balance = (await tx.customer.update({ where: { id: input.customerId }, data: { points: { increment: earned } } })).points;
+            await tx.loyaltyMovement.create({
+              data: { shopId: shop.id, customerId: input.customerId, kind: "EARN", points: earned, balance, saleId: sale.id, note: `Venta #${sale.folio}` },
+            });
+          }
         }
 
         if (input.appointmentId) {
@@ -102,6 +139,16 @@ export async function voidSale(shopId: string, saleId: string) {
       const p = await tx.product.update({ where: { id: i.productId }, data: { stock: { increment: i.quantity } } });
       await tx.stockMovement.create({
         data: { shopId, productId: p.id, type: "ADJUSTMENT", quantity: i.quantity, stockAfter: p.stock, saleId, note: `Venta #${sale.folio} cancelada` },
+      });
+    }
+    // Regresa los puntos canjeados y quita los ganados (sin dejar saldo negativo).
+    const moves = await tx.loyaltyMovement.findMany({ where: { saleId, kind: { in: ["EARN", "REDEEM"] } } });
+    for (const m of moves) {
+      const [c] = await tx.$queryRaw<{ points: number }[]>`
+        UPDATE customers SET points = GREATEST(0, points - ${m.points}) WHERE id = ${m.customerId}::uuid RETURNING points`;
+      if (!c) continue;
+      await tx.loyaltyMovement.create({
+        data: { shopId, customerId: m.customerId, kind: "ADJUST", points: -m.points, balance: c.points, saleId, note: `Venta #${sale.folio} cancelada` },
       });
     }
     return tx.sale.update({ where: { id: saleId }, data: { status: "VOIDED" } });

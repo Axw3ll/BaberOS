@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 const LABELS: Record<string, string> = {
   hoy: "Hoy", agenda: "Agenda", ventas: "Ventas", clientes: "Clientes",
+  seguimiento: "Seguimiento", campanas: "Campañas", reportes: "Reportes",
   productos: "Productos", servicios: "Servicios", equipo: "Equipo", ajustes: "Ajustes",
 };
 
