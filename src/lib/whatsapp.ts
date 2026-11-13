@@ -22,6 +22,8 @@ export const TEMPLATES: Record<MessageKind, { name: string; vars: string[] }> = 
   BIRTHDAY: { name: process.env.WHATSAPP_TPL_BIRTHDAY || "barberos_cumpleanos", vars: ["nombre", "barbería", "enlace para reservar"] },
   STAMP_ALMOST: { name: process.env.WHATSAPP_TPL_STAMP_ALMOST || "barberos_falta_sello", vars: ["nombre", "barbería", "premio", "enlace para reservar"] },
   STAMP_REWARD: { name: process.env.WHATSAPP_TPL_STAMP_REWARD || "barberos_premio", vars: ["nombre", "barbería", "premio", "enlace para reservar"] },
+  QUEUE_NEXT: { name: process.env.WHATSAPP_TPL_QUEUE_NEXT || "barberos_fila_turno", vars: ["nombre", "barbería", "lugar en la fila", "enlace de la fila"] },
+  WAITLIST_OPEN: { name: process.env.WHATSAPP_TPL_WAITLIST || "barberos_lugar_libre", vars: ["nombre", "barbería", "día y hora", "enlace para reservar"] },
   STAMP_WELCOME: { name: process.env.WHATSAPP_TPL_STAMP_WELCOME || "barberos_bienvenida_tarjeta", vars: ["nombre", "barbería", "avance", "premio", "enlace de la tarjeta"] },
 };
 

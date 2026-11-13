@@ -19,13 +19,14 @@ type Loyalty = {
 };
 type CustomerLoyalty = { points: number; stamps: number; rewards: number };
 
-export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerLoyalty, initialCustomer }: {
+export function Pos({ services, products, staff, me, appointmentId, initial, loyalty, customerLoyalty, initialCustomer, maxDiscountPct = null }: {
   services: { id: string; name: string; price: number }[];
   products: { id: string; name: string; brand: string | null; price: number; stock: number }[];
   staff: { id: string; name: string }[];
   me: string; appointmentId: string | null; initial: PosLine[];
   loyalty: Loyalty; customerLoyalty: CustomerLoyalty | null;
   initialCustomer?: { phone: string; name: string } | null;
+  maxDiscountPct?: number | null;
 }) {
   const [tab, setTab] = useState<"SERVICE" | "PRODUCT">(initial.length ? "PRODUCT" : "SERVICE");
   const [q, setQ] = useState("");
@@ -96,6 +97,8 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   const change = rec !== null && rec > total ? Math.round((rec - total) * 100) / 100 : 0;
   const problems = [
     vDisc.error, disc > subtotal && lines.length ? `El descuento no puede ser mayor al subtotal (${money2(subtotal)}).` : null,
+    maxDiscountPct !== null && disc > Math.round(subtotal * maxDiscountPct) / 100
+      ? `Tu descuento máximo es ${maxDiscountPct}% (${money2(Math.round(subtotal * maxDiscountPct) / 100)}). Para más, que cobre el encargado.` : null,
     vTip.error,
     method === "CASH" ? vRec.error : null,
     rec !== null && rec < total ? `Recibiste ${money2(rec)} y el total es ${money2(total)}: faltan ${money2(total - rec)}.` : null,
@@ -194,7 +197,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           )}
 
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line-soft pt-4">
-            <label><span className="label">Descuento</span><input inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} className="field py-1.5 tnum" placeholder="0" /></label>
+            <label><span className="label">Descuento{maxDiscountPct !== null && <span className="text-faint"> (máx. {maxDiscountPct}%)</span>}</span><input inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} className="field py-1.5 tnum" placeholder="0" /></label>
             <label><span className="label">Propina</span><input inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} className="field py-1.5 tnum" placeholder="0" /></label>
           </div>
 

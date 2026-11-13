@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { ACTIVITY, ORIGIN, parseBirthday, TAG_COLORS } from "@/lib/crm";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 import type { ActivityType, CustomerOrigin } from "@/generated/prisma/enums";
 
@@ -89,7 +90,9 @@ export async function deleteCustomer(data: FormData) {
   const id = str(data.get("id"));
   const appts = await prisma.appointment.count({ where: { customerId: id, shopId: shop.id } });
   if (appts > 0) redirect(`/clientes/${id}?error=citas`);
+  const gone = await prisma.customer.findFirst({ where: { id, shopId: shop.id }, select: { name: true, phone: true } });
   await prisma.customer.deleteMany({ where: { id, shopId: shop.id } });
+  if (gone) await audit(shop.id, me.id, "cliente.borrado", `Borró al cliente ${gone.name} (${gone.phone})`);
   revalidatePath("/clientes");
   redirect("/clientes");
 }
@@ -201,6 +204,7 @@ export async function adjustPoints(_: ActionResult, data: FormData): Promise<Act
     return { error: "No tiene puntos suficientes." };
   }
   revalidatePath(`/clientes/${customerId}`);
+  await audit(shop.id, me.id, "lealtad.ajuste", `${points > 0 ? "Sumó" : "Quitó"} ${Math.abs(points)} puntos${note ? ` (${note})` : ""}`, { type: "customer", id: customerId });
   return { ok: points > 0 ? `Se sumaron ${points} puntos.` : `Se descontaron ${-points} puntos.` };
 }
 
@@ -229,5 +233,6 @@ export async function adjustStamps(_: ActionResult, data: FormData): Promise<Act
     }),
   ]);
   revalidatePath(`/clientes/${c.id}`);
+  await audit(shop.id, me.id, "lealtad.ajuste", `${delta > 0 ? "Sumó" : "Quitó"} ${Math.abs(delta)} sellos a ${c.name}${note ? ` (${note})` : ""}`, { type: "customer", id: c.id });
   return { ok: stampRewards > c.stampRewards ? "¡Completó la tarjeta! Ya tiene su premio." : delta > 0 ? `Se agregaron ${delta} sellos.` : `Se quitaron ${-delta} sellos.` };
 }

@@ -49,6 +49,7 @@ enum SaleStatus {
 enum SaleItemKind {
   SERVICE
   PRODUCT
+  PACKAGE
 }
 
 enum PaymentMethod {
@@ -87,6 +88,28 @@ enum LoyaltyKind {
   STAMP
   /// Tarjeta de sellos: premio canjeado o ajustado (points = premios, balance = premios disponibles)
   REWARD
+}
+
+enum QueueStatus {
+  WAITING
+  CALLED
+  SERVING
+  DONE
+  LEFT
+}
+
+enum PackageKind {
+  /// N servicios (ej. 5 cortes)
+  BUNDLE
+  /// Ilimitado por un número de días
+  MEMBERSHIP
+}
+
+enum WaitStatus {
+  ACTIVE
+  NOTIFIED
+  BOOKED
+  EXPIRED
 }
 
 /// Cada cuánto se pagan las comisiones
@@ -131,6 +154,10 @@ enum MessageKind {
   STAMP_REWARD
   /// Primer sello: le damos su tarjeta (no es promoción, va a todos)
   STAMP_WELCOME
+  /// Fila virtual: ya casi te toca
+  QUEUE_NEXT
+  /// Lista de espera: se liberó un lugar
+  WAITLIST_OPEN
 }
 
 enum MessageStatus {
@@ -185,13 +212,30 @@ model Barbershop {
   autoLoyaltyMsgs  Boolean     @default(true)
 
   // Pago de comisiones: semanal (día de la semana), quincenal (15 y fin de mes) o mensual (fin de mes)
-  payoutFrequency      PayoutFrequency @default(WEEKLY)
+  payoutFrequency PayoutFrequency @default(WEEKLY)
   /// 0 domingo … 6 sábado (solo semanal)
-  payoutWeekday        Int             @default(6)
-  loyaltyPointsPerPeso Decimal         @default(0) @db.Decimal(6, 3)
-  loyaltyPesoPerPoint  Decimal         @default(0.10) @db.Decimal(6, 3)
+  payoutWeekday   Int             @default(6)
+
+  // Tope de descuento (%) al cobrar. Dueño y encargado no tienen tope.
+  maxDiscountBarber    Int @default(10)
+  maxDiscountReception Int @default(20)
+
+  // Fila virtual
+  queueEnabled Boolean @default(true)
+  queueMax     Int     @default(15)
+
+  // Clientes que faltan seguido: a partir de cuántos "no llegó" (6 meses). WARN avisa; BLOCK pide que llamen.
+  noShowLimit  Int    @default(3)
+  noShowPolicy String @default("WARN")
+
+  // Página pública
+  description          String?
+  instagram            String?
+  mapsUrl              String?
+  loyaltyPointsPerPeso Decimal @default(0) @db.Decimal(6, 3)
+  loyaltyPesoPerPoint  Decimal @default(0.10) @db.Decimal(6, 3)
   /// Días sin venir para considerar a un cliente "perdido"
-  lostAfterDays        Int             @default(90)
+  lostAfterDays        Int     @default(90)
 
   // Mensajes automáticos
   googleReviewUrl String?
@@ -213,24 +257,31 @@ model Barbershop {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  owner        User               @relation("ShopOwner", fields: [ownerId], references: [id])
-  hours        ShopHours[]
-  closures     Closure[]
-  staff        Staff[]
-  services     Service[]
-  customers    Customer[]
-  appointments Appointment[]
-  products     Product[]
-  stockMoves   StockMovement[]
-  sales        Sale[]
-  tags         Tag[]
-  activities   CustomerActivity[]
-  tasks        Task[]
-  loyalty      LoyaltyMovement[]
-  campaigns    Campaign[]
-  messages     OutboundMessage[]
-  cashClosures CashClosure[]
-  payouts      CommissionPayout[]
+  owner            User               @relation("ShopOwner", fields: [ownerId], references: [id])
+  hours            ShopHours[]
+  closures         Closure[]
+  staff            Staff[]
+  services         Service[]
+  customers        Customer[]
+  appointments     Appointment[]
+  products         Product[]
+  stockMoves       StockMovement[]
+  sales            Sale[]
+  tags             Tag[]
+  activities       CustomerActivity[]
+  tasks            Task[]
+  loyalty          LoyaltyMovement[]
+  campaigns        Campaign[]
+  messages         OutboundMessage[]
+  cashClosures     CashClosure[]
+  payouts          CommissionPayout[]
+  expenses         Expense[]
+  auditLogs        AuditLog[]
+  queue            QueueEntry[]
+  packages         Package[]
+  customerPackages CustomerPackage[]
+  waitlist         WaitlistEntry[]
+  reviews          Review[]
 
   @@index([ownerId])
   @@map("barbershops")
@@ -280,6 +331,9 @@ model Staff {
   active            Boolean  @default(true)
   serviceCommission Decimal  @default(0.40) @db.Decimal(5, 4)
   productCommission Decimal  @default(0.10) @db.Decimal(5, 4)
+  /// Meta de ventas del mes (servicios + productos)
+  monthlyGoal       Decimal? @db.Decimal(10, 2)
+  bio               String?
   createdAt         DateTime @default(now())
 
   shop          Barbershop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -298,6 +352,10 @@ model Staff {
   cashClosures  CashClosure[]
   payouts       CommissionPayout[] @relation("PayoutStaff")
   payoutsMade   CommissionPayout[] @relation("PayoutBy")
+  expenses      Expense[]
+  auditLogs     AuditLog[]
+  queueEntries  QueueEntry[]
+  reviews       Review[]
 
   @@unique([shopId, userId])
   @@unique([shopId, email])
@@ -350,6 +408,7 @@ model Service {
   staff    StaffService[]
   bookedIn AppointmentService[]
   soldIn   SaleItem[]
+  packages PackageService[]
 
   @@index([shopId, active])
   @@map("services")
@@ -405,6 +464,10 @@ model Customer {
   loyalty        LoyaltyMovement[]
   campaignSends  CampaignRecipient[]
   messages       OutboundMessage[]
+  packages       CustomerPackage[]
+  waitlist       WaitlistEntry[]
+  reviews        Review[]
+  queueEntries   QueueEntry[]
 
   @@unique([shopId, phone])
   @@index([shopId, name])
@@ -554,6 +617,7 @@ model Appointment {
   services AppointmentService[]
   sale     Sale?
   messages OutboundMessage[]
+  review   Review?
 
   @@index([shopId, startsAt])
   @@index([staffId, startsAt])
@@ -645,14 +709,16 @@ model Sale {
   total          Decimal    @db.Decimal(10, 2)
   createdAt      DateTime   @default(now())
 
-  shop        Barbershop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  appointment Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
-  chargedBy   Staff?            @relation("ChargedBy", fields: [chargedById], references: [id], onDelete: SetNull)
-  items       SaleItem[]
-  payments    Payment[]
-  stockMoves  StockMovement[]
-  loyalty     LoyaltyMovement[]
+  shop         Barbershop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer     Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  appointment  Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  chargedBy    Staff?            @relation("ChargedBy", fields: [chargedById], references: [id], onDelete: SetNull)
+  items        SaleItem[]
+  payments     Payment[]
+  stockMoves   StockMovement[]
+  loyalty      LoyaltyMovement[]
+  packageUses  PackageUse[]
+  packagesSold CustomerPackage[]
 
   @@unique([shopId, folio])
   @@index([shopId, createdAt])
@@ -673,9 +739,11 @@ model SaleItem {
   commission Decimal      @default(0) @db.Decimal(10, 2)
   /// Pago de comisión que ya cubrió este renglón
   payoutId   String?      @db.Uuid
+  packageId  String?      @db.Uuid
 
   sale    Sale              @relation(fields: [saleId], references: [id], onDelete: Cascade)
   payout  CommissionPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+  package Package?          @relation(fields: [packageId], references: [id], onDelete: SetNull)
   service Service?          @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   product Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
   staff   Staff?            @relation(fields: [staffId], references: [id], onDelete: SetNull)
@@ -784,4 +852,188 @@ model CommissionPayout {
   @@index([shopId, createdAt])
   @@index([staffId])
   @@map("commission_payouts")
+}
+
+// ── Gastos y bitácora ────────────────────────────────────────────────
+
+model Expense {
+  id          String        @id @default(uuid()) @db.Uuid
+  shopId      String        @db.Uuid
+  date        DateTime      @db.Date
+  category    String
+  amount      Decimal       @db.Decimal(10, 2)
+  method      PaymentMethod @default(CASH)
+  note        String?
+  createdById String?       @db.Uuid
+  createdAt   DateTime      @default(now())
+
+  shop      Barbershop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdBy Staff?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([shopId, date])
+  @@map("expenses")
+}
+
+/// Quién hizo qué: cobros con descuento, cancelaciones, cambios de precio, pagos, cortes…
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  shopId     String   @db.Uuid
+  staffId    String?  @db.Uuid
+  action     String
+  summary    String
+  entityType String?
+  entityId   String?
+  createdAt  DateTime @default(now())
+
+  shop  Barbershop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  staff Staff?     @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, createdAt])
+  @@map("audit_logs")
+}
+
+// ── Fila virtual ─────────────────────────────────────────────────────
+
+model QueueEntry {
+  id            String      @id @default(uuid()) @db.Uuid
+  shopId        String      @db.Uuid
+  customerId    String?     @db.Uuid
+  name          String
+  phone         String?
+  serviceId     String?     @db.Uuid
+  /// Barbero que pidió (null = el que esté libre)
+  staffId       String?     @db.Uuid
+  status        QueueStatus @default(WAITING)
+  /// "ONLINE" (se formó desde su celular) o "PANEL"
+  source        String      @default("PANEL")
+  token         String      @unique @default(dbgenerated("replace(((gen_random_uuid())::text || (gen_random_uuid())::text), '-'::text, ''::text)"))
+  appointmentId String?     @db.Uuid
+  createdAt     DateTime    @default(now())
+  calledAt      DateTime?
+  finishedAt    DateTime?
+
+  shop     Barbershop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  staff    Staff?     @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([shopId, status, createdAt])
+  @@map("queue_entries")
+}
+
+// ── Paquetes y membresías ────────────────────────────────────────────
+
+model Package {
+  id        String      @id @default(uuid()) @db.Uuid
+  shopId    String      @db.Uuid
+  name      String
+  kind      PackageKind
+  price     Decimal     @db.Decimal(10, 2)
+  /// BUNDLE: cuántos servicios incluye
+  uses      Int?
+  /// Vigencia en días desde la compra
+  days      Int
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  shop      Barbershop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  services  PackageService[]
+  sold      CustomerPackage[]
+  saleItems SaleItem[]
+
+  @@index([shopId, active])
+  @@map("packages")
+}
+
+model PackageService {
+  packageId String @db.Uuid
+  serviceId String @db.Uuid
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([packageId, serviceId])
+  @@map("package_services")
+}
+
+/// Paquete o membresía que compró un cliente
+model CustomerPackage {
+  id         String      @id @default(uuid()) @db.Uuid
+  shopId     String      @db.Uuid
+  customerId String      @db.Uuid
+  packageId  String?     @db.Uuid
+  saleId     String?     @db.Uuid
+  name       String
+  kind       PackageKind
+  usesTotal  Int?
+  usesLeft   Int?
+  /// Servicios que cubre (copia al momento de la compra)
+  serviceIds String[]    @db.Uuid
+  expiresAt  DateTime
+  /// ACTIVE o VOIDED (venta cancelada)
+  status     String      @default("ACTIVE")
+  createdAt  DateTime    @default(now())
+
+  shop     Barbershop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  package  Package?     @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  sale     Sale?        @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  uses     PackageUse[]
+
+  @@index([customerId, status])
+  @@map("customer_packages")
+}
+
+model PackageUse {
+  id                String   @id @default(uuid()) @db.Uuid
+  customerPackageId String   @db.Uuid
+  saleId            String   @db.Uuid
+  serviceId         String?  @db.Uuid
+  value             Decimal  @db.Decimal(10, 2)
+  createdAt         DateTime @default(now())
+
+  customerPackage CustomerPackage @relation(fields: [customerPackageId], references: [id], onDelete: Cascade)
+  sale            Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("package_uses")
+}
+
+// ── Lista de espera y calificaciones ─────────────────────────────────
+
+model WaitlistEntry {
+  id         String     @id @default(uuid()) @db.Uuid
+  shopId     String     @db.Uuid
+  customerId String     @db.Uuid
+  serviceId  String?    @db.Uuid
+  staffId    String?    @db.Uuid
+  date       DateTime   @db.Date
+  status     WaitStatus @default(ACTIVE)
+  createdAt  DateTime   @default(now())
+  notifiedAt DateTime?
+
+  shop     Barbershop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customer Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, date, status])
+  @@map("waitlist_entries")
+}
+
+model Review {
+  id            String   @id @default(uuid()) @db.Uuid
+  shopId        String   @db.Uuid
+  appointmentId String   @unique @db.Uuid
+  customerId    String   @db.Uuid
+  staffId       String   @db.Uuid
+  rating        Int
+  comment       String?
+  createdAt     DateTime @default(now())
+
+  shop        Barbershop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  staff       Staff       @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt])
+  @@index([staffId])
+  @@map("reviews")
 }

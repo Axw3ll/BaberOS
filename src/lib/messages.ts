@@ -31,6 +31,8 @@ export const KIND: Record<MessageKind, { label: string; marketing: boolean }> = 
   STAMP_ALMOST: { label: "Le falta un sello", marketing: true },
   STAMP_REWARD: { label: "Completó su tarjeta", marketing: true },
   STAMP_WELCOME: { label: "Empezó su tarjeta", marketing: false },
+  QUEUE_NEXT: { label: "Fila: ya casi le toca", marketing: false },
+  WAITLIST_OPEN: { label: "Lista de espera: se liberó un lugar", marketing: false },
 };
 
 const H = 3_600_000, D = 24 * H;

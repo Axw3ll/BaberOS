@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 
 
@@ -54,18 +55,22 @@ export async function createProduct(_: ActionResult, data: FormData): Promise<Ac
 }
 
 export async function updateProduct(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("productos");
+  const { shop, me } = await requireSection("productos");
   const r = readProduct(data);
   if ("error" in r) return { error: r.error };
   const id = String(data.get("id"));
+  const before = await prisma.product.findFirst({ where: { id, shopId: shop.id } });
   await prisma.product.update({ where: { id, shopId: shop.id }, data: r.data });
+  if (before && Number(before.price) !== r.data.price) {
+    await audit(shop.id, me.id, "precio.cambio", `Cambió el precio de ${r.data.name}: $${Number(before.price)} → $${r.data.price}`, { type: "product", id });
+  }
   revalidatePath("/productos");
   revalidatePath(`/productos/${id}`);
   return { ok: "Cambios guardados." };
 }
 
 export async function moveStock(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("productos");
+  const { shop, me } = await requireSection("productos");
   const id = String(data.get("id"));
   const type = String(data.get("type"));
   // Conteo físico: la existencia real puede ser 0; entradas y uso interno: al menos 1
@@ -96,6 +101,10 @@ export async function moveStock(_: ActionResult, data: FormData): Promise<Action
         },
       });
       if (type === "PURCHASE" && cost !== null) await tx.product.update({ where: { id }, data: { cost } });
+      if (type !== "PURCHASE") {
+        await audit(shop.id, me.id, "inventario.ajuste",
+          `${type === "COUNT" ? "Conteo físico" : "Uso interno"} de ${p.name}: ${delta > 0 ? "+" : ""}${delta} (quedan ${updated.stock})`, { type: "product", id });
+      }
     });
   } catch (e) {
     if (e instanceof RangeError) return { error: e.message };

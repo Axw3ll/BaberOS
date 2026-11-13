@@ -94,14 +94,14 @@ export const currentContext = cache(async () => {
 });
 
 export type Section =
-  | "hoy" | "agenda" | "ventas" | "clientes" | "seguimiento" | "campanas" | "reportes"
+  | "hoy" | "agenda" | "fila" | "ventas" | "clientes" | "seguimiento" | "campanas" | "reportes" | "gastos" | "bitacora"
   | "productos" | "servicios" | "equipo" | "ajustes";
 
 const ACCESS: Record<Role, Section[]> = {
-  OWNER: ["hoy", "agenda", "ventas", "clientes", "seguimiento", "campanas", "reportes", "productos", "servicios", "equipo", "ajustes"],
-  MANAGER: ["hoy", "agenda", "ventas", "clientes", "seguimiento", "campanas", "reportes", "productos", "servicios", "equipo", "ajustes"],
-  RECEPTIONIST: ["hoy", "agenda", "ventas", "clientes", "seguimiento", "campanas", "productos"],
-  BARBER: ["hoy", "agenda", "ventas", "clientes", "seguimiento"],
+  OWNER: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento", "campanas", "reportes", "gastos", "productos", "servicios", "equipo", "bitacora", "ajustes"],
+  MANAGER: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento", "campanas", "reportes", "gastos", "productos", "servicios", "equipo", "bitacora", "ajustes"],
+  RECEPTIONIST: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento", "campanas", "productos"],
+  BARBER: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento"],
 };
 
 export const canAccess = (role: Role, s: Section) => ACCESS[role].includes(s);

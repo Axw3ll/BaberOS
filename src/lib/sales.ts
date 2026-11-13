@@ -19,6 +19,8 @@ export async function checkout(input: {
   lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number; redeemReward?: boolean;
   /** Efectivo que entregó el cliente; si se captura, no puede ser menor al total. */
   received?: number | null;
+  /** Descuento manual máximo, en % del subtotal (según el rol de quien cobra). null = sin tope. */
+  maxDiscountPct?: number | null;
 }) {
   // Validación estricta: nada se corrige en silencio
   if (!Array.isArray(input.lines) || input.lines.length === 0) throw new SaleError("Agrega al menos un servicio o producto.");
@@ -71,6 +73,10 @@ export async function checkout(input: {
 
         const subtotal = items.reduce((s, i) => s.plus(i.total as Prisma.Decimal), D(0));
         if (D(input.discount).gt(subtotal)) throw new SaleError(`El descuento no puede ser mayor al subtotal (${subtotal.toFixed(2)}).`);
+        if (input.maxDiscountPct != null && D(input.discount).gt(subtotal.mul(input.maxDiscountPct).div(100))) {
+          const max = subtotal.mul(input.maxDiscountPct).div(100).toDecimalPlaces(2);
+          throw new SaleError(`Tu descuento máximo es de ${input.maxDiscountPct}% ($${max.toFixed(2)} en este ticket). Para más, pídele al encargado que cobre.`);
+        }
         let discount = D(input.discount);
 
         // Canje de puntos: se vuelve descuento. Nunca más de lo que falta por pagar.
@@ -235,7 +241,7 @@ export async function voidSale(shopId: string, saleId: string) {
 /** Cuánto descuenta el premio de la tarjeta de sellos en este ticket. */
 export function stampRewardDiscount(
   shop: { stampReward: "FREE_SERVICE" | "PERCENT" | "AMOUNT"; stampRewardValue: Prisma.Decimal },
-  items: { kind: "SERVICE" | "PRODUCT"; unitPrice: unknown }[],
+  items: { kind: "SERVICE" | "PRODUCT" | "PACKAGE"; unitPrice: unknown }[],
   remaining: Prisma.Decimal,
 ) {
   let value: Prisma.Decimal;

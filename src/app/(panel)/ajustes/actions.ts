@@ -6,6 +6,7 @@ import { readSchedule } from "@/lib/schedule";
 import { slugify } from "@/lib/format";
 import { isDate, localToUtc } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 
 const int = (v: FormDataEntryValue | null, min: number, max: number, d: number) => {
@@ -14,7 +15,7 @@ const int = (v: FormDataEntryValue | null, min: number, max: number, d: number) 
 };
 
 export async function saveShop(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("ajustes");
+  const { shop, me } = await requireSection("ajustes");
   const vName = v.text(data.get("name"), "el nombre de la barbería", { required: true, max: 80 });
   const vPhone = v.phone(data.get("phone"));
   const vAddress = v.text(data.get("address"), "la dirección", { max: 160 });
@@ -39,11 +40,12 @@ export async function saveShop(_: ActionResult, data: FormData): Promise<ActionR
     },
   });
   revalidatePath("/", "layout");
+  await audit(shop.id, me.id, "ajustes.cambio", "Ajustes guardados");
   return { ok: "Ajustes guardados." };
 }
 
 export async function saveShopHours(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("ajustes");
+  const { shop, me } = await requireSection("ajustes");
   const r = readSchedule(data);
   if ("error" in r) return { error: r.error };
   await prisma.$transaction([
@@ -52,11 +54,12 @@ export async function saveShopHours(_: ActionResult, data: FormData): Promise<Ac
   ]);
   revalidatePath("/agenda");
   revalidatePath("/ajustes");
+  await audit(shop.id, me.id, "ajustes.cambio", "Horario guardado");
   return { ok: "Horario guardado." };
 }
 
 export async function addClosure(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("ajustes");
+  const { shop, me } = await requireSection("ajustes");
   const from = String(data.get("from") ?? ""), to = String(data.get("to") ?? "") || from;
   if (!from) return { error: "Elige el día." };
   if (!isDate(from) || !isDate(to)) return { error: "La fecha no es válida." };
@@ -67,6 +70,7 @@ export async function addClosure(_: ActionResult, data: FormData): Promise<Actio
   if (endsAt <= startsAt) return { error: "El último día debe ser igual o después del primero." };
   await prisma.closure.create({ data: { shopId: shop.id, startsAt, endsAt, reason: vReason.value } });
   revalidatePath("/ajustes");
+  await audit(shop.id, me.id, "ajustes.cambio", "Cierre registrado");
   return { ok: "Cierre registrado." };
 }
 
@@ -77,7 +81,7 @@ export async function removeClosure(data: FormData) {
 }
 
 export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("ajustes");
+  const { shop, me } = await requireSection("ajustes");
   const mode = String(data.get("loyaltyMode"));
   const lost = v.int(data.get("lostAfterDays"), "los días para cliente perdido", { required: true, min: 15, max: 730 });
   if (lost.error) return { error: lost.error };
@@ -111,11 +115,33 @@ export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionRe
     data: { loyaltyMode: mode as "OFF" | "POINTS" | "STAMPS", ...extra, lostAfterDays: lost.value! },
   });
   revalidatePath("/", "layout");
+  await audit(shop.id, me.id, "ajustes.cambio", "Ajustes de clientes guardados");
   return { ok: "Ajustes de clientes guardados." };
 }
 
+export async function savePolicies(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const { shop, me } = await requireSection("ajustes");
+  const barber = v.int(data.get("maxDiscountBarber"), "el descuento máximo del barbero", { required: true, min: 0, max: 100 });
+  const reception = v.int(data.get("maxDiscountReception"), "el descuento máximo de recepción", { required: true, min: 0, max: 100 });
+  const limit = v.int(data.get("noShowLimit"), "el número de faltas", { required: true, min: 1, max: 20 });
+  const queueMax = v.int(data.get("queueMax"), "el máximo de la fila", { required: true, min: 1, max: 100 });
+  const err = v.first(barber, reception, limit, queueMax);
+  if (err) return { error: err };
+  const policy = data.get("noShowPolicy") === "BLOCK" ? "BLOCK" : "WARN";
+  await prisma.barbershop.update({
+    where: { id: shop.id },
+    data: {
+      maxDiscountBarber: barber.value!, maxDiscountReception: reception.value!, noShowLimit: limit.value!, noShowPolicy: policy,
+      queueEnabled: data.get("queueEnabled") === "on", queueMax: queueMax.value!,
+    },
+  });
+  await audit(shop.id, me.id, "ajustes.cambio", `Reglas: descuento barbero ${barber.value}%, recepción ${reception.value}%, faltas ${limit.value} (${policy === "BLOCK" ? "bloquear" : "avisar"})`);
+  revalidatePath("/", "layout");
+  return { ok: "Reglas guardadas." };
+}
+
 export async function savePayroll(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("ajustes");
+  const { shop, me } = await requireSection("ajustes");
   const freq = String(data.get("payoutFrequency"));
   if (!["WEEKLY", "BIWEEKLY", "MONTHLY"].includes(freq)) return { error: "Elige cada cuánto pagas." };
   await prisma.barbershop.update({
@@ -123,11 +149,12 @@ export async function savePayroll(_: ActionResult, data: FormData): Promise<Acti
     data: { payoutFrequency: freq as "WEEKLY" | "BIWEEKLY" | "MONTHLY", payoutWeekday: int(data.get("payoutWeekday"), 0, 6, shop.payoutWeekday) },
   });
   revalidatePath("/", "layout");
+  await audit(shop.id, me.id, "ajustes.cambio", "Calendario de pago guardado");
   return { ok: "Calendario de pago guardado." };
 }
 
 export async function saveMessages(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("ajustes");
+  const { shop, me } = await requireSection("ajustes");
   const url = String(data.get("googleReviewUrl") ?? "").trim();
   if (url && !/^https:\/\/\S+$/.test(url)) return { error: "El enlace de reseñas debe empezar con https://" };
   const on = (k: string) => data.get(k) === "on";
@@ -141,5 +168,6 @@ export async function saveMessages(_: ActionResult, data: FormData): Promise<Act
   });
   revalidatePath("/ajustes");
   revalidatePath("/seguimiento/mensajes");
+  await audit(shop.id, me.id, "ajustes.cambio", "Mensajes automáticos guardados");
   return { ok: "Mensajes automáticos guardados." };
 }

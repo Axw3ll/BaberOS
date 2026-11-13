@@ -55,6 +55,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
         appointmentId={appt?.id ?? null}
         initial={initial}
         initialCustomer={regular ? { phone: regular.phone, name: regular.name } : null}
+        maxDiscountPct={me.role === "BARBER" ? shop.maxDiscountBarber : me.role === "RECEPTIONIST" ? shop.maxDiscountReception : null}
         services={services.map((s) => ({ id: s.id, name: s.name, price: Number(s.price) }))}
         products={products.map((p) => ({ id: p.id, name: p.name, brand: p.brand, price: Number(p.price), stock: p.stock }))}
         staff={staff.filter((s) => s.role !== "RECEPTIONIST").map((s) => ({ id: s.id, name: s.name }))}

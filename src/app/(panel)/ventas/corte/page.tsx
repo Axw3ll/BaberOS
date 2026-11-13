@@ -19,8 +19,9 @@ export default async function CortePage({ searchParams }: { searchParams: Promis
   const { listo } = await searchParams;
   const tz = shop.timezone;
   const { start, last } = await openPeriod(shop);
-  const [t, history] = await Promise.all([
+  const [t, cashExpenses, history] = await Promise.all([
     periodTotals(shop.id, start, new Date()),
+    prisma.expense.aggregate({ where: { shopId: shop.id, method: "CASH", createdAt: { gte: start } }, _sum: { amount: true } }),
     prisma.cashClosure.findMany({ where: { shopId: shop.id }, include: { closedBy: true }, orderBy: { periodEnd: "desc" }, take: 20 }),
   ]);
   const done = listo ? history.find((h) => h.id === listo) : null;
@@ -50,7 +51,7 @@ export default async function CortePage({ searchParams }: { searchParams: Promis
         <section>
           <SectionTitle>Cerrar turno</SectionTitle>
           <ActionForm action={closeCash}>
-            <CashCount cashSales={t.cash} />
+            <CashCount cashSales={t.cash} cashExpenses={Number(cashExpenses._sum.amount ?? 0)} />
             <Field label="Nota" className="mt-4"><input name="notes" className="field" placeholder="Opcional: quién recibió el dinero, pagos a proveedor…" /></Field>
             <div className="mt-6"><Submit pending="Guardando…">Hacer corte</Submit></div>
           </ActionForm>

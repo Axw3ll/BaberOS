@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import { openPeriod, periodTotals } from "@/lib/cash";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 
 
@@ -32,5 +33,7 @@ export async function closeCash(_: ActionResult, data: FormData): Promise<Action
     },
   });
   revalidatePath("/ventas/corte");
+  await audit(shop.id, me.id, "caja.corte",
+    `Hizo el corte: esperado $${expected.toFixed(2)}, contado $${counted.toFixed(2)}${counted !== expected ? ` (diferencia $${(counted - expected).toFixed(2)})` : ""}`, { type: "cash", id: c.id });
   redirect(`/ventas/corte?listo=${c.id}`);
 }

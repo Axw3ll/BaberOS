@@ -24,6 +24,8 @@ export async function payCommissions(data: FormData) {
       data: { shopId: shop.id, staffId, paidById: me.id, amount: Math.round(amount * 100) / 100, items: items.length, upTo, note },
     });
     await tx.saleItem.updateMany({ where: { id: { in: items.map((i) => i.id) } }, data: { payoutId: p.id } });
+    const who = await tx.staff.findUnique({ where: { id: staffId }, select: { name: true } });
+    await tx.auditLog.create({ data: { shopId: shop.id, staffId: me.id, action: "comision.pago", summary: `Pagó $${p.amount.toFixed(2)} de comisiones a ${who?.name ?? "—"}`, entityType: "payout", entityId: p.id } });
   });
   revalidatePath("/ventas/comisiones");
   revalidatePath("/hoy");

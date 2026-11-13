@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 
 function read(data: FormData) {
@@ -33,10 +34,14 @@ export async function createService(_: ActionResult, data: FormData): Promise<Ac
 }
 
 export async function updateService(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const { shop } = await requireSection("servicios");
+  const { shop, me } = await requireSection("servicios");
   const id = String(data.get("id"));
   const r = read(data);
   if ("error" in r) return { error: r.error };
+  const before = await prisma.service.findFirst({ where: { id, shopId: shop.id } });
+  if (before && Number(before.price) !== r.data.price) {
+    await audit(shop.id, me.id, "precio.cambio", `Cambió el precio de ${r.data.name}: $${Number(before.price)} → $${r.data.price}`, { type: "service", id });
+  }
   const valid = await prisma.staff.findMany({ where: { shopId: shop.id, id: { in: r.staffIds } }, select: { id: true } });
   await prisma.$transaction([
     prisma.service.update({ where: { id, shopId: shop.id }, data: r.data }),

@@ -3,9 +3,10 @@ import { useState } from "react";
 import { money } from "@/lib/format";
 
 /** Calcula en vivo cuánto debería haber en caja y la diferencia con lo contado. */
-export function CashCount({ cashSales }: { cashSales: number }) {
+export function CashCount({ cashSales, cashExpenses = 0 }: { cashSales: number; cashExpenses?: number }) {
   const [opening, setOpening] = useState("");
-  const [withdrawals, setWithdrawals] = useState("");
+  // Los gastos registrados como "efectivo de caja" en este turno ya vienen sumados en retiros
+  const [withdrawals, setWithdrawals] = useState(cashExpenses > 0 ? String(cashExpenses) : "");
   const [counted, setCounted] = useState("");
   const n = (v: string) => Number(v.replace(/[$,\s]/g, "")) || 0;
   const expected = n(opening) + cashSales - n(withdrawals);
@@ -15,7 +16,7 @@ export function CashCount({ cashSales }: { cashSales: number }) {
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label><span className="label">Fondo inicial</span><input name="opening" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="0" className={input} /></label>
-        <label><span className="label">Retiros y gastos pagados de caja</span><input name="withdrawals" inputMode="decimal" value={withdrawals} onChange={(e) => setWithdrawals(e.target.value)} placeholder="0" className={input} /></label>
+        <label><span className="label">Retiros y gastos pagados de caja{cashExpenses > 0 && <span className="text-faint"> (incluye {money(cashExpenses)} de gastos)</span>}</span><input name="withdrawals" inputMode="decimal" value={withdrawals} onChange={(e) => setWithdrawals(e.target.value)} placeholder="0" className={input} /></label>
       </div>
       <dl className="rounded-xl bg-hover p-4 text-sm">
         <div className="flex justify-between"><dt className="text-muted">Fondo + ventas en efectivo − retiros</dt><dd className="tnum">{money(n(opening))} + {money(cashSales)} − {money(n(withdrawals))}</dd></div>

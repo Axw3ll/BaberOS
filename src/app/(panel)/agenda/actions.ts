@@ -6,6 +6,7 @@ import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { book, BookingError, slotsFor } from "@/lib/booking";
 import { addDays, isDate, toLocalDate, today } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 import type { AppointmentStatus } from "@/generated/prisma/enums";
 
@@ -115,10 +116,15 @@ export async function setStatus(data: FormData) {
   const status = String(data.get("status")) as AppointmentStatus;
   if (!ALLOWED.includes(status)) return;
   try {
-    await prisma.appointment.update({
+    const a = await prisma.appointment.update({
       where: { id, shopId: shop.id, ...(seesOnlyOwnAgenda(me.role) && { staffId: me.id }), status: { not: "COMPLETED" } },
       data: { status },
+      include: { customer: { select: { name: true } } },
     });
+    if (status === "CANCELLED" || status === "NO_SHOW") {
+      await audit(shop.id, me.id, status === "CANCELLED" ? "cita.cancelada" : "cita.no_llego",
+        `${status === "CANCELLED" ? "Canceló" : "Marcó que no llegó"} la cita de ${a.customer.name}`, { type: "appointment", id });
+    }
   } catch (e) {
     if (String(e).includes("appointments_no_overlap")) redirect(`/citas/${id}?error=ocupado`);
     throw e;

@@ -1,6 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { checkout, SaleError, voidSale, type CartLine } from "@/lib/sales";
@@ -41,11 +42,15 @@ export async function chargeSale(input: {
   let saleId: string;
   try {
     const sale = await checkout({
+      maxDiscountPct: discountLimit(me.role, shop),
       shopId: shop.id, chargedById: me.id, customerId, appointmentId: input.appointmentId,
       lines: input.lines, discount: input.discount, tip: input.tip, method: input.method,
       redeemPoints: input.redeemPoints ?? 0, redeemReward: Boolean(input.redeemReward), received: input.received ?? null,
     });
     saleId = sale.id;
+    await audit(shop.id, me.id, Number(sale.discount) > 0 ? "venta.descuento" : "venta.cobro",
+      `Cobró la venta #${sale.folio} por $${Number(sale.total).toFixed(2)}${Number(sale.discount) > 0 ? ` con $${Number(sale.discount).toFixed(2)} de descuento` : ""}`,
+      { type: "sale", id: sale.id });
   } catch (e) {
     if (e instanceof SaleError) return { error: e.message };
     throw e;
@@ -60,7 +65,8 @@ export async function cancelSale(data: FormData) {
   const { shop, me } = await requireSection("ventas");
   if (!canAccess(me.role, "ajustes")) return; // solo dueño y encargado
   const id = String(data.get("id"));
-  await voidSale(shop.id, id);
+  const s = await voidSale(shop.id, id);
+  await audit(shop.id, me.id, "venta.cancelada", `Canceló la venta #${s.folio} por $${Number(s.total).toFixed(2)}`, { type: "sale", id });
   revalidatePath(`/ventas/${id}`);
   revalidatePath("/ventas");
 }
@@ -97,6 +103,7 @@ export async function quickCharge(_: { error?: string } | void, data: FormData):
       lines: a.services.map((s) => ({ kind: "SERVICE" as const, serviceId: s.serviceId, staffId: a.staffId, quantity: 1 })),
     });
     saleId = sale.id;
+    await audit(shop.id, me.id, "venta.cobro", `Cobró la venta #${sale.folio} por $${Number(sale.total).toFixed(2)} desde la cita`, { type: "sale", id: sale.id });
   } catch (e) {
     if (e instanceof SaleError) return { error: e.message };
     throw e;
@@ -128,4 +135,11 @@ export async function rebook(data: FormData) {
   }
   revalidatePath("/agenda");
   redirect(`/citas/${id}?nueva=1`);
+}
+
+/** Descuento manual máximo (%) según el rol: dueño y encargado sin tope. */
+function discountLimit(role: string, shop: { maxDiscountBarber: number; maxDiscountReception: number }) {
+  if (role === "BARBER") return shop.maxDiscountBarber;
+  if (role === "RECEPTIONIST") return shop.maxDiscountReception;
+  return null;
 }

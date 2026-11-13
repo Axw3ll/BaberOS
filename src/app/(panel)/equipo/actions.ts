@@ -6,6 +6,7 @@ import { requireSection } from "@/lib/auth";
 import { readSchedule } from "@/lib/schedule";
 import { isDate, localToUtc, parseHHMM } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { accessFor, BASIC_STAFF_LIMIT, hasPro } from "@/lib/billing";
@@ -104,6 +105,12 @@ export async function updateStaff(_: ActionResult, data: FormData): Promise<Acti
     });
     revalidatePath("/equipo");
     revalidatePath(`/equipo/${s.id}`);
+    const changes = [
+      role !== s.role && `rol ${s.role} → ${role}`,
+      Math.abs(vSvc.value! - Number(s.serviceCommission)) > 1e-6 && `comisión servicios ${Math.round(Number(s.serviceCommission) * 100)}% → ${Math.round(vSvc.value! * 100)}%`,
+      Math.abs(vProd.value! - Number(s.productCommission)) > 1e-6 && `comisión productos ${Math.round(Number(s.productCommission) * 100)}% → ${Math.round(vProd.value! * 100)}%`,
+    ].filter(Boolean);
+    if (changes.length) await audit(ctx.shop.id, ctx.me.id, "equipo.cambio", `${name}: ${changes.join(", ")}`, { type: "staff", id: s.id });
     return { ok: "Perfil guardado." };
   } catch (e) {
     return { error: (e as Error).message };

@@ -3,17 +3,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3, CalendarDays, Home, LayoutGrid, ListChecks, Megaphone, Package, Receipt, Scissors, Settings, Users, UsersRound, X,
+  BarChart3, CalendarDays, History, Home, LayoutGrid, ListChecks, ListOrdered, Megaphone, Package, Receipt, Scissors, Settings, Users, UsersRound, Wallet, X,
 } from "lucide-react";
 
 const ITEMS: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   hoy: { label: "Hoy", icon: Home },
   agenda: { label: "Agenda", icon: CalendarDays },
+  fila: { label: "Fila", icon: ListOrdered },
   ventas: { label: "Ventas", icon: Receipt },
   clientes: { label: "Clientes", icon: Users },
   seguimiento: { label: "Seguimiento", icon: ListChecks },
   campanas: { label: "Campañas", icon: Megaphone },
   reportes: { label: "Reportes", icon: BarChart3 },
+  gastos: { label: "Gastos y utilidad", icon: Wallet },
+  bitacora: { label: "Bitácora", icon: History },
   productos: { label: "Productos", icon: Package },
   servicios: { label: "Servicios", icon: Scissors },
   equipo: { label: "Equipo", icon: UsersRound },
@@ -22,9 +25,9 @@ const ITEMS: Record<string, { label: string; icon: React.ComponentType<{ classNa
 
 /** Agrupación del menú lateral */
 const GROUPS: { title?: string; items: string[] }[] = [
-  { items: ["hoy", "agenda", "ventas"] },
+  { items: ["hoy", "agenda", "fila", "ventas"] },
   { title: "Clientes", items: ["clientes", "seguimiento", "campanas"] },
-  { title: "Negocio", items: ["reportes", "productos", "servicios", "equipo", "ajustes"] },
+  { title: "Negocio", items: ["reportes", "gastos", "productos", "servicios", "equipo", "bitacora", "ajustes"] },
 ];
 
 /** Las 4 que van fijas abajo en el celular; el resto vive en "Más". */

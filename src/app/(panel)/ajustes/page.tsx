@@ -7,7 +7,7 @@ import { ActionForm, Submit } from "@/components/action-form";
 import { ScheduleEditor } from "@/components/schedule-editor";
 import { LoyaltySettings } from "./loyalty-settings";
 import { FREQUENCY_LABEL, WEEKDAYS } from "@/lib/payroll";
-import { addClosure, removeClosure, saveCrm, saveMessages, savePayroll, saveShop, saveShopHours } from "./actions";
+import { addClosure, removeClosure, saveCrm, saveMessages, savePayroll, savePolicies, saveShop, saveShopHours } from "./actions";
 import { createTag, deleteTag } from "../clientes/actions";
 import { TAG_COLORS, TAG_LABEL, tagColor } from "@/lib/crm";
 import { money } from "@/lib/format";
@@ -56,6 +56,42 @@ export default async function AjustesPage() {
               <Field label="Reservar hasta (días)"><input name="maxAdvanceDays" inputMode="numeric" defaultValue={shop.maxAdvanceDays} className="field tnum" /></Field>
             </div>
             <div className="mt-6"><Submit>Guardar ajustes</Submit></div>
+          </ActionForm>
+        </section>
+
+        <section id="reglas" className="max-w-2xl scroll-mt-6">
+          <SectionTitle>Reglas</SectionTitle>
+          <ActionForm action={savePolicies} className="space-y-6">
+            <div>
+              <h3 className="mb-1 font-medium">Descuento máximo al cobrar</h3>
+              <p className="mb-3 text-sm text-muted">Dueño y encargado no tienen tope. Puntos, premios y paquetes no cuentan como descuento.</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Barbero (%)"><input name="maxDiscountBarber" inputMode="numeric" defaultValue={shop.maxDiscountBarber} className="field tnum" /></Field>
+                <Field label="Recepción (%)"><input name="maxDiscountReception" inputMode="numeric" defaultValue={shop.maxDiscountReception} className="field tnum" /></Field>
+              </div>
+            </div>
+            <div>
+              <h3 className="mb-1 font-medium">Clientes que faltan seguido</h3>
+              <p className="mb-3 text-sm text-muted">Cuenta los “no llegó” de los últimos 6 meses.</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="A partir de (faltas)"><input name="noShowLimit" inputMode="numeric" defaultValue={shop.noShowLimit} className="field tnum" /></Field>
+                <Field label="Qué hacer">
+                  <select name="noShowPolicy" defaultValue={shop.noShowPolicy} className="field">
+                    <option value="WARN">Avisar al equipo (aparece marcado)</option>
+                    <option value="BLOCK">No dejarlo reservar en línea (que llame)</option>
+                  </select>
+                </Field>
+              </div>
+            </div>
+            <div>
+              <h3 className="mb-1 font-medium">Fila virtual</h3>
+              <label className="mb-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" name="queueEnabled" defaultChecked={shop.queueEnabled} className="size-4 accent-[var(--color-brand)]" />
+                Permitir que los clientes se formen desde su celular
+              </label>
+              <Field label="Máximo de personas en la fila" className="sm:w-1/2"><input name="queueMax" inputMode="numeric" defaultValue={shop.queueMax} className="field tnum" /></Field>
+            </div>
+            <Submit>Guardar reglas</Submit>
           </ActionForm>
         </section>
 
