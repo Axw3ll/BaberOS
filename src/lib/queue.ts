@@ -106,7 +106,8 @@ export async function barbersNow(shop: Barbershop): Promise<BarberNow[]> {
     include: {
       schedule: { where: { weekday: wd } },
       appointments: {
-        where: { status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] }, endsAt: { gt: new Date(now) }, startsAt: { lt: new Date(now + 24 * 3_600_000) } },
+        // Igual que la regla de la base: todo menos canceladas y "no llegó" ocupa el horario (también las ya cobradas)
+        where: { status: { notIn: ["CANCELLED", "NO_SHOW"] }, endsAt: { gt: new Date(now) }, startsAt: { lt: new Date(now + 24 * 3_600_000) } },
         orderBy: { startsAt: "asc" }, select: { startsAt: true, endsAt: true },
       },
     },

@@ -234,7 +234,14 @@ export async function checkout(input: {
         }
 
         if (input.appointmentId) {
-          await tx.appointment.update({ where: { id: input.appointmentId, shopId: shop.id }, data: { status: "COMPLETED" } });
+          // Si se cobra antes de la hora en que terminaba, el barbero queda libre desde ya (no hasta la hora agendada)
+          const appt = await tx.appointment.findFirst({ where: { id: input.appointmentId, shopId: shop.id }, select: { startsAt: true, endsAt: true } });
+          const nowMin = Math.floor(Date.now() / 60_000) * 60_000;
+          const endEarly = appt && appt.startsAt.getTime() < nowMin && nowMin < appt.endsAt.getTime();
+          await tx.appointment.update({
+            where: { id: input.appointmentId, shopId: shop.id },
+            data: { status: "COMPLETED", ...(endEarly && { endsAt: new Date(nowMin) }) },
+          });
         }
         return sale;
       });

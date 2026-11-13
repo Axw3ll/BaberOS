@@ -94,7 +94,7 @@ export async function serveEntry(_: ActionResult, data: FormData): Promise<Actio
     apptId = a.id;
   } catch (err) {
     if (err instanceof BookingError) {
-      return { error: err.message.includes("ocupar") ? "Ese barbero tiene una cita en este momento. Elige otro o espera a que termine." : err.message };
+      return { error: err.message.includes("ocupar") ? "Ese barbero ya tiene algo en la agenda en ese horario. Revisa su agenda o elige otro." : err.message };
     }
     throw err;
   }
