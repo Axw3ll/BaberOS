@@ -86,14 +86,17 @@ export default async function AjustesPage() {
           </ActionForm>
         </section>
 
-        <section className="max-w-2xl">
+        <section id="lealtad" className="max-w-2xl scroll-mt-6">
           <SectionTitle>Clientes y lealtad</SectionTitle>
           <ActionForm action={saveCrm}>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="loyalty" defaultChecked={Number(shop.loyaltyPointsPerPeso) > 0} className="size-4 accent-[var(--color-brand)]" />
               Programa de puntos
             </label>
-            <p className="mt-1 text-sm text-muted">El cliente gana puntos con cada cobro (sin contar propina) y los canjea como descuento en caja.</p>
+            <p className="mt-1 text-sm text-muted">
+              Viene apagado. Al activarlo, el cliente gana puntos con cada cobro desde ese momento (sin contar propina) y los canjea como
+              descuento en caja. Las compras anteriores no suman puntos; si quieres reconocerlas, regálale puntos desde su ficha.
+            </p>
             <div className="mt-5 grid gap-5 sm:grid-cols-3">
               <Field label="Puntos por cada peso" hint="1 = un punto por peso"><input name="pointsPerPeso" inputMode="decimal" defaultValue={Number(shop.loyaltyPointsPerPeso) || 1} className="field tnum" /></Field>
               <Field label="Cada punto vale ($)" hint={`Gastar ${money(1000, true)} regresa ${money(1000 * (Number(shop.loyaltyPointsPerPeso) || 1) * Number(shop.loyaltyPesoPerPoint), true)}`}>

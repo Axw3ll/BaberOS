@@ -293,6 +293,16 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
             </ActionForm>
           </section>
 
+          {!loyalty && isAdmin && (
+            <section>
+              <SectionTitle>Puntos</SectionTitle>
+              <p className="text-sm text-muted">
+                El programa de puntos está apagado: los clientes no acumulan ni canjean. Actívalo en{" "}
+                <Link href="/ajustes#lealtad" className="link">Ajustes → Clientes y lealtad</Link>.
+              </p>
+            </section>
+          )}
+
           {loyalty && (
             <section>
               <SectionTitle aside={<span className="tnum">{c.points.toLocaleString("es-MX")} pts ≈ {money(c.points * Number(shop.loyaltyPesoPerPoint))}</span>}>Puntos</SectionTitle>
