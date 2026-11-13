@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import { readSchedule } from "@/lib/schedule";
 import { slugify } from "@/lib/format";
-import { localToUtc } from "@/lib/time";
+import { isDate, localToUtc } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 
 const int = (v: FormDataEntryValue | null, min: number, max: number, d: number) => {
   const n = Math.floor(Number(v));
@@ -14,21 +15,27 @@ const int = (v: FormDataEntryValue | null, min: number, max: number, d: number) 
 
 export async function saveShop(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("ajustes");
-  const name = String(data.get("name") ?? "").trim();
-  if (!name) return { error: "Escribe el nombre de la barbería." };
+  const vName = v.text(data.get("name"), "el nombre de la barbería", { required: true, max: 80 });
+  const vPhone = v.phone(data.get("phone"));
+  const vAddress = v.text(data.get("address"), "la dirección", { max: 160 });
+  const vTax = v.int(String(data.get("taxRate") ?? "").replace(/\.0+$/, ""), "el IVA (%)", { required: true, min: 0, max: 30 });
+  const vNotice = v.int(data.get("minNoticeMinutes"), "la anticipación mínima", { required: true, min: 0, max: 2880 });
+  const vAdvance = v.int(data.get("maxAdvanceDays"), "los días para reservar", { required: true, min: 1, max: 180 });
+  const err = v.first(vName, vPhone, vAddress, vTax, vNotice, vAdvance);
+  if (err) return { error: err };
+  const name = vName.value!;
   const slug = slugify(String(data.get("slug") ?? "") || name);
   if (slug !== shop.slug && (await prisma.barbershop.findUnique({ where: { slug } }))) return { error: "Esa dirección ya la usa otra barbería." };
-  const tax = Number(data.get("taxRate"));
   await prisma.barbershop.update({
     where: { id: shop.id },
     data: {
       name, slug,
-      phone: String(data.get("phone") ?? "").trim() || null,
-      address: String(data.get("address") ?? "").trim() || null,
-      taxRate: Number.isFinite(tax) && tax >= 0 && tax <= 30 ? tax / 100 : shop.taxRate,
+      phone: vPhone.value,
+      address: vAddress.value,
+      taxRate: vTax.value! / 100,
       slotMinutes: [10, 15, 20, 30, 60].includes(Number(data.get("slotMinutes"))) ? Number(data.get("slotMinutes")) : shop.slotMinutes,
-      minNoticeMinutes: int(data.get("minNoticeMinutes"), 0, 2880, shop.minNoticeMinutes),
-      maxAdvanceDays: int(data.get("maxAdvanceDays"), 1, 180, shop.maxAdvanceDays),
+      minNoticeMinutes: vNotice.value!,
+      maxAdvanceDays: vAdvance.value!,
     },
   });
   revalidatePath("/", "layout");
@@ -52,9 +59,13 @@ export async function addClosure(_: ActionResult, data: FormData): Promise<Actio
   const { shop } = await requireSection("ajustes");
   const from = String(data.get("from") ?? ""), to = String(data.get("to") ?? "") || from;
   if (!from) return { error: "Elige el día." };
+  if (!isDate(from) || !isDate(to)) return { error: "La fecha no es válida." };
+  if (Date.parse(to) - Date.parse(from) > 366 * 86_400_000) return { error: "Un cierre no puede durar más de un año." };
+  const vReason = v.text(data.get("reason"), "el motivo", { max: 120 });
+  if (vReason.error) return { error: vReason.error };
   const startsAt = localToUtc(from, 0, shop.timezone), endsAt = localToUtc(to, 1440, shop.timezone);
   if (endsAt <= startsAt) return { error: "El último día debe ser igual o después del primero." };
-  await prisma.closure.create({ data: { shopId: shop.id, startsAt, endsAt, reason: String(data.get("reason") ?? "").trim() || null } });
+  await prisma.closure.create({ data: { shopId: shop.id, startsAt, endsAt, reason: vReason.value } });
   revalidatePath("/ajustes");
   return { ok: "Cierre registrado." };
 }
@@ -68,6 +79,8 @@ export async function removeClosure(data: FormData) {
 export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("ajustes");
   const mode = String(data.get("loyaltyMode"));
+  const lost = v.int(data.get("lostAfterDays"), "los días para cliente perdido", { required: true, min: 15, max: 730 });
+  if (lost.error) return { error: lost.error };
   if (!["OFF", "POINTS", "STAMPS"].includes(mode)) return { error: "Elige un programa de lealtad." };
   const num = (k: string) => Number(String(data.get(k) ?? "").replace(/[$,%\s]/g, "") || 0);
   const extra: Record<string, unknown> = {};
@@ -95,7 +108,7 @@ export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionRe
 
   await prisma.barbershop.update({
     where: { id: shop.id },
-    data: { loyaltyMode: mode as "OFF" | "POINTS" | "STAMPS", ...extra, lostAfterDays: int(data.get("lostAfterDays"), 15, 730, shop.lostAfterDays) },
+    data: { loyaltyMode: mode as "OFF" | "POINTS" | "STAMPS", ...extra, lostAfterDays: lost.value! },
   });
   revalidatePath("/", "layout");
   return { ok: "Ajustes de clientes guardados." };

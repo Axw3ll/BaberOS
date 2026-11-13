@@ -6,10 +6,16 @@ import { requireUser, SHOP_COOKIE } from "@/lib/auth";
 import { slugify } from "@/lib/format";
 import { SERVICE_TEMPLATES } from "@/lib/templates";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 
 export async function createShop(_: ActionResult, data: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const name = String(data.get("name") ?? "").trim();
+  const vName = v.text(data.get("name"), "el nombre de la barbería", { required: true, max: 80 });
+  const vPhone = v.phone(data.get("phone"));
+  const vAddress = v.text(data.get("address"), "la dirección", { max: 160 });
+  const err = v.first(vName, vPhone, vAddress);
+  if (err) return { error: err };
+  const name = vName.value!;
   if (name.length < 2) return { error: "Escribe el nombre de la barbería." };
 
   let slug = slugify(name);
@@ -24,8 +30,8 @@ export async function createShop(_: ActionResult, data: FormData): Promise<Actio
     const shop = await tx.barbershop.create({
       data: {
         name, slug, ownerId: user.id,
-        phone: String(data.get("phone") ?? "").trim() || null,
-        address: String(data.get("address") ?? "").trim() || null,
+        phone: vPhone.value,
+        address: vAddress.value,
         hours: { create: days.map((weekday) => ({ weekday, startMinute: open, endMinute: close })) },
       },
     });

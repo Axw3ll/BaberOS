@@ -4,18 +4,15 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import { readSchedule } from "@/lib/schedule";
-import { localToUtc, parseHHMM } from "@/lib/time";
+import { isDate, localToUtc, parseHHMM } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { accessFor, BASIC_STAFF_LIMIT, hasPro } from "@/lib/billing";
 import { baseUrl } from "@/lib/messages";
 import type { Role } from "@/generated/prisma/enums";
 
 const ROLES: Role[] = ["MANAGER", "BARBER", "RECEPTIONIST"];
-const rate = (v: FormDataEntryValue | null, fallback: number) => {
-  const n = Number(String(v ?? "").replace("%", ""));
-  return Number.isFinite(n) && n >= 0 && n <= 100 ? n / 100 : fallback;
-};
 
 async function editable(id: string) {
   const ctx = await requireSection("equipo");
@@ -27,10 +24,13 @@ async function editable(id: string) {
 
 export async function addStaff(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("equipo");
-  const name = String(data.get("name") ?? "").trim();
-  const email = String(data.get("email") ?? "").trim().toLowerCase() || null;
+  const vName = v.text(data.get("name"), "el nombre", { required: true, max: 80 });
+  const vEmail = v.email(data.get("email"));
+  const vPhone = v.phone(data.get("phone"));
+  const err0 = v.first(vName, vEmail, vPhone);
+  if (err0) return { error: err0 };
+  const name = vName.value!, email = vEmail.value;
   const role = String(data.get("role")) as Role;
-  if (!name) return { error: "Escribe el nombre." };
   if (!ROLES.includes(role)) return { error: "Elige un rol." };
   if (email && (await prisma.staff.findFirst({ where: { shopId: shop.id, email } }))) return { error: "Ya hay alguien con ese email en el equipo." };
   if (!hasPro(accessFor(shop)) && (await prisma.staff.count({ where: { shopId: shop.id, active: true } })) >= BASIC_STAFF_LIMIT) {
@@ -44,7 +44,7 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
 
   const s = await prisma.staff.create({
     data: {
-      shopId: shop.id, name, email, role, phone: String(data.get("phone") ?? "").trim() || null,
+      shopId: shop.id, name, email, role, phone: vPhone.value,
       userId: existingUser?.id ?? null, takesAppointments: takes,
       ...(takes && {
         schedule: { create: hours.map((h) => ({ weekday: h.weekday, startMinute: h.startMinute, endMinute: h.endMinute })) },
@@ -79,22 +79,27 @@ export async function resendInvite(data: FormData) {
 export async function updateStaff(_: ActionResult, data: FormData): Promise<ActionResult> {
   try {
     const { ctx, s } = await editable(String(data.get("id")));
-    const name = String(data.get("name") ?? "").trim();
-    if (!name) return { error: "Escribe el nombre." };
+    const vName = v.text(data.get("name"), "el nombre", { required: true, max: 80 });
+    const vEmail = v.email(data.get("email"));
+    const vPhone = v.phone(data.get("phone"));
+    const vSvc = v.percent(data.get("serviceCommission"), "la comisión por servicios");
+    const vProd = v.percent(data.get("productCommission"), "la comisión por productos");
+    const err = v.first(vName, vEmail, vPhone, vSvc, vProd);
+    if (err) return { error: err };
+    const name = vName.value!;
     const role = s.role === "OWNER" ? "OWNER" : (String(data.get("role")) as Role);
     if (!ROLES.includes(role) && role !== "OWNER") return { error: "Rol no válido." };
-    const email = String(data.get("email") ?? "").trim().toLowerCase() || null;
+    const email = vEmail.value;
     if (email && email !== s.email && (await prisma.staff.findFirst({ where: { shopId: ctx.shop.id, email } })))
       return { error: "Ya hay alguien con ese email en el equipo." };
 
     await prisma.staff.update({
       where: { id: s.id },
       data: {
-        name, role, phone: String(data.get("phone") ?? "").trim() || null,
+        name, role, phone: vPhone.value,
         ...(!s.userId && { email }),
         takesAppointments: data.get("takesAppointments") === "on",
-        serviceCommission: rate(data.get("serviceCommission"), Number(s.serviceCommission)),
-        productCommission: rate(data.get("productCommission"), Number(s.productCommission)),
+        serviceCommission: vSvc.value!, productCommission: vProd.value!,
       },
     });
     revalidatePath("/equipo");
@@ -136,10 +141,15 @@ export async function addTimeOff(_: ActionResult, data: FormData): Promise<Actio
   const from = String(data.get("from") ?? ""), to = String(data.get("to") ?? "") || from;
   const allDay = !data.get("start") && !data.get("end");
   if (!from) return { error: "Elige el día." };
+  if (!isDate(from) || !isDate(to)) return { error: "La fecha no es válida." };
+  if (to < from) return { error: "El último día debe ser igual o después del primero." };
+  if (Date.parse(to) - Date.parse(from) > 366 * 86_400_000) return { error: "Una ausencia no puede durar más de un año." };
+  const reason = v.text(data.get("reason"), "el motivo", { max: 120 });
+  if (reason.error) return { error: reason.error };
   const startsAt = localToUtc(from, allDay ? 0 : parseHHMM(String(data.get("start") || "00:00")), tz);
   const endsAt = localToUtc(to, allDay ? 1440 : parseHHMM(String(data.get("end") || "23:59")), tz);
   if (endsAt <= startsAt) return { error: "El final debe ser después del inicio." };
-  await prisma.timeOff.create({ data: { staffId: s.id, startsAt, endsAt, reason: String(data.get("reason") ?? "").trim() || null } });
+  await prisma.timeOff.create({ data: { staffId: s.id, startsAt, endsAt, reason: reason.value } });
   revalidatePath(`/equipo/${s.id}`);
   revalidatePath("/agenda");
   return { ok: "Ausencia registrada." };

@@ -6,6 +6,7 @@ import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { book, BookingError, slotsFor } from "@/lib/booking";
 import { addDays, isDate, toLocalDate, today } from "@/lib/time";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 import type { AppointmentStatus } from "@/generated/prisma/enums";
 
 export async function getSlots(input: { staffId: string; serviceIds: string[]; date: string }) {
@@ -82,6 +83,11 @@ export async function createAppointment(_: ActionResult, data: FormData): Promis
   const serviceIds = data.getAll("serviceId").map(String);
   if (seesOnlyOwnAgenda(me.role) && staffId !== me.id) return { error: "Solo puedes agendar en tu propia agenda." };
   if (Number.isNaN(startsAt.getTime())) return { error: "Elige un horario." };
+  const vNotes = v.text(data.get("notes"), "la nota", { max: 300 });
+  const vName = v.text(data.get("name"), "el nombre del cliente", { required: true, max: 80 });
+  const vPhone = v.phone(data.get("phone"), { required: true });
+  const err = v.first(vNotes, vName, vPhone);
+  if (err) return { error: err };
 
   let id: string;
   try {
@@ -89,7 +95,7 @@ export async function createAppointment(_: ActionResult, data: FormData): Promis
       shopId: shop.id, staffId, serviceIds, startsAt,
       customer: { name: String(data.get("name") ?? ""), phone: String(data.get("phone") ?? "") },
       source: data.get("source") === "PHONE" ? "PHONE" : "WALK_IN",
-      notes: String(data.get("notes") ?? "").trim(),
+      notes: vNotes.value ?? undefined,
       checkAvailability: { ignoreNotice: true, date: toLocalDate(startsAt, shop.timezone) },
     });
     id = a.id;
@@ -123,9 +129,11 @@ export async function setStatus(data: FormData) {
 
 export async function saveNotes(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("agenda");
+  const vNotes = v.longText(data.get("notes"), "la nota", 1000);
+  if (vNotes.error) return { error: vNotes.error };
   await prisma.appointment.update({
     where: { id: String(data.get("id")), shopId: shop.id },
-    data: { notes: String(data.get("notes") ?? "").trim() || null },
+    data: { notes: vNotes.value },
   });
   revalidatePath(`/citas/${String(data.get("id"))}`);
   return { ok: "Nota guardada." };

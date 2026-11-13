@@ -5,19 +5,19 @@ import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import { openPeriod, periodTotals } from "@/lib/cash";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 
-const amount = (v: FormDataEntryValue | null) => {
-  const n = Number(String(v ?? "").replace(/[$,\s]/g, ""));
-  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
-};
 
 export async function closeCash(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop, me } = await requireSection("ventas");
   if (me.role === "BARBER") return { error: "Solo recepción o encargados hacen el corte." };
-  const counted = amount(data.get("counted"));
-  const opening = amount(data.get("opening")) ?? 0;
-  const withdrawals = amount(data.get("withdrawals")) ?? 0;
-  if (counted === null || String(data.get("counted") ?? "").trim() === "") return { error: "Escribe cuánto efectivo contaste en caja." };
+  const vCounted = v.money(data.get("counted"), "el efectivo contado", { required: true });
+  const vOpening = v.money(data.get("opening"), "el fondo inicial");
+  const vWithdrawals = v.money(data.get("withdrawals"), "los retiros");
+  const vNotes = v.text(data.get("notes"), "la nota", { max: 500 });
+  const err = v.first(vCounted, vOpening, vWithdrawals, vNotes);
+  if (err) return { error: err };
+  const counted = vCounted.value!, opening = vOpening.value ?? 0, withdrawals = vWithdrawals.value ?? 0;
 
   const end = new Date();
   const { start } = await openPeriod(shop);

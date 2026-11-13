@@ -5,11 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { checkout, SaleError, voidSale, type CartLine } from "@/lib/sales";
 import { book, BookingError } from "@/lib/booking";
+import { phone as vPhone, text as vText } from "@/lib/validate";
 import { toLocalDate } from "@/lib/time";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export async function chargeSale(input: {
   lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number; redeemReward?: boolean;
+  received?: number | null;
   appointmentId?: string | null; customer?: { phone: string; name: string } | null;
 }): Promise<{ error: string } | void> {
   const { shop, me } = await requireSection("ventas");
@@ -22,12 +24,16 @@ export async function chargeSale(input: {
     if (!a) return { error: "La cita no existe." };
     if (a.sale) return { error: "Esa cita ya se cobró." };
     customerId = a.customerId;
-  } else if (input.customer && input.customer.phone.replace(/\D/g, "").length >= 10) {
-    const phone = input.customer.phone.replace(/\D/g, "");
+  } else if (input.customer && (input.customer.phone.trim() || input.customer.name.trim())) {
+    // Si empezaron a registrar al cliente, el teléfono tiene que estar completo (no se ignora en silencio)
+    const p = vPhone(input.customer.phone, { required: true });
+    if (p.error) return { error: `Cliente: ${p.error}` };
+    const n = vText(input.customer.name, "el nombre del cliente", { max: 80 });
+    if (n.error) return { error: n.error };
     const c = await prisma.customer.upsert({
-      where: { shopId_phone: { shopId: shop.id, phone } },
+      where: { shopId_phone: { shopId: shop.id, phone: p.value! } },
       update: {},
-      create: { shopId: shop.id, phone, name: input.customer.name.trim() || "Cliente" },
+      create: { shopId: shop.id, phone: p.value!, name: n.value || "Cliente" },
     });
     customerId = c.id;
   }
@@ -36,8 +42,8 @@ export async function chargeSale(input: {
   try {
     const sale = await checkout({
       shopId: shop.id, chargedById: me.id, customerId, appointmentId: input.appointmentId,
-      lines: input.lines, discount: Number(input.discount) || 0, tip: Number(input.tip) || 0, method: input.method,
-      redeemPoints: Number(input.redeemPoints) || 0, redeemReward: Boolean(input.redeemReward),
+      lines: input.lines, discount: input.discount, tip: input.tip, method: input.method,
+      redeemPoints: input.redeemPoints ?? 0, redeemReward: Boolean(input.redeemReward), received: input.received ?? null,
     });
     saleId = sale.id;
   } catch (e) {

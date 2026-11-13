@@ -688,6 +688,8 @@ model Payment {
   saleId    String        @db.Uuid
   method    PaymentMethod
   amount    Decimal       @db.Decimal(10, 2)
+  /// Efectivo que entregó el cliente (para el cambio en el ticket)
+  received  Decimal?      @db.Decimal(10, 2)
   createdAt DateTime      @default(now())
 
   sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)

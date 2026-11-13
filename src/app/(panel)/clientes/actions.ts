@@ -5,12 +5,17 @@ import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { ACTIVITY, ORIGIN, parseBirthday, TAG_COLORS } from "@/lib/crm";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 import type { ActivityType, CustomerOrigin } from "@/generated/prisma/enums";
 
 const str = (v: FormDataEntryValue | null) => String(v ?? "").trim();
 const opt = (v: FormDataEntryValue | null) => str(v) || null;
 
 async function customerFields(shopId: string, data: FormData, selfId?: string) {
+  const vEmail = v.email(data.get("email"));
+  const vNotes = v.longText(data.get("notes"), "la nota", 1000);
+  const err = v.first(vEmail, vNotes);
+  if (err) return { error: err } as const;
   const birthday = parseBirthday(data.get("birthday"));
   if (birthday === "invalid") return { error: "La fecha de cumpleaños no es válida." } as const;
   const originRaw = str(data.get("origin"));
@@ -34,8 +39,8 @@ async function customerFields(shopId: string, data: FormData, selfId?: string) {
 
   return {
     data: {
-      email: opt(data.get("email")),
-      notes: opt(data.get("notes")),
+      email: vEmail.value,
+      notes: vNotes.value,
       birthday, origin: referredById ? "REFERRAL" as const : origin, preferredStaffId,
       ...(referredById !== undefined && { referredById }),
       ...(data.has("marketingShown") && { acceptsMarketing: data.get("acceptsMarketing") === "on" }),
@@ -45,10 +50,11 @@ async function customerFields(shopId: string, data: FormData, selfId?: string) {
 
 export async function createCustomer(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("clientes");
-  const name = str(data.get("name"));
-  const phone = str(data.get("phone")).replace(/\D/g, "");
-  if (!name) return { error: "Escribe el nombre." };
-  if (phone.length < 10) return { error: "El teléfono debe tener 10 dígitos." };
+  const vName = v.text(data.get("name"), "el nombre", { required: true, max: 80 });
+  const vPhone = v.phone(data.get("phone"), { required: true });
+  const err = v.first(vName, vPhone);
+  if (err) return { error: err };
+  const name = vName.value!, phone = vPhone.value!;
   const exists = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone } } });
   if (exists) redirect(`/clientes/${exists.id}`);
   const f = await customerFields(shop.id, data);
@@ -61,10 +67,11 @@ export async function createCustomer(_: ActionResult, data: FormData): Promise<A
 export async function updateCustomer(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop } = await requireSection("clientes");
   const id = str(data.get("id"));
-  const name = str(data.get("name"));
-  if (!name) return { error: "Escribe el nombre." };
-  const phone = str(data.get("phone")).replace(/\D/g, "");
-  if (phone.length < 10) return { error: "El teléfono debe tener 10 dígitos." };
+  const vName = v.text(data.get("name"), "el nombre", { required: true, max: 80 });
+  const vPhone = v.phone(data.get("phone"), { required: true });
+  const err = v.first(vName, vPhone);
+  if (err) return { error: err };
+  const name = vName.value!, phone = vPhone.value!;
   const dup = await prisma.customer.findUnique({ where: { shopId_phone: { shopId: shop.id, phone } } });
   if (dup && dup.id !== id) return { error: `Ese teléfono ya es de ${dup.name}.` };
   const f = await customerFields(shop.id, data, id);
@@ -135,7 +142,9 @@ export async function addActivity(_: ActionResult, data: FormData): Promise<Acti
   const { shop, me } = await requireSection("clientes");
   const customerId = str(data.get("customerId"));
   const type = str(data.get("type")) as ActivityType;
-  const body = str(data.get("body")).slice(0, 2000);
+  const vBody = v.longText(data.get("body"), "la nota", 2000);
+  if (vBody.error) return { error: vBody.error };
+  const body = vBody.value ?? "";
   if (!(type in ACTIVITY)) return { error: "Elige el tipo." };
   if (!body) return { error: "Escribe qué pasó." };
   if (!(await prisma.customer.findFirst({ where: { id: customerId, shopId: shop.id } }))) return { error: "Cliente no encontrado." };
@@ -170,9 +179,12 @@ export async function adjustPoints(_: ActionResult, data: FormData): Promise<Act
   const { shop, me } = await requireSection("clientes");
   if (me.role === "BARBER") return { error: "Solo recepción o encargados ajustan puntos." };
   const customerId = str(data.get("customerId"));
-  const points = Math.trunc(Number(data.get("points")));
-  const note = str(data.get("note")).slice(0, 200) || null;
-  if (!Number.isFinite(points) || points === 0) return { error: "Escribe cuántos puntos (negativo para quitar)." };
+  const vPts = v.int(data.get("points"), "los puntos", { required: true, min: -100_000, max: 100_000 });
+  const vNote = v.text(data.get("note"), "el motivo", { max: 200 });
+  const err = v.first(vPts, vNote);
+  if (err) return { error: err };
+  const points = vPts.value!, note = vNote.value;
+  if (points === 0) return { error: "Escribe cuántos puntos (negativo para quitar)." };
   try {
     await prisma.$transaction(async (tx) => {
       const ok = await tx.customer.updateMany({
@@ -197,9 +209,12 @@ export async function adjustStamps(_: ActionResult, data: FormData): Promise<Act
   const { shop, me } = await requireSection("clientes");
   if (me.role === "BARBER") return { error: "Solo recepción o encargados ajustan sellos." };
   const customerId = str(data.get("customerId"));
-  const delta = Math.trunc(Number(data.get("stamps")));
-  const note = str(data.get("note")).slice(0, 200) || null;
-  if (!Number.isFinite(delta) || delta === 0 || Math.abs(delta) > 100) return { error: "Escribe cuántos sellos (negativo para quitar)." };
+  const vSt = v.int(data.get("stamps"), "los sellos", { required: true, min: -100, max: 100 });
+  const vNote = v.text(data.get("note"), "el motivo", { max: 200 });
+  const err = v.first(vSt, vNote);
+  if (err) return { error: err };
+  const delta = vSt.value!, note = vNote.value;
+  if (delta === 0) return { error: "Escribe cuántos sellos (negativo para quitar)." };
   const c = await prisma.customer.findFirst({ where: { id: customerId, shopId: shop.id } });
   if (!c) return { error: "Cliente no encontrado." };
   const req = shop.stampsRequired;

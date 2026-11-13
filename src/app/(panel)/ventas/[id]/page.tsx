@@ -103,7 +103,12 @@ export default async function SalePage({ params, searchParams }: { params: Promi
           {Number(sale.tip) > 0 && <div className="flex justify-between"><dt className="text-muted">Propina</dt><dd className="tnum">{money(sale.tip)}</dd></div>}
           <div className="flex items-baseline justify-between pt-3"><dt>Total</dt><dd className="font-display text-2xl tnum">{money(sale.total)}</dd></div>
           {sale.payments.map((p) => (
-            <div key={p.id} className="flex justify-between text-muted"><dt>{METHOD[p.method]}</dt><dd className="tnum">{money(p.amount)}</dd></div>
+            <div key={p.id}>
+              <div className="flex justify-between text-muted"><dt>{METHOD[p.method]}</dt><dd className="tnum">{money(p.received ?? p.amount)}</dd></div>
+              {p.received && Number(p.received) > Number(p.amount) && (
+                <div className="flex justify-between text-muted"><dt>Cambio</dt><dd className="tnum">{money(Number(p.received) - Number(p.amount))}</dd></div>
+              )}
+            </div>
           ))}
         </dl>
         <p className="mt-10 text-center text-sm text-muted">Gracias por tu visita</p>

@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { money } from "@/lib/format";
+import { money as money2 } from "@/lib/format";
 import { chargeSale, lookupCustomer } from "../actions";
 import { previewStampDiscount } from "@/lib/loyalty";
+import { money } from "@/lib/validate";
 
 export type PosLine = {
   key: string; kind: "SERVICE" | "PRODUCT"; refId: string; name: string; price: number; quantity: number; staffId: string | null;
@@ -72,7 +73,9 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   const remove = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
 
   const subtotal = lines.reduce((a, l) => a + l.price * l.quantity, 0);
-  const disc = Math.min(Number(discount) || 0, subtotal);
+  // Validación en vivo: lo mismo que revisa el servidor, para avisar antes de cobrar
+  const vDisc = money(discount, "el descuento"), vTip = money(tip, "la propina", { max: 10_000 }), vRec = money(received, "el efectivo recibido");
+  const disc = vDisc.value ?? 0;
   const cl = appointmentId ? customerLoyalty : known;
   const pointsMode = loyalty.mode === "POINTS" && loyalty.pesoPerPoint > 0;
   const balance = pointsMode ? cl?.points ?? null : null;
@@ -89,7 +92,16 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   const willStamp = stampMode && Boolean(cl || phone.replace(/\D/g, "").length >= 10) && !rewardValue && servicePrices.length > 0
     && subtotal - disc >= loyalty.stamps.min;
   const total = subtotal - disc - pointsValue - rewardValue + (Number(tip) || 0);
-  const change = method === "CASH" && Number(received) > total ? Number(received) - total : 0;
+  const rec = method === "CASH" ? vRec.value ?? null : null;
+  const change = rec !== null && rec > total ? Math.round((rec - total) * 100) / 100 : 0;
+  const problems = [
+    vDisc.error, disc > subtotal && lines.length ? `El descuento no puede ser mayor al subtotal (${money2(subtotal)}).` : null,
+    vTip.error,
+    method === "CASH" ? vRec.error : null,
+    rec !== null && rec < total ? `Recibiste ${money2(rec)} y el total es ${money2(total)}: faltan ${money2(total - rec)}.` : null,
+    lines.some((l) => l.kind === "SERVICE" && !l.staffId) ? "Indica qué barbero hizo cada servicio." : null,
+    phone.trim() && phone.replace(/\D/g, "").length !== 10 && !appointmentId ? "El teléfono del cliente debe tener 10 dígitos." : null,
+  ].filter(Boolean) as string[];
 
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -101,12 +113,13 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
 
   function charge() {
     setError("");
+    if (problems.length) { setError(problems[0]); return; }
     start(async () => {
       const res = await chargeSale({
         lines: lines.map((l) => l.kind === "SERVICE"
           ? { kind: "SERVICE", serviceId: l.refId, staffId: l.staffId ?? "", quantity: l.quantity }
           : { kind: "PRODUCT", productId: l.refId, staffId: l.staffId, quantity: l.quantity }),
-        discount: disc, tip: Number(tip) || 0, method, appointmentId, redeemPoints: redeem, redeemReward: rewardValue > 0,
+        discount: disc, tip: vTip.value ?? 0, method, appointmentId, redeemPoints: redeem, redeemReward: rewardValue > 0, received: rec,
         customer: appointmentId ? null : { phone, name },
       });
       if (res?.error) setError(res.error);
@@ -137,7 +150,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
                 <button type="button" disabled={x.disabled} onClick={() => add(tab, x.id, x.name, x.price)}
                   className="card flex h-full w-full flex-col justify-between px-4 py-3 text-left transition hover:border-brand hover:shadow-pop disabled:opacity-40 disabled:hover:bg-transparent">
                   <span>{x.name}{x.sub && <span className="block text-sm text-muted">{x.sub}</span>}</span>
-                  <span className="mt-3 text-sm font-semibold text-brand tnum">{money(x.price, true)}</span>
+                  <span className="mt-3 text-sm font-semibold text-brand tnum">{money2(x.price, true)}</span>
                 </button>
               </li>
             ))}
@@ -156,7 +169,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
                 <li key={l.key} className="py-3">
                   <div className="flex items-start justify-between gap-3">
                     <span className="text-sm">{l.name}</span>
-                    <span className="text-sm tnum">{money(l.price * l.quantity)}</span>
+                    <span className="text-sm tnum">{money2(l.price * l.quantity)}</span>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     {l.kind === "PRODUCT" && (
@@ -215,7 +228,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
             <label className="mt-4 flex items-center justify-between gap-3 rounded-md border border-line px-3 py-2 text-sm">
               <span>
                 <span className="block">Canjear puntos</span>
-                <span className="text-muted tnum">Tiene {balance.toLocaleString("es-MX")} pts ≈ {money(balance * loyalty.pesoPerPoint)}</span>
+                <span className="text-muted tnum">Tiene {balance.toLocaleString("es-MX")} pts ≈ {money2(balance * loyalty.pesoPerPoint)}</span>
               </span>
               <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} className="size-4 accent-[var(--color-brand)]" />
             </label>
@@ -239,16 +252,21 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           </fieldset>
 
           <dl className="mt-5 space-y-1 text-sm">
-            {disc > 0 && <div className="flex justify-between text-muted"><dt>Descuento</dt><dd className="tnum">−{money(disc)}</dd></div>}
-            {pointsValue > 0 && <div className="flex justify-between text-muted"><dt>{redeem} puntos</dt><dd className="tnum">−{money(pointsValue)}</dd></div>}
-            {rewardValue > 0 && <div className="flex justify-between text-muted"><dt>Premio de la tarjeta</dt><dd className="tnum">−{money(rewardValue)}</dd></div>}
-            <div className="flex items-baseline justify-between"><dt className="text-muted">Total</dt><dd className="font-display text-3xl tnum">{money(total)}</dd></div>
-            {change > 0 && <div className="flex justify-between"><dt className="text-muted">Cambio</dt><dd className="tnum">{money(change)}</dd></div>}
+            {disc > 0 && <div className="flex justify-between text-muted"><dt>Descuento</dt><dd className="tnum">−{money2(disc)}</dd></div>}
+            {pointsValue > 0 && <div className="flex justify-between text-muted"><dt>{redeem} puntos</dt><dd className="tnum">−{money2(pointsValue)}</dd></div>}
+            {rewardValue > 0 && <div className="flex justify-between text-muted"><dt>Premio de la tarjeta</dt><dd className="tnum">−{money2(rewardValue)}</dd></div>}
+            <div className="flex items-baseline justify-between"><dt className="text-muted">Total</dt><dd className="font-display text-3xl tnum">{money2(total)}</dd></div>
+            {change > 0 && <div className="flex justify-between"><dt className="text-muted">Cambio</dt><dd className="tnum">{money2(change)}</dd></div>}
           </dl>
 
-          {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
-          <button type="button" onClick={charge} disabled={pending || lines.length === 0} className="btn-primary mt-5 w-full py-3">
-            {pending ? "Cobrando…" : `Cobrar ${money(total)}`}
+          {problems.length > 0 && lines.length > 0 && (
+            <ul role="alert" className="mt-3 space-y-1 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+              {problems.map((p) => <li key={p}>{p}</li>)}
+            </ul>
+          )}
+          {error && !problems.includes(error) && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
+          <button type="button" onClick={charge} disabled={pending || lines.length === 0 || problems.length > 0} className="btn-primary mt-5 w-full py-3">
+            {pending ? "Cobrando…" : `Cobrar ${money2(total)}`}
           </button>
         </div>
       </aside>

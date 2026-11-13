@@ -17,8 +17,27 @@ export type CartLine =
 export async function checkout(input: {
   shopId: string; chargedById: string; customerId?: string | null; appointmentId?: string | null;
   lines: CartLine[]; discount: number; tip: number; method: PaymentMethod; redeemPoints?: number; redeemReward?: boolean;
+  /** Efectivo que entregó el cliente; si se captura, no puede ser menor al total. */
+  received?: number | null;
 }) {
-  if (input.lines.length === 0) throw new SaleError("Agrega al menos un servicio o producto.");
+  // Validación estricta: nada se corrige en silencio
+  if (!Array.isArray(input.lines) || input.lines.length === 0) throw new SaleError("Agrega al menos un servicio o producto.");
+  if (input.lines.length > 50) throw new SaleError("El ticket tiene demasiados renglones.");
+  if (!["CASH", "CARD", "TRANSFER"].includes(input.method)) throw new SaleError("Elige cómo pagó.");
+  const isMoney = (n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.round(n * 100) === Number((n * 100).toFixed(4));
+  for (const l of input.lines) {
+    if (!Number.isInteger(l.quantity) || l.quantity < 1) throw new SaleError("Las cantidades deben ser números enteros de 1 en adelante.");
+    if (l.quantity > 99) throw new SaleError("La cantidad de un renglón no puede pasar de 99.");
+    if (l.kind === "SERVICE" && l.quantity !== 1) throw new SaleError("Cada servicio va en su propio renglón.");
+  }
+  if (!isMoney(input.discount)) throw new SaleError("El descuento no es un monto válido (máximo 2 decimales).");
+  if (input.discount < 0) throw new SaleError("El descuento no puede ser negativo.");
+  if (!isMoney(input.tip)) throw new SaleError("La propina no es un monto válido (máximo 2 decimales).");
+  if (input.tip < 0) throw new SaleError("La propina no puede ser negativa.");
+  if (input.tip > 10_000) throw new SaleError("La propina no puede pasar de $10,000.");
+  if (input.received != null && (!isMoney(input.received) || input.received < 0)) throw new SaleError("El efectivo recibido no es válido.");
+  if (input.received != null && input.method !== "CASH") throw new SaleError("El efectivo recibido solo aplica a pagos en efectivo.");
+  if (input.redeemPoints != null && (!Number.isInteger(input.redeemPoints) || input.redeemPoints < 0)) throw new SaleError("Los puntos a canjear no son válidos.");
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -31,7 +50,7 @@ export async function checkout(input: {
         const stock: { productId: string; qty: number }[] = [];
 
         for (const l of input.lines) {
-          const qty = Math.max(1, Math.floor(l.quantity));
+          const qty = l.quantity;
           const who = l.staffId ? staff.get(l.staffId) : undefined;
           if (l.staffId && !who) throw new SaleError("Barbero no válido.");
           if (l.kind === "SERVICE") {
@@ -51,7 +70,8 @@ export async function checkout(input: {
         }
 
         const subtotal = items.reduce((s, i) => s.plus(i.total as Prisma.Decimal), D(0));
-        let discount = Prisma.Decimal.min(D(Math.max(0, input.discount)), subtotal);
+        if (D(input.discount).gt(subtotal)) throw new SaleError(`El descuento no puede ser mayor al subtotal (${subtotal.toFixed(2)}).`);
+        let discount = D(input.discount);
 
         // Canje de puntos: se vuelve descuento. Nunca más de lo que falta por pagar.
         let pointsUsed = 0;
@@ -90,8 +110,11 @@ export async function checkout(input: {
 
         const net = subtotal.minus(discount);
         const tax = net.minus(net.div(D(1).plus(shop.taxRate))).toDecimalPlaces(2);
-        const tip = D(Math.max(0, input.tip));
+        const tip = D(input.tip);
         const total = net.plus(tip);
+        if (input.received != null && D(input.received).lt(total)) {
+          throw new SaleError(`El efectivo recibido ($${D(input.received).toFixed(2)}) es menor que el total ($${total.toFixed(2)}).`);
+        }
 
         const last = await tx.sale.aggregate({ where: { shopId: shop.id }, _max: { folio: true } });
         const sale = await tx.sale.create({
@@ -100,7 +123,7 @@ export async function checkout(input: {
             customerId: input.customerId || null, appointmentId: input.appointmentId || null,
             chargedById: input.chargedById, subtotal, discount, tax, tip, total, pointsRedeemed: pointsUsed, rewardRedeemed: rewardUsed,
             items: { createMany: { data: items } },
-            ...(total.gt(0) && { payments: { create: { method: input.method, amount: total } } }),
+            ...(total.gt(0) && { payments: { create: { method: input.method, amount: total, received: input.received ?? null } } }),
           },
         });
 

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { book, BookingError, slotsFor } from "@/lib/booking";
 import { addDays, dateLabel, isDate, timeLabel, toLocalDate, today } from "@/lib/time";
 import { allow, clientIp, verifyTurnstile } from "@/lib/guard";
+import * as v from "@/lib/validate";
 import { accessFor, canUsePanel } from "@/lib/billing";
 
 const BUSY = "Demasiados intentos. Espera unos minutos y vuelve a intentar.";
@@ -44,6 +45,10 @@ export async function publicBook(input: {
 }): Promise<{ error: string } | { ok: true; summary: string; token: string }> {
   // Campo trampa: las personas no lo ven; los bots lo llenan
   if (input.website) return { error: "No se pudo reservar." };
+  const vName = v.text(input.name, "tu nombre", { required: true, max: 80 });
+  const vPhone = v.phone(input.phone, { required: true });
+  const err = v.first(vName, vPhone);
+  if (err) return { error: err };
   const ip = await clientIp();
   const phone = input.phone.replace(/\D/g, "");
   if (!(await allow(`book:ip:${ip}`, 8, 3600))) return { error: BUSY };

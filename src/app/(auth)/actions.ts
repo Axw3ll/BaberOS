@@ -18,6 +18,9 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
   const email = String(data.get("email") ?? "").trim();
   const password = String(data.get("password") ?? "");
   if (!name) return { error: "Escribe tu nombre." };
+  if (name.length > 80) return { error: "El nombre es demasiado largo (máximo 80 caracteres)." };
+  if (!/^\S+@\S+\.\S{2,}$/.test(email) || email.length > 160) return { error: "El correo no es válido." };
+  if (password.length > 72) return { error: "La contraseña es demasiado larga (máximo 72 caracteres)." };
   if (password.length < 8) return { error: "La contraseña necesita al menos 8 caracteres." };
   if (data.get("terms") !== "on") return { error: "Acepta los términos y el aviso de privacidad para continuar." };
 

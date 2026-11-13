@@ -4,16 +4,17 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
 import type { ActionResult } from "@/components/action-form";
+import * as v from "@/lib/validate";
 
 function read(data: FormData) {
-  const name = String(data.get("name") ?? "").trim();
-  const minutes = Math.floor(Number(data.get("minutes")));
-  const price = Number(String(data.get("price") ?? "").replace(",", "."));
-  if (!name) return { error: "Escribe el nombre del servicio." } as const;
-  if (!(minutes > 0 && minutes <= 480)) return { error: "La duración debe estar entre 5 y 480 minutos." } as const;
-  if (!(price >= 0)) return { error: "Escribe un precio válido." } as const;
+  const name = v.text(data.get("name"), "el nombre del servicio", { required: true, max: 60 });
+  const minutes = v.int(data.get("minutes"), "la duración en minutos", { required: true, min: 5, max: 480 });
+  const price = v.money(data.get("price"), "el precio", { required: true, max: 100_000 });
+  const description = v.text(data.get("description"), "la descripción", { max: 160 });
+  const error = v.first(name, minutes, price, description);
+  if (error) return { error } as const;
   return {
-    data: { name, minutes, price, description: String(data.get("description") ?? "").trim() || null, bookableOnline: data.get("bookableOnline") === "on" },
+    data: { name: name.value!, minutes: minutes.value!, price: price.value!, description: description.value, bookableOnline: data.get("bookableOnline") === "on" },
     staffIds: data.getAll("staffId").map(String),
   } as const;
 }
