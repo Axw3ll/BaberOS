@@ -30,6 +30,7 @@ export const KIND: Record<MessageKind, { label: string; marketing: boolean }> = 
   BIRTHDAY: { label: "Cumpleaños", marketing: true },
   STAMP_ALMOST: { label: "Le falta un sello", marketing: true },
   STAMP_REWARD: { label: "Completó su tarjeta", marketing: true },
+  STAMP_WELCOME: { label: "Empezó su tarjeta", marketing: false },
 };
 
 const H = 3_600_000, D = 24 * H;
@@ -173,13 +174,13 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
     }
   }
 
-  // Tarjeta de sellos: "te falta 1" y "ganaste tu premio", justo después del sello que lo provocó
+  // Tarjeta de sellos: bienvenida (primer sello), "te falta 1" y "ganaste tu premio", justo después del sello que lo provocó
   if (shop.loyaltyMode === "STAMPS" && shop.autoLoyaltyMsgs) {
-    const recent = await prisma.$queryRaw<{ id: string; customerId: string; balance: number; name: string; stamps: number; stampRewards: number; token: string }[]>`
-      SELECT DISTINCT ON (m."customerId") m.id, m."customerId", m.balance, c.name, c.stamps, c."stampRewards", c.token
+    const recent = await prisma.$queryRaw<{ id: string; customerId: string; balance: number; name: string; stamps: number; stampRewards: number; token: string; acceptsMarketing: boolean; firstStamp: boolean }[]>`
+      SELECT DISTINCT ON (m."customerId") m.id, m."customerId", m.balance, c.name, c.stamps, c."stampRewards", c.token, c."acceptsMarketing",
+             NOT EXISTS (SELECT 1 FROM loyalty_movements o WHERE o."customerId" = m."customerId" AND o.kind = 'STAMP' AND o.id <> m.id) AS "firstStamp"
         FROM loyalty_movements m JOIN customers c ON c.id = m."customerId"
        WHERE m."shopId" = ${shop.id}::uuid AND m.kind = 'STAMP' AND m.points > 0 AND m."createdAt" > now() - interval '3 days'
-         AND c."acceptsMarketing"
        ORDER BY m."customerId", m."createdAt" DESC`;
     const premio = stampRewardLabel(shop);
     for (const r of recent) {
@@ -187,6 +188,14 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
       const nombre = r.name.split(/\s+/)[0];
       // Solo si el último movimiento sigue vigente (no se canceló la venta después)
       if (r.balance !== r.stamps) continue;
+      // Primer sello de su vida: le damos su tarjeta. Es información de su cuenta, no promoción: va a todos (una sola vez)
+      if (r.firstStamp && r.stamps === 1 && r.stampRewards === 0) {
+        drafts.push({ kind: "STAMP_WELCOME", key: `SW:${r.customerId}`, customerId: r.customerId, dueAt: new Date(now),
+          body: `¡${nombre}, empezaste tu tarjeta en ${shop.name}! Llevas 1 de ${shop.stampsRequired} sellos para tu ${premio}. Aquí la ves cuando quieras: ${enlace}`,
+          params: [nombre, shop.name, `1 de ${shop.stampsRequired}`, premio, enlace] });
+        continue;
+      }
+      if (!r.acceptsMarketing) continue;
       if (r.stampRewards > 0 && r.stamps === 0) {
         drafts.push({ kind: "STAMP_REWARD", key: `SR:${r.id}`, customerId: r.customerId, dueAt: new Date(now),
           body: `¡${nombre}, completaste tu tarjeta en ${shop.name}! En tu próxima visita tienes ${premio}. Aparta tu lugar: ${enlace}`,

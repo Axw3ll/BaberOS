@@ -32,7 +32,7 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 | **Agenda** | Día por barbero con horarios, descansos y hora actual. Tocar un hueco vacío abre una cita a esa hora |
 | **Nueva cita** | Teléfono primero: si ya es cliente, se eligen solos su servicio y barbero de siempre. "Próximos huecos" para agendar con un toque |
 | **Cita** | Confirmar, en silla, no llegó, cancelar. Cobrar en efectivo, tarjeta o transferencia con un toque |
-| **Ventas** | Punto de venta con propina, descuento, canje de puntos y cambio. Ticket imprimible. Después de cobrar: "¿Le agendamos la próxima?" según su frecuencia |
+| **Ventas** | Punto de venta con propina, descuento, canje de puntos o premio y cambio (no deja cobrar si el efectivo recibido no alcanza). Ticket imprimible con QR de la tarjeta del cliente. Después de cobrar: "¿Le agendamos la próxima?" según su frecuencia |
 | **Corte de caja** | Totales del turno por forma de pago, fondo, retiros y efectivo contado con la diferencia en vivo |
 | **Comisiones** | Calendario de pago (semanal en el día que elijas, quincenal o mensual). Muestra lo que ya toca pagar a cada quien, lo que se junta para el siguiente pago y avisa en Hoy el día de pago o si hay atrasos. Pagar el periodo cerrado o adelantar todo |
 | **Clientes** | Etapas (nuevo, activo, en riesgo, perdido, sin visitas), VIP, etiquetas, búsqueda, orden, importación desde Excel/CSV y exportación |
@@ -125,6 +125,7 @@ En Vercel Pro puedes usar Vercel Cron; en el plan gratis, un servicio externo co
 | `barberos_ya_toca` | Marketing | Hola {{1}}, ya toca tu corte. Aparta tu lugar en {{2}}: {{3}} |
 | `barberos_cumpleanos` | Marketing | ¡Feliz cumpleaños, {{1}}! De parte de todo {{2}}. Ven esta semana y te consentimos: {{3}} |
 | `barberos_falta_sello` | Marketing | Hola {{1}}, ¡te falta un solo sello en {{2}} para tu {{3}}! Aparta tu próxima visita: {{4}} |
+| `barberos_bienvenida_tarjeta` | Utilidad | ¡{{1}}, empezaste tu tarjeta en {{2}}! Llevas {{3}} sellos para tu {{4}}. Aquí la ves cuando quieras: {{5}} |
 | `barberos_premio` | Marketing | ¡{{1}}, completaste tu tarjeta en {{2}}! En tu próxima visita tienes {{3}}. Aparta tu lugar: {{4}} |
 
 Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (y con "Enviar ahora" en la bandeja). Los de marketing solo van a clientes que aceptaron promociones. Las campañas siguen enviándose con un toque, porque su texto es libre.

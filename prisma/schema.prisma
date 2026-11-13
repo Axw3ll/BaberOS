@@ -129,6 +129,8 @@ enum MessageKind {
   /// Tarjeta de sellos
   STAMP_ALMOST
   STAMP_REWARD
+  /// Primer sello: le damos su tarjeta (no es promoción, va a todos)
+  STAMP_WELCOME
 }
 
 enum MessageStatus {

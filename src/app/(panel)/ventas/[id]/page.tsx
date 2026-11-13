@@ -3,7 +3,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { addDays, dateLabel, dateTimeLabel, timeLabel, toLocalDate, today } from "@/lib/time";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, Stamp } from "lucide-react";
+import QRCode from "qrcode";
+import { baseUrl } from "@/lib/messages";
+import { stampRewardLabel } from "@/lib/loyalty";
+import { whatsappUrl } from "@/lib/crm";
+import { WhatsAppLink } from "@/components/whatsapp-menu";
 import { customerStats } from "@/lib/crm";
 import { slotsFrom } from "@/lib/booking";
 import { money } from "@/lib/format";
@@ -24,6 +29,18 @@ export default async function SalePage({ params, searchParams }: { params: Promi
   });
   if (!sale) notFound();
   const voided = sale.status === "VOIDED";
+
+  // Tarjeta del cliente: QR en el ticket y botón para mandársela
+  const loyaltyCard = sale.customer && shop.loyaltyMode !== "OFF" ? {
+    url: `${await baseUrl()}/mi/${sale.customer.token}`,
+    status: shop.loyaltyMode === "STAMPS"
+      ? (sale.customer.stampRewards > 0 ? `¡Tienes un premio listo: ${stampRewardLabel(shop)}!` : `Llevas ${sale.customer.stamps} de ${shop.stampsRequired} sellos`)
+      : `Tienes ${sale.customer.points.toLocaleString("es-MX")} puntos`,
+  } : null;
+  const cardText = loyaltyCard && sale.customer
+    ? `Hola ${sale.customer.name.split(" ")[0]}, gracias por venir a ${shop.name}. ${loyaltyCard.status}. Aquí ves tu tarjeta y reservas cuando quieras: ${loyaltyCard.url}`
+    : "";
+  const qr = loyaltyCard ? await QRCode.toString(loyaltyCard.url, { type: "svg", margin: 0, errorCorrectionLevel: "M" }) : null;
   const tz = shop.timezone;
 
   // Recién cobrada una cita: proponer la próxima visita según su frecuencia (si no tiene ya otra agendada)
@@ -56,6 +73,17 @@ export default async function SalePage({ params, searchParams }: { params: Promi
           }
         />
       </div>
+
+      {nueva && loyaltyCard && sale.customer && (
+        <section className="card mx-auto mb-6 flex max-w-xl flex-wrap items-center gap-4 p-5 print:hidden">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand"><Stamp className="size-5" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">{loyaltyCard.status.replace(/^Llevas/, `${sale.customer.name.split(" ")[0]} lleva`).replace(/^Tienes/, `${sale.customer.name.split(" ")[0]} tiene`).replace(/^¡Tienes/, `¡${sale.customer.name.split(" ")[0]} tiene`)}</span>
+            <span className="block text-sm text-muted">Mándale su tarjeta para que la vea en su celular.</span>
+          </span>
+          <WhatsAppLink customerId={sale.customer.id} url={whatsappUrl(sale.customer.phone, cardText)} text={cardText}>Enviar tarjeta</WhatsAppLink>
+        </section>
+      )}
 
       {rebookSlots.length > 0 && (
         <section className="card mx-auto mb-6 max-w-xl p-5 print:hidden">
@@ -111,6 +139,15 @@ export default async function SalePage({ params, searchParams }: { params: Promi
             </div>
           ))}
         </dl>
+        {loyaltyCard && qr && !voided && (
+          <div className="mt-8 flex items-center gap-4 border-t border-dashed border-line pt-6">
+            <span className="size-24 shrink-0 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: qr }} aria-label="Código QR de tu tarjeta" />
+            <span className="text-sm">
+              <span className="block font-semibold">{loyaltyCard.status}</span>
+              <span className="block text-muted">Escanea para ver tu tarjeta, tus visitas y reservar.</span>
+            </span>
+          </div>
+        )}
         <p className="mt-10 text-center text-sm text-muted">Gracias por tu visita</p>
       </article>
 
