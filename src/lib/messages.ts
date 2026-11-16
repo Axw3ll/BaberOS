@@ -7,7 +7,7 @@ import type { Barbershop } from "@/generated/prisma/client";
 import type { MessageKind } from "@/generated/prisma/enums";
 import { sendTemplate, TEMPLATES, whatsappEnabled } from "./whatsapp";
 import { stampRewardLabel } from "./loyalty";
-import { accessFor, canUsePanel } from "./billing";
+import { accessFor, canUsePanel, hasFeature, loyaltyModeOf } from "./billing";
 
 // ─────────────────────────────────────────────────────────────────────
 // Mensajes automáticos
@@ -91,6 +91,9 @@ const BIRTHDAY_TEXT = "¡Feliz cumpleaños, {nombre}! De parte de todo {barberia
 
 /** Prepara los mensajes que tocan para una barbería. Devuelve cuántos nuevos creó. */
 export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
+  // Los recordatorios y mensajes automáticos vienen desde el plan Estándar
+  if (!hasFeature(accessFor(shop), "mensajes")) return 0;
+  const loyaltyMode = loyaltyModeOf(shop);
   const now = Date.now();
   const base = baseOverride ?? (await baseUrl());
   const tz = shop.timezone;
@@ -172,7 +175,7 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
   }
 
   // Tarjeta de sellos: bienvenida (primer sello), "te falta 1" y "ganaste tu premio", justo después del sello que lo provocó
-  if (shop.loyaltyMode === "STAMPS" && shop.autoLoyaltyMsgs) {
+  if (loyaltyMode === "STAMPS" && shop.autoLoyaltyMsgs) {
     const recent = await prisma.$queryRaw<{ id: string; customerId: string; balance: number; name: string; stamps: number; stampRewards: number; token: string; acceptsMarketing: boolean; firstStamp: boolean }[]>`
       SELECT DISTINCT ON (m."customerId") m.id, m."customerId", m.balance, c.name, c.stamps, c."stampRewards", c.token, c."acceptsMarketing",
              NOT EXISTS (SELECT 1 FROM loyalty_movements o WHERE o."customerId" = m."customerId" AND o.kind = 'STAMP' AND o.id <> m.id) AS "firstStamp"
@@ -237,9 +240,9 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
        OR (m.kind = 'CONFIRMATION' AND EXISTS (SELECT 1 FROM appointments a WHERE a.id = m."appointmentId" AND a."confirmedAt" IS NOT NULL))
        -- Avisos de la tarjeta que ya no aplican (canceló la venta, ya usó el premio, cambió el programa)
        OR (m.kind = 'STAMP_ALMOST' AND EXISTS (SELECT 1 FROM customers c WHERE c.id = m."customerId"
-             AND (c.stamps <> ${shop.stampsRequired - 1} OR ${shop.loyaltyMode}::text <> 'STAMPS')))
+             AND (c.stamps <> ${shop.stampsRequired - 1} OR ${loyaltyMode}::text <> 'STAMPS')))
        OR (m.kind = 'STAMP_REWARD' AND EXISTS (SELECT 1 FROM customers c WHERE c.id = m."customerId"
-             AND (c."stampRewards" = 0 OR ${shop.loyaltyMode}::text <> 'STAMPS'))))`;
+             AND (c."stampRewards" = 0 OR ${loyaltyMode}::text <> 'STAMPS'))))`;
   return created;
 }
 
@@ -294,6 +297,7 @@ export async function runAutomations(base: string) {
   for (const shop of shops) {
     if (!canUsePanel(accessFor(shop))) continue; // barberías vencidas no envían
     if (shop.isDemo) continue; // las demos nunca envían: alguien podría poner el teléfono de otra persona
+    if (!hasFeature(accessFor(shop), "mensajes")) continue;
     created += await syncOutbox(shop, base);
     if (!autoSendEnabled()) continue;
     const r = await deliverPending(shop.id);

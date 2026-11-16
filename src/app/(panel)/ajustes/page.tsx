@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
+import Link from "next/link";
+import { accessFor, FEATURES, hasFeature, PLANS, type Feature } from "@/lib/billing";
 import { toEditor } from "@/lib/schedule";
 import { addDays, dateLabel, toLocalDate } from "@/lib/time";
 import { Field, PageHeader, SectionTitle } from "@/components/ui";
@@ -16,6 +18,13 @@ export const metadata = { title: "Ajustes" };
 
 export default async function AjustesPage() {
   const { shop } = await requireSection("ajustes");
+  const plan = accessFor(shop);
+  const locked = (f: Feature) => (
+    <p className="rounded-xl bg-brand-soft p-4 text-sm text-brand">
+      Tu plan no incluye {FEATURES[f].label}. Vienen desde el plan {PLANS[FEATURES[f].plan].name}.{" "}
+      <Link href={`/suscripcion?pro=${f}`} className="font-medium underline">Ver planes</Link>
+    </p>
+  );
   const [hours, tags, closures] = await Promise.all([
     prisma.shopHours.findMany({ where: { shopId: shop.id } }),
     prisma.tag.findMany({ where: { shopId: shop.id }, include: { _count: { select: { customers: true } } }, orderBy: { name: "asc" } }),
@@ -128,7 +137,7 @@ export default async function AjustesPage() {
             El sistema prepara estos mensajes solo y los deja en <a href="/seguimiento/mensajes" className="link">Mensajes por enviar</a>.
             La confirmación de reservas en línea siempre está activa.
           </p>
-          <ActionForm action={saveMessages}>
+          {!hasFeature(plan, "mensajes") ? locked("mensajes") : <ActionForm action={saveMessages}>
             <div className="space-y-3">
               {([
                 ["autoReminder24h", shop.autoReminder24h, "Recordatorio un día antes", "Con enlace para confirmar, cambiar o cancelar."],
@@ -148,16 +157,16 @@ export default async function AjustesPage() {
               <input name="googleReviewUrl" type="url" defaultValue={shop.googleReviewUrl ?? ""} placeholder="https://g.page/r/…" className="field" />
             </Field>
             <div className="mt-6"><Submit>Guardar</Submit></div>
-          </ActionForm>
+          </ActionForm>}
         </section>
 
         <section id="lealtad" className="max-w-2xl scroll-mt-6">
           <SectionTitle>Clientes y lealtad</SectionTitle>
           <ActionForm action={saveCrm}>
-            <LoyaltySettings
+            {!hasFeature(plan, "lealtad") ? locked("lealtad") : <LoyaltySettings
               mode={shop.loyaltyMode} pointsPerPeso={Number(shop.loyaltyPointsPerPeso)} pesoPerPoint={Number(shop.loyaltyPesoPerPoint)}
               stampsRequired={shop.stampsRequired} stampReward={shop.stampReward} stampRewardValue={Number(shop.stampRewardValue)}
-              stampMinAmount={Number(shop.stampMinAmount)} autoLoyaltyMsgs={shop.autoLoyaltyMsgs} />
+              stampMinAmount={Number(shop.stampMinAmount)} autoLoyaltyMsgs={shop.autoLoyaltyMsgs} />}
             <Field label="Cliente perdido después de (días)" hint="Sin venir. Define las etapas “en riesgo” y “perdido”." className="mt-6 sm:w-1/2">
               <input name="lostAfterDays" inputMode="numeric" defaultValue={shop.lostAfterDays} className="field tnum" />
             </Field>

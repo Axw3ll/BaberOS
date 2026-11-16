@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { readSchedule } from "@/lib/schedule";
 import { slugify } from "@/lib/format";
 import { isDate, localToUtc } from "@/lib/time";
@@ -89,20 +90,21 @@ export async function removeClosure(data: FormData) {
 
 export async function saveCrm(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop, me } = await requireSection("ajustes");
-  const mode = String(data.get("loyaltyMode"));
+  const withLoyalty = hasFeature(accessFor(shop), "lealtad");
+  const mode = withLoyalty ? String(data.get("loyaltyMode")) : shop.loyaltyMode;
   const lost = v.int(data.get("lostAfterDays"), "los días para cliente perdido", { required: true, min: 15, max: 730 });
   if (lost.error) return { error: lost.error };
   if (!["OFF", "POINTS", "STAMPS"].includes(mode)) return { error: "Elige un programa de lealtad." };
   const num = (k: string) => Number(String(data.get(k) ?? "").replace(/[$,%\s]/g, "") || 0);
   const extra: Record<string, unknown> = {};
 
-  if (mode === "POINTS") {
+  if (withLoyalty && mode === "POINTS") {
     const perPeso = num("pointsPerPeso"), value = num("pesoPerPoint");
     if (!(perPeso > 0 && perPeso <= 10)) return { error: "Los puntos por peso deben ser entre 0.001 y 10." };
     if (!(value > 0 && value <= 100)) return { error: "El valor de cada punto debe ser mayor a 0." };
     Object.assign(extra, { loyaltyPointsPerPeso: perPeso, loyaltyPesoPerPoint: value });
   }
-  if (mode === "STAMPS") {
+  if (withLoyalty && mode === "STAMPS") {
     const required = Math.trunc(num("stampsRequired"));
     const reward = String(data.get("stampReward"));
     const value = num("stampRewardValue"), min = num("stampMinAmount");
@@ -162,6 +164,7 @@ export async function savePayroll(_: ActionResult, data: FormData): Promise<Acti
 
 export async function saveMessages(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop, me } = await requireSection("ajustes");
+  if (!hasFeature(accessFor(shop), "mensajes")) return { error: "Los mensajes automáticos vienen desde el plan Estándar." };
   const url = String(data.get("googleReviewUrl") ?? "").trim();
   if (url && !/^https:\/\/\S+$/.test(url)) return { error: "El enlace de reseñas debe empezar con https://" };
   const on = (k: string) => data.get(k) === "on";

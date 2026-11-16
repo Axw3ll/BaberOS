@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { loyaltyModeOf } from "@/lib/billing";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, timeLabel, toLocalDate } from "@/lib/time";
 import { minutesLabel, money } from "@/lib/format";
@@ -96,7 +97,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
               <div className="flex flex-col gap-2">
                 {canAccess(me.role, "ventas") && (
                   <div className="rounded-xl bg-brand-soft p-3">
-                    {a.shop.loyaltyMode === "STAMPS" && a.customer.stampRewards > 0 && (
+                    {loyaltyModeOf(a.shop) === "STAMPS" && a.customer.stampRewards > 0 && (
                       <Link href={`/ventas/nueva?cita=${a.id}`} className="mb-2 block rounded-lg bg-warning/15 px-3 py-2 text-sm font-semibold text-warning">
                         🎁 Tiene un premio de su tarjeta: cóbrale desde aquí para aplicarlo
                       </Link>

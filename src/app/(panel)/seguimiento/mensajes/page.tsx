@@ -1,8 +1,10 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Send, Settings2, Zap } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { whatsappEnabled } from "@/lib/whatsapp";
 import { requireSection, canAccess, seesOnlyOwnAgenda } from "@/lib/auth";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { KIND, pendingMessages, syncOutbox } from "@/lib/messages";
 import { whatsappUrl } from "@/lib/crm";
 import { dateTimeLabel } from "@/lib/time";
@@ -19,6 +21,7 @@ const ORDER: MessageKind[] = [...FIRST, ...(Object.keys(KIND) as MessageKind[]).
 
 export default async function MensajesPage() {
   const { shop, me } = await requireSection("seguimiento");
+  if (!hasFeature(accessFor(shop), "mensajes")) redirect("/suscripcion?pro=mensajes");
   await syncOutbox(shop);
   const list = await pendingMessages(shop.id, seesOnlyOwnAgenda(me.role) ? { staffId: me.id } : {});
   const groups = ORDER.map((k) => ({ kind: k, items: list.filter((m) => m.kind === k) })).filter((g) => g.items.length);

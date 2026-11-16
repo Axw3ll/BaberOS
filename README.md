@@ -77,13 +77,15 @@ Solo dueño y encargado cancelan ventas, pagan comisiones y borran clientes, y n
 
 | | Prueba (14 días) | Básico $299/mes | Estándar $399/mes | Completo $599/mes |
 |---|---|---|---|---|
-| Agenda, reservas, recordatorios, clientes, seguimiento, calificaciones | ✓ | ✓ | ✓ | ✓ |
-| Caja, inventario, corte de caja, comisiones, sellos o puntos | ✓ | ✓ | ✓ | ✓ |
+| Agenda, reservas en línea, clientes, seguimiento | ✓ | ✓ | ✓ | ✓ |
+| Caja, inventario, corte de caja, comisiones | ✓ | ✓ | ✓ | ✓ |
+| Recordatorios y mensajes automáticos (se envían con un toque), calificaciones | ✓ | — | ✓ | ✓ |
+| Tarjeta de sellos o puntos | ✓ | — | ✓ | ✓ |
 | Fila virtual, lista de espera, paquetes y membresías | ✓ | — | ✓ | ✓ |
 | Reportes, gastos y utilidad, metas, campañas, bitácora | ✓ | — | — | ✓ |
 | Personas en el equipo | Sin límite | 2 | 5 | Sin límite |
 
-Lo que el plan no incluye: el dueño lo sigue viendo en el menú y, al tocarlo, se le explica desde qué plan viene; al resto del equipo no le aparece. Si baja de plan, los paquetes que sus clientes ya compraron se siguen usando (solo deja de vender nuevos) y nadie del equipo se da de baja solo; únicamente no puede agregar o reactivar personas por encima del límite.
+Lo que el plan no incluye: el dueño lo sigue viendo en el menú y, al tocarlo, se le explica desde qué plan viene; al resto del equipo no le aparece. Si baja de plan, los paquetes que sus clientes ya compraron se siguen usando (solo deja de vender nuevos), sus clientes conservan sus sellos y puntos (vuelven a contar si sube de plan) y nadie del equipo se da de baja solo; únicamente no puede agregar o reactivar personas por encima del límite.
 
 **Cómo se cobra:** con Stripe (`STRIPE_SECRET_KEY`), con tarjeta desde `/suscripcion`. Sin Stripe pero con `COBRO_WHATSAPP` (tu número), el cobro es manual: la prueba vence igual, el botón "Pagar por transferencia" abre un chat contigo y activas el plan desde `/admin` por 30 días. Sin ninguno de los dos, el cobro está apagado y todo es gratis (útil en desarrollo).
 

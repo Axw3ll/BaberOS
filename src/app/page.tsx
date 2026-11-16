@@ -14,7 +14,7 @@ export const metadata = {
 };
 
 const PAINS = [
-  { before: "Clientes que apartan y no llegan", after: "Recordatorio por WhatsApp un día antes y dos horas antes. Confirman con un toque. Y si alguien falta seguido, lo sabes." },
+  { before: "Clientes que apartan y no llegan", after: "Los recordatorios de un día antes y de dos horas antes quedan listos para mandarlos por WhatsApp con un toque, y tu cliente confirma desde su enlace. Si alguien falta seguido, lo sabes." },
   { before: "La agenda en una libreta o en el chat", after: "Tus clientes reservan solos las 24 horas desde tu enlace. Sin choques de horario, aunque tengas varios barberos." },
   { before: "No sabes cuánto ganaste ni cuánto pagar", after: "Corte de caja, gastos y utilidad del mes. Las comisiones de cada barbero se calculan solas, con su día de pago." },
 ];
@@ -26,7 +26,7 @@ const FEATURES = [
   { icon: Stamp, title: "Tarjeta de sellos o puntos", text: "Tú eliges. El cliente la ve en su celular, sin descargar nada." },
   { icon: Ticket, title: "Paquetes y membresías", text: "“5 cortes por $800” o “ilimitado al mes”. Dinero por adelantado." },
   { icon: Wallet, title: "Caja, inventario y comisiones", text: "Cobra en segundos, con efectivo, tarjeta o transferencia." },
-  { icon: BellRing, title: "Lista de espera", text: "Si alguien cancela, al siguiente le llega el aviso para apartar." },
+  { icon: BellRing, title: "Lista de espera", text: "Si alguien cancela, queda listo el aviso para el siguiente de la lista." },
   { icon: Star, title: "Calificaciones", text: "Después de cada visita. Las bajas te llegan como tarea para llamar." },
   { icon: BarChart3, title: "Reportes y metas", text: "Ventas, clientes que regresan y la meta de cada barbero." },
 ];
@@ -140,7 +140,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
               <Smartphone className="mb-4 size-8" aria-hidden />
               <h2 className="font-display text-3xl">Tu cliente no descarga nada</h2>
               <p className="mt-3 text-white/85">
-                Reserva desde tu enlace con su nombre y teléfono. Recibe por WhatsApp su enlace personal: ahí confirma o cambia su cita,
+                Reserva desde tu enlace con su nombre y teléfono. Le mandas por WhatsApp, con un toque, su enlace personal: ahí confirma o cambia su cita,
                 ve su tarjeta de sellos, sus paquetes y califica su visita.
               </p>
             </div>

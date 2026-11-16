@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarPlus, MapPin, Phone, Scissors } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { loyaltyModeOf } from "@/lib/billing";
 import { addDays, dateLabel, timeLabel, toLocalDate, today } from "@/lib/time";
 import { minutesLabel, money } from "@/lib/format";
 import { Dot, STATUS } from "@/components/ui";
@@ -63,7 +64,7 @@ export default async function ClientAppointmentPage({ params }: { params: Promis
             ? <Thanks googleUrl={a.shop.googleReviewUrl} />
             : <Rate token={token} barber={a.staff.name.split(" ")[0]} googleUrl={a.shop.googleReviewUrl} />)}
         </div>
-        {a.shop.loyaltyMode === "STAMPS" && (a.customer.stamps > 0 || a.customer.stampRewards > 0) && (
+        {loyaltyModeOf(a.shop) === "STAMPS" && (a.customer.stamps > 0 || a.customer.stampRewards > 0) && (
           <div className="mt-4">
             <p className="mb-2 px-1 text-sm font-medium text-muted">Tu tarjeta de {a.shop.name}</p>
             <StampCard stamps={a.customer.stamps} required={a.shop.stampsRequired} rewards={a.customer.stampRewards} rewardLabel={stampRewardLabel(a.shop)} compact you />

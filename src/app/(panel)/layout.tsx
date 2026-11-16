@@ -33,7 +33,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       where: { shopId: shop.id, status: "PENDING", dueAt: { lte: new Date() }, ...(me.role === "BARBER" && { appointment: { staffId: me.id } }) },
     }),
   ]);
-  const badges = { seguimiento: due + messages };
+  const badges = { seguimiento: due + (hasFeature(planAccess, "mensajes") ? messages : 0) };
   const access = accessFor(shop);
   const banner = shop.isDemo ? null : access.state === "past_due"
     ? { tone: "bg-warning/10 text-warning", text: "No pudimos cobrar tu suscripción. Actualiza tu tarjeta para no perder el acceso." }

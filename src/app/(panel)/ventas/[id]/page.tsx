@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { loyaltyModeOf } from "@/lib/billing";
 import { canAccess, requireSection } from "@/lib/auth";
 import { addDays, dateLabel, dateTimeLabel, timeLabel, toLocalDate, today } from "@/lib/time";
 import { CalendarPlus, Stamp } from "lucide-react";
@@ -31,9 +32,9 @@ export default async function SalePage({ params, searchParams }: { params: Promi
   const voided = sale.status === "VOIDED";
 
   // Tarjeta del cliente: QR en el ticket y botón para mandársela
-  const loyaltyCard = sale.customer && shop.loyaltyMode !== "OFF" ? {
+  const loyaltyCard = sale.customer && loyaltyModeOf(shop) !== "OFF" ? {
     url: `${await baseUrl()}/mi/${sale.customer.token}`,
-    status: shop.loyaltyMode === "STAMPS"
+    status: loyaltyModeOf(shop) === "STAMPS"
       ? (sale.customer.stampRewards > 0 ? `¡Tienes un premio listo: ${stampRewardLabel(shop)}!` : `Llevas ${sale.customer.stamps} de ${shop.stampsRequired} sellos`)
       : `Tienes ${sale.customer.points.toLocaleString("es-MX")} puntos`,
   } : null;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarCheck, CalendarPlus, ChevronRight, MapPin, Phone, Scissors, Star } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { loyaltyModeOf } from "@/lib/billing";
 import { dateLabel, timeLabel, toLocalDate } from "@/lib/time";
 import { money } from "@/lib/format";
 import { stampRewardLabel } from "@/lib/loyalty";
@@ -45,7 +46,7 @@ export default async function MyPage({ params }: { params: Promise<{ token: stri
       </div>
 
       <div className="mx-auto -mt-12 max-w-md space-y-4 px-4 pb-12">
-        {shop.loyaltyMode === "STAMPS" && (
+        {loyaltyModeOf(shop) === "STAMPS" && (
           <section className="card p-4">
             <StampCard stamps={c.stamps} required={shop.stampsRequired} rewards={c.stampRewards} rewardLabel={stampRewardLabel(shop)} you />
             <p className="mt-3 text-sm text-muted">Ganas un sello en cada visita. Al juntar {shop.stampsRequired}, tu siguiente visita tiene {stampRewardLabel(shop)}.</p>
@@ -62,7 +63,7 @@ export default async function MyPage({ params }: { params: Promise<{ token: stri
             </span>
           </section>
         ))}
-        {shop.loyaltyMode === "POINTS" && Number(shop.loyaltyPointsPerPeso) > 0 && (
+        {loyaltyModeOf(shop) === "POINTS" && Number(shop.loyaltyPointsPerPeso) > 0 && (
           <section className="card flex items-center gap-4 p-5">
             <span className="grid size-12 place-items-center rounded-2xl bg-warning/10 text-warning"><Star className="size-6" /></span>
             <span>

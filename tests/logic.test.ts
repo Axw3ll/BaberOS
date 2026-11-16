@@ -130,12 +130,12 @@ test("tres planes: qué incluye cada uno y cuántas personas", async () => {
   const active = (plan: "BASIC" | "STANDARD" | "PRO") => ({ state: "active" as const, plan, daysLeft: 20 });
   const basic = active("BASIC"), std = active("STANDARD"), pro = active("PRO");
   // Básico: lo esencial
-  for (const f of ["fila", "espera", "paquetes", "reportes", "gastos", "metas", "campanas", "bitacora"] as const) assert.equal(hasFeature(basic, f), false, f);
-  // Estándar: fila, lista de espera y paquetes
-  for (const f of ["fila", "espera", "paquetes"] as const) assert.equal(hasFeature(std, f), true, f);
+  for (const f of ["mensajes", "lealtad", "fila", "espera", "paquetes", "reportes", "gastos", "metas", "campanas", "bitacora"] as const) assert.equal(hasFeature(basic, f), false, f);
+  // Estándar: recordatorios, lealtad, fila, lista de espera y paquetes
+  for (const f of ["mensajes", "lealtad", "fila", "espera", "paquetes"] as const) assert.equal(hasFeature(std, f), true, f);
   for (const f of ["reportes", "gastos", "metas", "campanas", "bitacora"] as const) assert.equal(hasFeature(std, f), false, f);
   // Completo: todo
-  for (const f of ["fila", "espera", "paquetes", "reportes", "gastos", "metas", "campanas", "bitacora"] as const) assert.equal(hasFeature(pro, f), true, f);
+  for (const f of ["mensajes", "lealtad", "fila", "espera", "paquetes", "reportes", "gastos", "metas", "campanas", "bitacora"] as const) assert.equal(hasFeature(pro, f), true, f);
   // Prueba y cobro apagado: todo, sin límite de personas
   assert.equal(hasFeature({ state: "trial", plan: "TRIAL", daysLeft: 5 }, "reportes"), true);
   assert.equal(hasFeature({ state: "free", plan: "TRIAL", daysLeft: null }, "bitacora"), true);

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
+import { loyaltyModeOf } from "./billing";
 import { Prisma } from "@/generated/prisma/client";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
@@ -49,6 +50,8 @@ export async function checkout(input: {
     try {
       return await prisma.$transaction(async (tx) => {
         const shop = await tx.barbershop.findUniqueOrThrow({ where: { id: input.shopId } });
+        // Si su plan no incluye lealtad, no se ganan ni se canjean sellos o puntos
+        const loyaltyMode = loyaltyModeOf(shop);
         const staffIds = [...new Set(input.lines.map((l) => l.staffId).filter(Boolean) as string[])];
         const staff = new Map((await tx.staff.findMany({ where: { shopId: shop.id, id: { in: staffIds } } })).map((s) => [s.id, s]));
 
@@ -93,7 +96,7 @@ export async function checkout(input: {
         const wanted = Math.max(0, Math.floor(input.redeemPoints ?? 0));
         if (wanted > 0) {
           if (!input.customerId) throw new SaleError("Para canjear puntos registra al cliente.");
-          if (shop.loyaltyMode !== "POINTS" || shop.loyaltyPointsPerPeso.lte(0)) throw new SaleError("El programa de puntos está apagado.");
+          if (loyaltyMode !== "POINTS" || shop.loyaltyPointsPerPeso.lte(0)) throw new SaleError("El programa de puntos está apagado.");
           const maxByTotal = subtotal.minus(discount).div(shop.loyaltyPesoPerPoint).floor().toNumber();
           pointsUsed = Math.min(wanted, maxByTotal);
           if (pointsUsed > 0) {
@@ -138,7 +141,7 @@ export async function checkout(input: {
         let rewardUsed = false;
         if (input.redeemReward) {
           if (!input.customerId) throw new SaleError("Para usar el premio registra al cliente.");
-          if (shop.loyaltyMode !== "STAMPS") throw new SaleError("La tarjeta de sellos está apagada.");
+          if (loyaltyMode !== "STAMPS") throw new SaleError("La tarjeta de sellos está apagada.");
           const value = stampRewardDiscount(shop, items, subtotal.minus(discount));
           if (value.lte(0)) throw new SaleError("El premio aplica a un servicio: agrégalo al ticket.");
           const ok = await tx.customer.updateMany({
@@ -181,8 +184,8 @@ export async function checkout(input: {
         }
 
         // Puntos: se canjean y se ganan sobre lo pagado (sin propina).
-        if (input.customerId && (shop.loyaltyMode === "POINTS" || pointsUsed > 0)) {
-          const earned = shop.loyaltyMode === "POINTS" && shop.loyaltyPointsPerPeso.gt(0) ? net.mul(shop.loyaltyPointsPerPeso).floor().toNumber() : 0;
+        if (input.customerId && (loyaltyMode === "POINTS" || pointsUsed > 0)) {
+          const earned = loyaltyMode === "POINTS" && shop.loyaltyPointsPerPeso.gt(0) ? net.mul(shop.loyaltyPointsPerPeso).floor().toNumber() : 0;
           let balance = (await tx.customer.findUniqueOrThrow({ where: { id: input.customerId }, select: { points: true } })).points;
           if (pointsUsed > 0) {
             await tx.loyaltyMovement.create({
@@ -212,7 +215,7 @@ export async function checkout(input: {
         }
 
         // Sellos: uno por visita con servicio y gasto mínimo. La visita en la que usa su premio no suma sello.
-        if (input.customerId && shop.loyaltyMode === "STAMPS") {
+        if (input.customerId && loyaltyMode === "STAMPS") {
           if (rewardUsed) {
             const c = await tx.customer.findUniqueOrThrow({ where: { id: input.customerId } });
             await tx.loyaltyMovement.create({

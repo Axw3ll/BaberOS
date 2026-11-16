@@ -18,18 +18,19 @@ export const PLANS = {
   BASIC: {
     name: "Básico", price: 299, priceId: process.env.STRIPE_PRICE_BASIC, staff: 2 as number | null,
     tagline: "Para el barbero independiente o la barbería chica",
-    features: ["Agenda y reservas en línea", "Recordatorios y confirmaciones por WhatsApp", "Clientes, seguimiento y calificaciones",
-      "Caja, inventario, corte de caja y comisiones", "Tarjeta de sellos o puntos", "Hasta 2 personas en el equipo"],
+    features: ["Agenda y reservas en línea", "Clientes y seguimiento", "Caja, inventario, corte de caja y comisiones", "Hasta 2 personas en el equipo"],
   },
   STANDARD: {
     name: "Estándar", price: 399, priceId: process.env.STRIPE_PRICE_STANDARD, staff: 5 as number | null,
     tagline: "Para la barbería con equipo",
-    features: ["Todo lo del Básico", "Fila virtual con QR", "Lista de espera", "Paquetes y membresías", "Hasta 5 personas en el equipo"],
+    features: ["Todo lo del Básico", "Recordatorios y confirmaciones, listos para enviar por WhatsApp con un toque", "Tarjeta de sellos o puntos",
+      "Calificaciones después de cada visita", "Fila virtual con QR", "Lista de espera", "Paquetes y membresías", "Hasta 5 personas en el equipo"],
   },
   PRO: {
     name: "Completo", price: 599, priceId: process.env.STRIPE_PRICE_PRO, staff: null as number | null,
     tagline: "Para administrar y hacer crecer tu barbería",
-    features: ["Todo lo del Estándar", "Reportes", "Gastos y utilidad", "Metas por barbero", "Campañas por WhatsApp", "Bitácora de cambios", "Equipo sin límite"],
+    features: ["Todo lo del Estándar", "Reportes", "Gastos y utilidad", "Metas por barbero", "Campañas a grupos de clientes (se envían por WhatsApp con un toque)",
+      "Bitácora de cambios", "Equipo sin límite"],
   },
 } as const;
 export type PaidPlan = keyof typeof PLANS;
@@ -37,6 +38,8 @@ export const PLAN_ORDER: PaidPlan[] = ["BASIC", "STANDARD", "PRO"];
 
 /** Funciones que no vienen en todos los planes y el plan mínimo que las incluye. */
 export const FEATURES = {
+  mensajes: { plan: "STANDARD", label: "los recordatorios y mensajes automáticos" },
+  lealtad: { plan: "STANDARD", label: "la tarjeta de sellos o puntos" },
   fila: { plan: "STANDARD", label: "la fila virtual" },
   espera: { plan: "STANDARD", label: "la lista de espera" },
   paquetes: { plan: "STANDARD", label: "paquetes y membresías" },
@@ -89,6 +92,11 @@ export function hasFeature(a: Access, f: Feature) {
   if (a.state === "free" || a.state === "trial") return true;
   return RANK[a.plan] >= RANK[FEATURES[f].plan];
 }
+/** Programa de lealtad que de verdad aplica: si su plan no lo incluye, está apagado (sin borrar lo que ya tenían). */
+export function loyaltyModeOf(shop: Pick<Barbershop, "loyaltyMode" | "plan" | "trialEndsAt" | "subscriptionStatus" | "currentPeriodEnd">) {
+  return hasFeature(accessFor(shop), "lealtad") ? shop.loyaltyMode : "OFF";
+}
+
 /** Personas activas que permite su plan (null = sin límite). */
 export function staffLimit(a: Access): number | null {
   if (a.state === "free" || a.state === "trial") return null;

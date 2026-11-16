@@ -148,7 +148,7 @@ export default async function HoyPage() {
         </Link>
       )}
 
-      {outbox > 0 && (
+      {outbox > 0 && hasFeature(accessFor(shop), "mensajes") && (
         <Link href="/seguimiento/mensajes" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success"><MessageCircle className="size-5" /></span>
           <span className="min-w-0 flex-1">

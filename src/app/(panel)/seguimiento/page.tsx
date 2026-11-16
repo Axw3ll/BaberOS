@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronRight, MessageCircle } from "lucide-react";
 import { pendingMessages, syncOutbox } from "@/lib/messages";
 import { prisma } from "@/lib/prisma";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { addDays, dateLabel, today } from "@/lib/time";
 import { bookingUrl, customerStats, daysToBirthday, fillTemplate, QUICK_MESSAGES, STAGE, whatsappUrl, type CustomerStats } from "@/lib/crm";
@@ -150,7 +151,7 @@ export default async function SeguimientoPage({ searchParams }: { searchParams: 
           </nav>
         )} />
 
-      {outbox > 0 && (
+      {outbox > 0 && hasFeature(accessFor(shop), "mensajes") && (
         <Link href="/seguimiento/mensajes" className="card mb-6 flex items-center gap-4 p-4 transition hover:border-brand">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-success/10 text-success"><MessageCircle className="size-5" /></span>
           <span className="min-w-0 flex-1">

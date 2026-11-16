@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { accessFor, hasFeature } from "@/lib/billing";
+import { accessFor, hasFeature, loyaltyModeOf } from "@/lib/billing";
 import { requireSection } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { Pos, type PosLine } from "./pos";
@@ -54,7 +54,7 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
       <Pos
         me={me.id}
         loyalty={{
-          mode: shop.loyaltyMode,
+          mode: loyaltyModeOf(shop),
           pesoPerPoint: Number(shop.loyaltyPesoPerPoint),
           stamps: { required: shop.stampsRequired, reward: shop.stampReward, value: Number(shop.stampRewardValue), min: Number(shop.stampMinAmount), label: stampRewardLabel(shop) },
         }}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarCheck, CalendarClock, Gift, Repeat, Scissors, Stamp, Star, TrendingUp, UserX, Wallet } from "lucide-react";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { loyaltyModeOf, hasFeature, accessFor } from "@/lib/billing";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, dateTimeLabel, toLocalDate, today } from "@/lib/time";
 import { money } from "@/lib/format";
@@ -81,10 +82,11 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
   const nextAppt = [...c.appointments].reverse().find((a) => a.startsAt.getTime() > now && !["CANCELLED", "NO_SHOW", "COMPLETED"].includes(a.status));
   const day = today(tz);
   const bday = c.birthday ? daysToBirthday(c.birthday, day) : null;
-  const loyalty = loyaltyOn(shop);
+  const effShop = { ...shop, loyaltyMode: loyaltyModeOf(shop) };
+  const loyalty = loyaltyOn(effShop);
   const packagesOwned = c.packages;
   const misses = c.appointments.filter((a) => a.status === "NO_SHOW" && a.startsAt.getTime() > now - 180 * 86_400_000).length;
-  const stampCard = stampsOn(shop);
+  const stampCard = stampsOn(effShop);
   const rewardLabel = stampRewardLabel(shop);
   const myTagIds = new Set(c.tags.map((t) => t.tagId));
 
@@ -311,7 +313,7 @@ export default async function ClientePage({ params, searchParams }: { params: Pr
             </ActionForm>
           </section>
 
-          {shop.loyaltyMode === "OFF" && isAdmin && (
+          {effShop.loyaltyMode === "OFF" && isAdmin && hasFeature(accessFor(shop), "lealtad") && (
             <section>
               <SectionTitle>Lealtad</SectionTitle>
               <p className="text-sm text-muted">
