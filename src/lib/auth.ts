@@ -17,7 +17,7 @@ const session = cache(async (): Promise<{ id: string; email: string; name: strin
   // Demo ("Ver demo"): cookie firmada, sin cuenta. Va primero para que también funcione en desarrollo
   const demoId = await verifyDemo((await cookies()).get(DEMO_COOKIE)?.value);
   if (demoId) return { id: demoId, email: demoEmail(demoId), name: "Dueño" };
-  if (DEV_EMAIL) return { id: DEV_ID, email: DEV_EMAIL, name: "Desarrollo" };
+  if (DEV_EMAIL) return { id: DEV_ID, email: DEV_EMAIL, name: process.env.DEV_AUTH_NAME?.trim() || "Dueño" };
   const sb = await supabaseServer();
   const { data } = await sb.auth.getClaims();
   const c = data?.claims;

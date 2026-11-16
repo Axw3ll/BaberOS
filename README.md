@@ -20,6 +20,8 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 
 > Después de cada `git pull` con migraciones nuevas: `npm install`, `npm run db:deploy` y reinicia `npm run dev` (el servidor de desarrollo guarda en memoria el cliente de Prisma anterior).
 
+**Empezar desde cero:** `npm run db:vaciar` borra todos los datos (barberías, usuarios, clientes, citas, ventas, demos) y deja las tablas listas; pide escribir VACIAR para confirmar. Al abrir la app empiezas en "Registra tu barbería". Con `DEV_AUTH_NAME="Tu nombre"` en `.env` apareces con tu nombre.
+
 **Datos de demostración:** `SEED_OWNER_EMAIL=tu@email.com npm run db:seed` crea "Barbería El Filo" con equipo, servicios, productos, clientes con meses de historial, citas, ventas, lealtad, un paquete, calificaciones, gastos, gente en la fila y en la lista de espera, etiquetas, seguimientos y una campaña. Tarda menos de un segundo. Entra una vez con ese email antes de correrlo.
 
 **Botón "Ver demo":** en la página de inicio, cualquiera entra a una barbería de ejemplo sin registrarse (los mismos datos de arriba, en `src/lib/demo-data.ts`). Cada visitante tiene la suya, así que nadie ve los cambios de otro, y se borra sola a las 24 horas. En una demo no salen WhatsApp automáticos, invitaciones por correo ni cobros, y no aparece en `/admin`. En producción necesita `DEMO_SECRET`; máximo 6 demos por hora desde la misma conexión.
