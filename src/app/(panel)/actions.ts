@@ -11,3 +11,9 @@ export async function switchShop(data: FormData) {
   }
   redirect("/hoy");
 }
+
+export async function hideGettingStarted() {
+  const { shop } = await currentContext();
+  (await cookies()).set("barberos_primeros_pasos", shop.id, { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
+  redirect("/hoy");
+}

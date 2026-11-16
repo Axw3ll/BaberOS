@@ -1,0 +1,86 @@
+
+> barberos@0.1.0 dev
+> next dev
+
+▲ Next.js 16.4.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.0.2.2:3000
+- Environments: .env
+✓ Ready in 511ms
+✓ Running next.config.ts took 114ms
+
+✓ Generated AGENTS.md for AI agents. Set `agentRules: false` in next.config to disable.
+○ Compiling /hoy ...
+<claude-code-hint v="1" type="plugin" value="stripe@claude-plugins-official" />
+⨯ Error [PrismaClientKnownRequestError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].staff.findFirst()` invocation in
+/home/user/BaberOS/.next/dev/server/chunks/ssr/[root-of-the-server]__0yiam6zktejcy._.js:1579:142
+
+  1576         id: s.id
+  1577     }
+  1578 }),
+→ 1579 {imported module ./src/lib/prisma.ts}["prisma"].staff.findFirst(
+Can't reach database server at 127.0.0.1:5432
+    at async (src/lib/auth.ts:73:37)
+  71 |     orderBy: { createdAt: "asc" },
+  72 |   });
+> 73 |   let [user, invite, memberships] = await Promise.all([
+     |                                     ^
+  74 |     prisma.user.findUnique({ where: { id: s.id } }),
+  75 |     prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+  76 |     membershipsQuery(), {
+  code: 'P1001',
+  meta: {
+    modelName: 'Staff',
+    driverAdapterError: Error [DriverAdapterError]: DatabaseNotReachable
+        at async (src/lib/auth.ts:73:37)
+      71 |     orderBy: { createdAt: "asc" },
+      72 |   });
+    > 73 |   let [user, invite, memberships] = await Promise.all([
+         |                                     ^
+      74 |     prisma.user.findUnique({ where: { id: s.id } }),
+      75 |     prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+      76 |     membershipsQuery(), {
+      [cause]: [Object]
+    }
+  },
+  clientVersion: '7.10.1',
+  digest: '2411703697'
+}
+⨯ Error [PrismaClientKnownRequestError]: 
+Invalid `{imported module ./src/lib/prisma.ts}["prisma"].staff.findFirst()` invocation in
+/home/user/BaberOS/.next/dev/server/chunks/ssr/[root-of-the-server]__0yiam6zktejcy._.js:1579:142
+
+  1576         id: s.id
+  1577     }
+  1578 }),
+→ 1579 {imported module ./src/lib/prisma.ts}["prisma"].staff.findFirst(
+Can't reach database server at 127.0.0.1:5432
+    at async (src/lib/auth.ts:73:37)
+  71 |     orderBy: { createdAt: "asc" },
+  72 |   });
+> 73 |   let [user, invite, memberships] = await Promise.all([
+     |                                     ^
+  74 |     prisma.user.findUnique({ where: { id: s.id } }),
+  75 |     prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+  76 |     membershipsQuery(), {
+  code: 'P1001',
+  meta: {
+    modelName: 'Staff',
+    driverAdapterError: Error [DriverAdapterError]: DatabaseNotReachable
+        at async (src/lib/auth.ts:73:37)
+      71 |     orderBy: { createdAt: "asc" },
+      72 |   });
+    > 73 |   let [user, invite, memberships] = await Promise.all([
+         |                                     ^
+      74 |     prisma.user.findUnique({ where: { id: s.id } }),
+      75 |     prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+      76 |     membershipsQuery(), {
+      [cause]: [Object]
+    }
+  },
+  clientVersion: '7.10.1',
+  digest: '2411703697'
+}
+ GET /hoy 500 in 5.6s (next.js: 4.9s, proxy.ts: 114ms, application-code: 633ms)
+[?25h

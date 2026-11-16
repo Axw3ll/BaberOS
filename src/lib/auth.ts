@@ -5,30 +5,50 @@ import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { supabaseServer } from "./supabase/server";
 import type { Role } from "@/generated/prisma/enums";
+import { accessFor, canUsePanel, hasFeature, type Feature } from "./billing";
+import { DEMO_COOKIE, DEMO_EMAIL_DOMAIN, demoEmail, verifyDemo } from "./demo-session";
 
 const DEV_EMAIL = process.env.NODE_ENV !== "production" ? process.env.DEV_AUTH_EMAIL : undefined;
 const DEV_ID = "00000000-0000-4000-8000-000000000001";
 export const devAuth = Boolean(DEV_EMAIL);
 
-/** Usuario actual (fila en `users`), o null. Crea la fila la primera vez. */
-export const currentUser = cache(async () => {
-  let id: string, email: string, name: string;
+/** Quién está en sesión, sin tocar la base. getClaims valida el JWT localmente (llaves asimétricas). */
+const session = cache(async (): Promise<{ id: string; email: string; name: string } | null> => {
+  // Demo ("Ver demo"): cookie firmada, sin cuenta. Va primero para que también funcione en desarrollo
+  const demoId = await verifyDemo((await cookies()).get(DEMO_COOKIE)?.value);
+  if (demoId) return { id: demoId, email: demoEmail(demoId), name: "Dueño" };
+  if (DEV_EMAIL) return { id: DEV_ID, email: DEV_EMAIL, name: process.env.DEV_AUTH_NAME?.trim() || "Dueño" };
+  const sb = await supabaseServer();
+  const { data } = await sb.auth.getClaims();
+  const c = data?.claims;
+  if (!c?.sub || typeof c.email !== "string" || !c.email) return null;
+  const meta = (c.user_metadata ?? {}) as { name?: string };
+  return { id: c.sub, email: c.email, name: meta.name ?? c.email.split("@")[0] };
+});
 
-  if (DEV_EMAIL) {
-    id = DEV_ID; email = DEV_EMAIL; name = "Desarrollo";
-  } else {
-    const sb = await supabaseServer();
-    const { data } = await sb.auth.getUser();
-    if (!data.user?.email) return null;
-    id = data.user.id; email = data.user.email;
-    name = (data.user.user_metadata?.name as string | undefined) ?? email.split("@")[0];
+/** Crea la fila en `users` la primera vez y vincula invitaciones pendientes (staff con su email y sin cuenta). */
+async function ensureUser(s: { id: string; email: string; name: string }, exists: boolean, pendingInvite: boolean) {
+  const user = exists
+    ? await prisma.user.findUniqueOrThrow({ where: { id: s.id } })
+    : await prisma.user.upsert({ where: { id: s.id }, update: {}, create: s });
+  if (pendingInvite || !exists) {
+    await prisma.staff.updateMany({ where: { email: user.email, userId: null, shop: { isDemo: false } }, data: { userId: user.id } });
   }
-
-  const user = await prisma.user.upsert({ where: { id }, update: {}, create: { id, email, name } });
-
-  // Invitaciones: staff creado con este email y aún sin cuenta
-  await prisma.staff.updateMany({ where: { email: user.email, userId: null }, data: { userId: user.id } });
   return user;
+}
+
+/** Usuario actual (fila en `users`), o null. */
+export const currentUser = cache(async () => {
+  const s = await session();
+  if (!s) return null;
+  const [user, invite] = await Promise.all([
+    prisma.user.findUnique({ where: { id: s.id } }),
+    prisma.staff.findFirst({ where: { email: s.email, userId: null, shop: { isDemo: false } }, select: { id: true } }),
+  ]);
+  if (user && !invite) return user;
+  // Demo que ya se borró (venció o se vació la base): se sale de la demo en vez de crear un usuario vacío
+  if (!user && s.email.endsWith(`@${DEMO_EMAIL_DOMAIN}`)) redirect("/demo/salir");
+  return ensureUser(s, Boolean(user), Boolean(invite));
 });
 
 export async function requireUser() {
@@ -38,38 +58,85 @@ export async function requireUser() {
 }
 
 export const SHOP_COOKIE = "barberos_shop";
+/** Solo en desarrollo: "Entrar como" otro miembro del equipo para ver el sistema con su rol. */
+export const VIEW_AS_COOKIE = "barberos_ver_como";
+export const SUPPORT_COOKIE = "barberos_soporte";
 
-/** Barbería activa + mi perfil de staff en ella. */
+/** Correos con acceso a /admin (tú, como dueño de BarberOS). */
+export const isSuperadmin = (email: string) =>
+  (process.env.SUPERADMIN_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean).includes(email.toLowerCase());
+
+/**
+ * Barbería activa + mi perfil de staff en ella.
+ * En el caso normal es UNA sola ida a la base: usuario, membresías e invitaciones van en paralelo.
+ */
 export const currentContext = cache(async () => {
-  const user = await requireUser();
-  const memberships = await prisma.staff.findMany({
-    where: { userId: user.id, active: true },
+  const s = await session();
+  if (!s) redirect("/login");
+  const membershipsQuery = () => prisma.staff.findMany({
+    where: { userId: s.id, active: true },
     include: { shop: true },
     orderBy: { createdAt: "asc" },
   });
+  let [user, invite, memberships] = await Promise.all([
+    prisma.user.findUnique({ where: { id: s.id } }),
+    prisma.staff.findFirst({ where: { email: s.email, userId: null, shop: { isDemo: false } }, select: { id: true } }),
+    membershipsQuery(),
+  ]);
+  if (!user && s.email.endsWith(`@${DEMO_EMAIL_DOMAIN}`)) redirect("/demo/salir");
+  if (!user || invite) {
+    user = await ensureUser(s, Boolean(user), Boolean(invite));
+    memberships = await membershipsQuery();
+  }
+
+  // Solo en desarrollo: el dueño o encargado entra como alguien de su equipo (con aviso visible en el panel)
+  if (devAuth) {
+    const asId = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+    const mine = memberships.filter((m) => m.role === "OWNER" || m.role === "MANAGER").map((m) => m.shopId);
+    if (asId && mine.length) {
+      const as = await prisma.staff.findFirst({ where: { id: asId, active: true, shopId: { in: mine } }, include: { shop: true } });
+      if (as) return { user, me: as, shop: as.shop, shops: [as.shop], support: false, viewingAs: true };
+    }
+  }
+
+  // Modo soporte: un superadmin ve la barbería como su dueño (con aviso visible en el panel)
+  const support = (await cookies()).get(SUPPORT_COOKIE)?.value;
+  if (support && isSuperadmin(s.email)) {
+    const owner = await prisma.staff.findFirst({ where: { shopId: support, role: "OWNER" }, include: { shop: true }, orderBy: { createdAt: "asc" } });
+    if (owner) return { user, me: owner, shop: owner.shop, shops: [owner.shop], support: true, viewingAs: false };
+  }
   if (memberships.length === 0) redirect("/onboarding");
 
   const wanted = (await cookies()).get(SHOP_COOKIE)?.value;
   const me = memberships.find((m) => m.shopId === wanted) ?? memberships[0];
-  return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop) };
+  return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop), support: false, viewingAs: false };
 });
 
-export type Section = "hoy" | "agenda" | "ventas" | "clientes" | "productos" | "servicios" | "equipo" | "ajustes";
+export type Section =
+  | "hoy" | "agenda" | "fila" | "ventas" | "clientes" | "seguimiento" | "campanas" | "reportes" | "gastos" | "bitacora"
+  | "productos" | "servicios" | "equipo" | "ajustes";
 
 const ACCESS: Record<Role, Section[]> = {
-  OWNER: ["hoy", "agenda", "ventas", "clientes", "productos", "servicios", "equipo", "ajustes"],
-  MANAGER: ["hoy", "agenda", "ventas", "clientes", "productos", "servicios", "equipo", "ajustes"],
-  RECEPTIONIST: ["hoy", "agenda", "ventas", "clientes", "productos"],
-  BARBER: ["hoy", "agenda", "ventas", "clientes"],
+  OWNER: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento", "campanas", "reportes", "gastos", "productos", "servicios", "equipo", "bitacora", "ajustes"],
+  MANAGER: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento", "campanas", "reportes", "gastos", "productos", "servicios", "equipo", "bitacora", "ajustes"],
+  RECEPTIONIST: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento", "campanas", "productos"],
+  BARBER: ["hoy", "agenda", "fila", "ventas", "clientes", "seguimiento"],
 };
 
 export const canAccess = (role: Role, s: Section) => ACCESS[role].includes(s);
 export const sectionsFor = (role: Role) => ACCESS[role];
 
-/** Para páginas y server actions: corta si el rol no tiene acceso. */
+/** Para páginas y server actions: corta si el rol no tiene acceso o si la suscripción no lo permite. */
+/** Secciones que dependen del plan. */
+export const SECTION_FEATURE: Partial<Record<Section, Feature>> = { fila: "fila", reportes: "reportes", gastos: "gastos", campanas: "campanas", bitacora: "bitacora" };
+
 export async function requireSection(s: Section) {
   const ctx = await currentContext();
   if (!canAccess(ctx.me.role, s)) redirect("/hoy");
+  const access = accessFor(ctx.shop);
+  if (!canUsePanel(access)) redirect("/suscripcion");
+  const f = SECTION_FEATURE[s];
+  if (f && !hasFeature(access, f)) redirect(`/suscripcion?pro=${f}`);
   return ctx;
 }
 

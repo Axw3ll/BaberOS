@@ -1,24 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { loyaltyModeOf } from "@/lib/billing";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { dateLabel, timeLabel, toLocalDate } from "@/lib/time";
 import { minutesLabel, money } from "@/lib/format";
 import { PageHeader, SectionTitle, Status } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
 import { saveNotes, setStatus } from "../../agenda/actions";
+import { QuickCharge } from "./quick-charge";
+import { noShowFlag } from "@/lib/waitlist";
 
 export const metadata = { title: "Cita" };
 
 const SOURCE = { WALK_IN: "En persona", PHONE: "Teléfono o WhatsApp", ONLINE: "Reserva en línea" };
 
-export default async function CitaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
+export default async function CitaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string; nueva?: string }> }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, nueva } = await searchParams;
   const { shop, me } = await requireSection("agenda");
   const a = await prisma.appointment.findFirst({
     where: { id, shopId: shop.id, ...(seesOnlyOwnAgenda(me.role) && { staffId: me.id }) },
-    include: { customer: true, staff: true, services: true, sale: true },
+    include: { customer: true, staff: true, services: true, sale: true, shop: true, review: true },
   });
   if (!a) notFound();
   const tz = shop.timezone;
@@ -26,6 +29,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
   const total = a.services.reduce((s, x) => s + Number(x.price), 0);
   const minutes = a.services.reduce((s, x) => s + x.minutes, 0);
   const open = !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(a.status);
+  const misses = await noShowFlag(shop, a.customerId);
 
   const action = (status: string, label: string, cls = "btn-quiet") => (
     <form action={setStatus}>
@@ -44,21 +48,34 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
         actions={<Status status={a.status} />}
       />
 
-      {error === "ocupado" && (
-        <p role="alert" className="-mt-4 mb-10 text-rose">Ese horario ya lo tomó otra cita. Agenda una nueva en otro horario.</p>
+      {misses.flagged && open && (
+        <p role="alert" className="-mt-4 mb-6 rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger">
+          Este cliente faltó {misses.count} {misses.count === 1 ? "vez" : "veces"} en los últimos 6 meses. Conviene confirmarle por WhatsApp antes de la cita.
+        </p>
       )}
-      <div className="grid gap-14 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-12">
+      {a.review && (
+        <p className="-mt-4 mb-6 rounded-xl bg-hover px-4 py-3 text-sm">
+          <span className={a.review.rating <= 3 ? "text-danger" : "text-warning"}>{"★".repeat(a.review.rating)}</span>
+          <span className="text-muted"> Calificó esta visita con {a.review.rating} de 5</span>
+          {a.review.comment && <span className="mt-1 block">“{a.review.comment}”</span>}
+        </p>
+      )}
+      {nueva && <p role="status" className="-mt-4 mb-6 rounded-xl bg-success/10 px-4 py-3 text-success">Cita agendada.</p>}
+      {error === "ocupado" && (
+        <p role="alert" className="-mt-4 mb-10 text-danger">Ese horario ya lo tomó otra cita. Agenda una nueva en otro horario.</p>
+      )}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="space-y-6">
           <section>
             <SectionTitle aside={minutesLabel(minutes)}>Servicios</SectionTitle>
             <ul className="space-y-3">
               {a.services.map((s) => (
                 <li key={s.id} className="flex justify-between gap-4">
-                  <span>{s.name}</span><span className="text-ash tnum">{money(s.price)}</span>
+                  <span>{s.name}</span><span className="text-muted tnum">{money(s.price)}</span>
                 </li>
               ))}
               <li className="flex justify-between gap-4 border-t border-line-soft pt-3">
-                <span className="text-ash">Total</span><span className="font-display text-lg tnum">{money(total)}</span>
+                <span className="text-muted">Total</span><span className="font-display text-lg tnum">{money(total)}</span>
               </li>
             </ul>
           </section>
@@ -73,19 +90,27 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
           </section>
         </div>
 
-        <aside className="space-y-10">
+        <aside className="space-y-6">
           {open && (
             <section>
               <SectionTitle>Siguiente paso</SectionTitle>
               <div className="flex flex-col gap-2">
                 {canAccess(me.role, "ventas") && (
-                  <Link href={`/ventas/nueva?cita=${a.id}`} className="btn-primary">Cobrar {money(total, true)}</Link>
+                  <div className="rounded-xl bg-brand-soft p-3">
+                    {loyaltyModeOf(a.shop) === "STAMPS" && a.customer.stampRewards > 0 && (
+                      <Link href={`/ventas/nueva?cita=${a.id}`} className="mb-2 block rounded-lg bg-warning/15 px-3 py-2 text-sm font-semibold text-warning">
+                        🎁 Tiene un premio de su tarjeta: cóbrale desde aquí para aplicarlo
+                      </Link>
+                    )}
+                    <QuickCharge appointmentId={a.id} total={total} />
+                    <Link href={`/ventas/nueva?cita=${a.id}`} className="mt-2 block text-center text-sm font-medium text-brand hover:underline">Agregar productos, propina o descuento</Link>
+                  </div>
                 )}
                 {a.status === "PENDING" && action("CONFIRMED", "Confirmar cita")}
                 {a.status !== "IN_PROGRESS" && action("IN_PROGRESS", "Pasar a la silla")}
                 <div className="mt-4 flex gap-2">
                   {action("NO_SHOW", "No llegó", "btn-ghost")}
-                  {action("CANCELLED", "Cancelar cita", "btn-ghost text-rose")}
+                  {action("CANCELLED", "Cancelar cita", "btn-ghost text-danger")}
                 </div>
               </div>
             </section>
@@ -97,7 +122,7 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
             </section>
           )}
           {(a.status === "CANCELLED" || a.status === "NO_SHOW") && (
-            <section className="text-sm text-ash">
+            <section className="text-sm text-muted">
               <p>El horario quedó libre.</p>
               <div className="mt-3">{action("CONFIRMED", "Reactivar cita")}</div>
             </section>
@@ -105,8 +130,9 @@ export default async function CitaPage({ params, searchParams }: { params: Promi
           <section>
             <SectionTitle>Cliente</SectionTitle>
             <dl className="space-y-2 text-sm">
-              <div><dt className="text-ash">Teléfono</dt><dd><a href={`tel:${a.customer.phone}`} className="link tnum">{a.customer.phone}</a></dd></div>
-              <div><dt className="text-ash">Origen</dt><dd>{SOURCE[a.source]}</dd></div>
+              <div><dt className="text-muted">Teléfono</dt><dd><a href={`tel:${a.customer.phone}`} className="link tnum">{a.customer.phone}</a></dd></div>
+              <div><dt className="text-muted">Origen</dt><dd>{SOURCE[a.source]}</dd></div>
+              {a.confirmedAt && <div><dt className="text-muted">El cliente confirmó</dt><dd className="text-success">{dateLabel(toLocalDate(a.confirmedAt, tz), { day: "numeric", month: "short" })}, {timeLabel(a.confirmedAt, tz)}</dd></div>}
             </dl>
             <Link href={`/clientes/${a.customer.id}`} className="mt-4 inline-block text-sm link">Ver historial</Link>
           </section>

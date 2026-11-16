@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "./prisma";
 import { computeSlots } from "./availability";
-import { localToUtc } from "./time";
+import { addDays, localToUtc } from "./time";
 import type { AppointmentSource } from "@/generated/prisma/enums";
 
 export class BookingError extends Error {}
@@ -55,8 +55,10 @@ export async function slotsFor(opts: {
 
 export async function book(input: {
   shopId: string; staffId: string; serviceIds: string[]; startsAt: Date;
-  customer: { id?: string; name?: string; phone?: string; email?: string };
+  customer: { id?: string; name?: string; phone?: string; email?: string; acceptsMarketing?: boolean };
   source: AppointmentSource; notes?: string; checkAvailability?: { ignoreNotice: boolean; date: string };
+  /** Tiempo máximo (min) cuando se sabe que se hará más rápido de lo normal, p. ej. un cliente de la fila antes de otra cita. */
+  maxMinutes?: number;
 }) {
   const { services, minutes } = await servicesFor(input.shopId, input.serviceIds);
   const staff = await prisma.staff.findFirst({
@@ -77,8 +79,16 @@ export async function book(input: {
     if (phone.length < 10 || !input.customer.name?.trim()) throw new BookingError("Escribe nombre y un teléfono de 10 dígitos.");
     const c = await prisma.customer.upsert({
       where: { shopId_phone: { shopId: input.shopId, phone } },
-      update: { name: input.customer.name.trim(), ...(input.customer.email && { email: input.customer.email }) },
-      create: { shopId: input.shopId, phone, name: input.customer.name.trim(), email: input.customer.email || null },
+      update: {
+        name: input.customer.name.trim(), ...(input.customer.email && { email: input.customer.email }),
+        // Solo se activa si lo pide; nunca se desactiva en silencio
+        ...(input.customer.acceptsMarketing && { acceptsMarketing: true }),
+      },
+      create: {
+        shopId: input.shopId, phone, name: input.customer.name.trim(), email: input.customer.email || null,
+        ...(input.source === "ONLINE" && { origin: "ONLINE_BOOKING" as const }),
+        ...(input.customer.acceptsMarketing !== undefined && { acceptsMarketing: input.customer.acceptsMarketing }),
+      },
     });
     customerId = c.id;
   }
@@ -87,7 +97,7 @@ export async function book(input: {
     return await prisma.appointment.create({
       data: {
         shopId: input.shopId, staffId: staff.id, customerId,
-        startsAt: input.startsAt, endsAt: new Date(input.startsAt.getTime() + minutes * 60_000),
+        startsAt: input.startsAt, endsAt: new Date(input.startsAt.getTime() + Math.min(minutes, input.maxMinutes ?? minutes) * 60_000),
         source: input.source, status: input.source === "ONLINE" ? "PENDING" : "CONFIRMED", notes: input.notes || null,
         services: { create: services.map((s) => ({ serviceId: s.id, name: s.name, minutes: s.minutes, price: s.price })) },
       },
@@ -96,4 +106,19 @@ export async function book(input: {
     if (String(e).includes("appointments_no_overlap")) throw new BookingError("Ese horario se acaba de ocupar. Elige otro.");
     throw e;
   }
+}
+
+/** Horarios libres a partir de una fecha (para "¿le agendo la próxima?"). Revisa hasta `span` días. */
+export async function slotsFrom(opts: { shopId: string; staffId: string; serviceIds: string[]; fromDate: string; span?: number; limit?: number }) {
+  const out: number[] = [];
+  for (let i = 0; i < (opts.span ?? 10) && out.length < (opts.limit ?? 6); i++) {
+    try {
+      const day = await slotsFor({ shopId: opts.shopId, staffId: opts.staffId, serviceIds: opts.serviceIds, date: addDays(opts.fromDate, i), ignoreNotice: true });
+      // Pocas opciones por día para que haya variedad de días
+      const picks = day.filter((t) => t > Date.now());
+      const spread = picks.length <= 2 ? picks : [picks[0], picks[Math.floor(picks.length / 2)], picks[picks.length - 1]];
+      out.push(...spread);
+    } catch { /* barbero sin turno ese día */ }
+  }
+  return out.slice(0, opts.limit ?? 6);
 }

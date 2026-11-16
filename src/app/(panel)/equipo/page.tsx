@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canEmailInvites } from "@/lib/supabase/admin";
 import { prisma } from "@/lib/prisma";
 import { requireSection, ROLE_LABEL } from "@/lib/auth";
 import { summarize } from "@/lib/schedule";
@@ -9,9 +10,9 @@ import { addStaff } from "./actions";
 
 export const metadata = { title: "Equipo" };
 
-export default async function EquipoPage({ searchParams }: { searchParams: Promise<{ nuevo?: string }> }) {
+export default async function EquipoPage({ searchParams }: { searchParams: Promise<{ nuevo?: string; limite?: string }> }) {
   const { shop } = await requireSection("equipo");
-  const { nuevo } = await searchParams;
+  const { nuevo, limite } = await searchParams;
   const staff = await prisma.staff.findMany({
     where: { shopId: shop.id },
     include: { schedule: true, _count: { select: { services: true } } },
@@ -23,10 +24,16 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
       <PageHeader title="Equipo" subtitle="Quién trabaja en la barbería, qué hace y en qué horario."
         actions={<Link href="/equipo?nuevo=1" className="btn-primary">Agregar persona</Link>} />
 
+      {limite && (
+        <p role="alert" className="mb-6 rounded-xl bg-warning/10 px-4 py-3 text-sm text-warning">
+          Tu plan incluye hasta {limite} personas activas. Da de baja a alguien o <Link href="/suscripcion" className="underline">cambia de plan</Link> para reactivarla.
+        </p>
+      )}
       {nuevo && (
-        <section className="mb-14 rounded-lg border border-line p-6 sm:p-8">
+        <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">
           <h2 className="font-display text-xl">Nueva persona</h2>
-          <p className="mt-1 mb-6 text-sm text-ash">Si escribes su email, podrá entrar con su propia cuenta al registrarse con ese mismo email.</p>
+          <p className="mt-1 mb-6 text-sm text-muted">Si escribes su email, podrá entrar con su propia cuenta.{" "}
+            {canEmailInvites() ? "Le llega un correo de invitación para elegir su contraseña; también te damos un enlace para mandárselo por WhatsApp." : "Solo tiene que registrarse en BarberOS con ese mismo email; te damos un enlace para mandárselo por WhatsApp."}</p>
           <ActionForm action={addStaff}>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Nombre"><input name="name" required className="field" /></Field>
@@ -40,7 +47,7 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
               <Field label="Email" hint="Opcional"><input name="email" type="email" className="field" /></Field>
               <Field label="Teléfono" hint="Opcional"><input name="phone" inputMode="tel" className="field" /></Field>
             </div>
-            <p className="mt-5 text-sm text-ash">Le asignamos el horario de la barbería y todos los servicios. Ajústalo en su perfil.</p>
+            <p className="mt-5 text-sm text-muted">Le asignamos el horario de la barbería y todos los servicios. Ajústalo en su perfil.</p>
             <div className="mt-6 flex gap-2"><Submit>Agregar al equipo</Submit><Link href="/equipo" className="btn-ghost">Cancelar</Link></div>
           </ActionForm>
         </section>
@@ -49,15 +56,15 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
       <Rows>
         {staff.map((s) => (
           <RowLink key={s.id} href={`/equipo/${s.id}`}>
-            <span className={`grid size-10 shrink-0 place-items-center rounded-full border border-line font-display ${s.active ? "text-foam" : "text-ash-2"}`}>{initials(s.name)}</span>
-            <span className={`min-w-0 flex-1 ${s.active ? "" : "text-ash-2"}`}>
+            <span className={`grid size-10 shrink-0 place-items-center rounded-full border border-line font-display ${s.active ? "text-fg" : "text-faint"}`}>{initials(s.name)}</span>
+            <span className={`min-w-0 flex-1 ${s.active ? "" : "text-faint"}`}>
               <span className="block">{s.name}{!s.active && " (inactivo)"}</span>
-              <span className="block truncate text-sm text-ash">
+              <span className="block truncate text-sm text-muted">
                 {ROLE_LABEL[s.role]}
                 {s.takesAppointments ? `. ${summarize(s.schedule)}. ${s._count.services} servicios` : ". No atiende en agenda"}
               </span>
             </span>
-            <span className="hidden text-sm text-ash-2 sm:block">{s.userId ? "Con cuenta" : s.email ? "Invitación pendiente" : "Sin cuenta"}</span>
+            <span className="hidden text-sm text-faint sm:block">{s.userId ? "Con cuenta" : s.email ? "Falta crear su cuenta" : "Sin cuenta"}</span>
           </RowLink>
         ))}
       </Rows>

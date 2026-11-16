@@ -5,3 +5,7 @@ src/generated
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Pruebas de punta a punta
+/test-results/
+/playwright-report/

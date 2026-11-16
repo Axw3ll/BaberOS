@@ -1,114 +1,225 @@
 # BarberOS
 
-Sistema para barberías: agenda con disponibilidad real, equipo, servicios, productos con inventario, ventas con ticket y comisiones, clientes y una página pública de reservas.
+CRM y sistema de gestión para barberías, listo para venderse como servicio (SaaS): agenda con disponibilidad real, reservas en línea con lista de espera, fila virtual, ficha 360° de clientes, seguimiento, mensajes automáticos por WhatsApp, campañas, tarjeta de sellos o puntos, paquetes y membresías, calificaciones, ventas con corte de caja y comisiones, gastos y utilidad, metas por barbero, inventario, reportes, bitácora, suscripciones con prueba gratis, página de venta y un panel de administración para ti.
 
-**Stack:** Next.js 16 (App Router, Server Actions) · Prisma 7 · PostgreSQL en Supabase · Supabase Auth · Tailwind CSS 4
+**Stack:** Next.js 16 (App Router, Server Actions) · Prisma 7 · PostgreSQL en Supabase · Supabase Auth · Tailwind CSS 4 · Stripe · WhatsApp Cloud API
 
-## Puesta en marcha
+## Puesta en marcha (desarrollo)
 
 1. Crea un proyecto en [Supabase](https://supabase.com).
-2. Copia `.env.example` a `.env` y llena las variables:
-   - `DATABASE_URL`: Database → Connection string → **Transaction pooler** (puerto 6543), con `?pgbouncer=true` al final.
-   - `DIRECT_URL`: la de **Session pooler** o la conexión directa (puerto 5432).
-   - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Project Settings → API.
+2. Copia `.env.example` a `.env` y llena al menos `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Las demás son opcionales; cada una está explicada en el archivo.
 3. Instala y crea las tablas:
 
    ```bash
    npm install
-   npm run db:deploy      # aplica prisma/migrations (tablas + reglas)
+   npm run db:deploy      # aplica prisma/migrations
    npm run dev
    ```
 
 4. Abre `http://localhost:3000`, crea tu cuenta y registra tu barbería.
 
-En Supabase → Authentication → URL Configuration, agrega `http://localhost:3000/auth/callback` (y la de producción) a las Redirect URLs para que funcione el correo de confirmación.
+> Después de cada `git pull` con migraciones nuevas: `npm install`, `npm run db:deploy` y reinicia `npm run dev` (el servidor de desarrollo guarda en memoria el cliente de Prisma anterior).
 
-### Datos de demostración (opcional)
+**Empezar desde cero:** `npm run db:vaciar` borra todos los datos (barberías, usuarios, clientes, citas, ventas, demos) y deja las tablas listas; pide escribir VACIAR para confirmar. Al abrir la app empiezas en "Registra tu barbería". Con `DEV_AUTH_NAME="Tu nombre"` en `.env` apareces con tu nombre.
 
-```bash
-SEED_OWNER_EMAIL=axelomar.a.v@gmail.com npm run db:seed
-```
+**Datos de demostración:** `SEED_OWNER_EMAIL=tu@email.com npm run db:seed` crea "Barbería El Filo" con equipo, servicios, productos, clientes con meses de historial, citas, ventas, lealtad, un paquete, calificaciones, gastos, gente en la fila y en la lista de espera, etiquetas, seguimientos y una campaña. Tarda menos de un segundo. Entra una vez con ese email antes de correrlo.
 
-Crea "Barbería El Filo" con 4 personas, 5 servicios, 8 productos, 12 clientes, citas de hoy y mañana, y algunas ventas. Entra una vez con ese email antes de correrlo.
+**Botón "Ver demo":** en la página de inicio, cualquiera entra a una barbería de ejemplo sin registrarse (los mismos datos de arriba, en `src/lib/demo-data.ts`). Cada visitante tiene la suya, así que nadie ve los cambios de otro, y se borra sola a las 24 horas. En una demo no salen WhatsApp automáticos, invitaciones por correo ni cobros, y no aparece en `/admin`. En producción necesita `DEMO_SECRET`; máximo 6 demos por hora desde la misma conexión.
 
-### Desarrollo sin Supabase Auth
+**Sin Supabase Auth:** con `DEV_AUTH_EMAIL="tu@email.com"` en `.env`, `npm run dev` entra directo con ese usuario. En producción se ignora. En ese modo, en **Equipo → (una persona) → Entrar como…** ves el sistema exactamente como lo ve ese barbero, recepcionista o encargado; un aviso arriba te regresa a tu cuenta. La página de venta (`/`) se ve igual con `/?ver=1`.
 
-Con `DEV_AUTH_EMAIL="tu@email.com"` en `.env`, la app entra directo con ese usuario y no pide login. Solo funciona con `npm run dev`; en producción se ignora.
+**Pruebas:** `npm test` corre las pruebas de `tests/`: validaciones, horarios, fechas, días de pago y premios (sin base de datos) y cobros reales (total, comisión, efectivo insuficiente, topes de descuento, inventario, paquetes y cancelación). Las de cobro usan `DATABASE_URL`, crean una barbería de prueba y la borran al terminar; córrelas contra tu base local o de desarrollo, no la de producción.
+
+**Pruebas de punta a punta:** `npm run test:e2e` abre un navegador y recorre la app completa como lo haría una barbería: crea una barbería desde cero, un cliente reserva en línea, confirma y cambia su hora, un día lleno con lista de espera y aviso al cancelar, fila con QR hasta la silla y el cobro en efectivo, sellos y premio, venta y uso de un paquete, gastos, corte de caja, comisiones, reportes, bitácora, calificación y la página del cliente. Usa una barbería “E2E …” que borra al terminar (con `E2E_KEEP=1` la deja para revisarla). Necesita `DEV_AUTH_EMAIL` en `.env` y la base de desarrollo; si `npm run dev` no está corriendo, lo arranca. La primera vez instala el navegador con `npx playwright install chromium`.
 
 ## Qué hace
 
 | Sección | Para qué sirve |
 |---|---|
-| **Hoy** | Citas que siguen, lo vendido en el día, productos por surtir |
-| **Agenda** | Vista del día por barbero, con horarios, descansos y la hora actual |
-| **Nueva cita** | Solo muestra horarios libres de verdad. Si el cliente ya vino, completa su nombre con el teléfono |
-| **Cita** | Confirmar, pasar a la silla, no llegó, cancelar, cobrar |
-| **Ventas** | Cobro de servicios y productos, propina, descuento, efectivo con cambio. Ticket imprimible y cancelación que regresa el producto al inventario |
-| **Productos** | Ceras, geles, pomadas, etc. Precio, costo, margen, mínimo para avisar, entradas, uso interno, conteo físico y kardex |
-| **Servicios** | Duración, precio y quién lo hace |
-| **Equipo** | Roles, comisiones, horario semanal (con turno partido), servicios y ausencias. Invitación por email |
-| **Clientes** | Historial de visitas, lo que ha gastado, veces que no llegó, notas |
-| **Ajustes** | Datos de la barbería, horario, días cerrados, reglas de reserva, IVA |
-| **/b/tu-barberia** | Página pública: servicio → barbero (o "quien esté libre") → día y hora → datos |
+| **Hoy** | Primeros pasos (para dueños nuevos), mensajes por enviar, fila, citas que siguen (marca a quien falta seguido), ventas del día, metas del mes, lista de espera, cumpleaños, pendientes y productos por surtir |
+| **Agenda** | Día por barbero con horarios, descansos y hora actual. Tocar un hueco vacío abre una cita a esa hora |
+| **Nueva cita** | Teléfono primero: si ya es cliente, se eligen solos su servicio y barbero de siempre. "Próximos huecos" para agendar con un toque |
+| **Cita** | Confirmar, en silla, no llegó, cancelar. Cobrar con un toque (en efectivo pregunta cuánto te dio y calcula el cambio). Muestra su calificación y avisa si el cliente falta seguido |
+| **Fila virtual** | Para los que llegan sin cita: se forman en mostrador o escaneando un QR, ven su lugar y la espera estimada en su celular, y les llega un WhatsApp cuando ya casi les toca. Al pasarlo, se vuelve cita en silla |
+| **Ventas** | Punto de venta con propina, descuento (con tope por rol), canje de puntos o premio, venta y uso de paquetes y cambio (no deja cobrar si el efectivo recibido no alcanza). Ticket imprimible con QR de la tarjeta del cliente. Después de cobrar: "¿Le agendamos la próxima?" según su frecuencia |
+| **Corte de caja** | Totales del turno por forma de pago, fondo, retiros (los gastos en efectivo del día se llenan solos) y efectivo contado con la diferencia en vivo |
+| **Paquetes y membresías** | “5 cortes por $800” o “ilimitado por 30 días”. Se venden en caja y en las siguientes visitas se descuentan solos; el cliente ve cuántos le quedan |
+| **Comisiones** | Calendario de pago (semanal en el día que elijas, quincenal o mensual). Muestra lo que ya toca pagar a cada quien, lo que se junta para el siguiente pago y avisa en Hoy el día de pago o si hay atrasos. Pagar el periodo cerrado o adelantar todo |
+| **Clientes** | Etapas (nuevo, activo, en riesgo, perdido, sin visitas), VIP, etiquetas, búsqueda, orden, importación desde Excel/CSV y exportación |
+| **Ficha del cliente** | Métricas, lo que le gusta, línea de tiempo con citas, compras y bitácora, seguimientos, etiquetas, tarjeta de sellos o puntos, WhatsApp con mensajes listos, "Cobrar lo de siempre" |
+| **Lealtad** | Cada barbería elige en Ajustes: **tarjeta de sellos** (un sello por visita; al completarla, servicio gratis o descuento), **puntos** (por cada peso pagado, canjeables como descuento) o nada |
+| **Seguimiento** | Pendientes por responsable y oportunidades: cumpleaños, primera visita, no llegaron, ya les toca, en riesgo |
+| **Mensajes por enviar** | Confirmación de reserva, recordatorios de 24 h y 2 h, no llegó, calificación, ya toca, cumpleaños, tarjeta de sellos, "ya casi te toca" de la fila y "se liberó un lugar" de la lista de espera. Se preparan solos; se envían por la API de WhatsApp o con un toque |
+| **Campañas** | Mensaje a un segmento o etiqueta con variables. Mide quién agendó después |
+| **Reportes** | Ventas, retención, comisiones y calificación por barbero, lo que dicen los clientes, más vendidos, mejores clientes y canales de adquisición |
+| **Gastos** | Renta, sueldos, insumos… por categoría. Utilidad del mes = ventas − comisiones − costo de productos − gastos |
+| **Bitácora** | Quién canceló una venta o cita, cambió un precio o una comisión, ajustó puntos, pagó comisiones o cambió reglas |
+| **Productos, Servicios, Equipo, Ajustes** | Inventario con kardex, servicios y paquetes, roles, horarios, metas del mes y presentación de cada barbero, invitaciones, mensajes automáticos, lealtad, etiquetas y reglas: descuento máximo por rol, qué hacer con quien falta seguido (avisar o no dejarlo reservar en línea) y fila virtual |
+| **/** | Página de venta de BarberOS: funciones, precios, preguntas frecuentes y el botón "Ver demo" (con sesión, lleva al panel) |
+| **/b/tu-barberia** | Página pública: descripción, Instagram, mapa, horario, equipo, calificaciones y reservas (protegidas contra abuso). Si un día está lleno: “Avísame si se libera un lugar” |
+| **/f/tu-barberia** | Fila virtual pública |
+| **/c/…** | Enlace privado de cada cita: confirmar, cambiar o cancelar, agregarla al calendario y, después de la visita, calificarla. Las calificaciones de 3 o menos crean una tarea para llamarle; la invitación a Google se muestra a todos |
+| **/mi/…** | Página personal del cliente, sin cuenta: su tarjeta de sellos o puntos, sus paquetes, su próxima cita, sus visitas, reservar con sus datos ya puestos y decidir si quiere promociones |
+| **/suscripcion** | Prueba gratis, planes, pago y portal de Stripe |
+| **/admin** | Tu panel: barberías, estado, uso, ingreso mensual, activar planes a mano y modo soporte |
 
 ### Roles
 
-| | Hoy | Agenda | Ventas | Clientes | Productos | Servicios, Equipo, Ajustes |
-|---|---|---|---|---|---|---|
-| Dueño / Encargado | ✓ | Toda | ✓ | ✓ | ✓ | ✓ |
-| Recepción | ✓ | Toda | ✓ | ✓ | ✓ | — |
-| Barbero | Suya | Solo la suya | ✓ | ✓ | — | — |
+| | Hoy | Agenda y fila | Ventas | Clientes | Seguimiento | Campañas | Reportes y gastos | Productos | Servicios, Equipo, Bitácora, Ajustes |
+|---|---|---|---|---|---|---|---|---|---|
+| Dueño / Encargado | ✓ | Toda | ✓ + corte y comisiones | ✓ | Todo el equipo | ✓ | ✓ | ✓ | ✓ |
+| Recepción | ✓ | Toda | ✓ + corte | ✓ + importar/exportar | Todo el equipo | ✓ | — | ✓ | — |
+| Barbero | Suya y su meta | Solo la suya | ✓, su comisión | ✓, sin montos | Suyo | — | — | — | — |
 
-Solo dueño y encargado pueden cancelar ventas. Nadie más que el dueño edita el perfil del dueño.
+Solo dueño y encargado cancelan ventas, pagan comisiones y borran clientes, y no tienen tope de descuento (barbero y recepción sí: se configura en Ajustes → Reglas). Solo el dueño maneja la suscripción.
+
+### Planes
+
+| | Prueba (14 días) | Básico $299/mes | Estándar $399/mes | Completo $599/mes |
+|---|---|---|---|---|
+| Agenda, reservas en línea, clientes, seguimiento | ✓ | ✓ | ✓ | ✓ |
+| Caja, inventario, corte de caja, comisiones | ✓ | ✓ | ✓ | ✓ |
+| Recordatorios y mensajes automáticos (se envían con un toque), calificaciones | ✓ | — | ✓ | ✓ |
+| Tarjeta de sellos o puntos | ✓ | — | ✓ | ✓ |
+| Fila virtual, lista de espera, paquetes y membresías | ✓ | — | ✓ | ✓ |
+| Reportes, gastos y utilidad, metas, campañas, bitácora | ✓ | — | — | ✓ |
+| Personas en el equipo | Sin límite | 2 | 5 | Sin límite |
+
+Lo que el plan no incluye: el dueño lo sigue viendo en el menú y, al tocarlo, se le explica desde qué plan viene; al resto del equipo no le aparece. Si baja de plan, los paquetes que sus clientes ya compraron se siguen usando (solo deja de vender nuevos), sus clientes conservan sus sellos y puntos (vuelven a contar si sube de plan) y nadie del equipo se da de baja solo; únicamente no puede agregar o reactivar personas por encima del límite.
+
+**Cómo se cobra:** con Stripe (`STRIPE_SECRET_KEY`), con tarjeta desde `/suscripcion`. Sin Stripe pero con `COBRO_WHATSAPP` (tu número), el cobro es manual: la prueba vence igual, el botón "Pagar por transferencia" abre un chat contigo y activas el plan desde `/admin` por 30 días. Sin ninguno de los dos, el cobro está apagado y todo es gratis (útil en desarrollo).
+
+Al vencer la prueba o el plan, el panel lleva a `/suscripcion` y la página pública deja de recibir reservas; los datos se conservan. Si falla un pago hay 7 días de gracia. Precios y funciones se cambian en `src/lib/billing.ts`.
+
+## Publicar en producción
+
+### 1. Hosting (Vercel recomendado)
+
+Conecta el repositorio en [Vercel](https://vercel.com), copia las variables de tu `.env` (con `NEXT_PUBLIC_APP_URL` = tu dominio) y despliega. Corre `npm run db:deploy` contra la base de producción antes del primer despliegue y en cada migración nueva.
+
+### 2. Supabase Auth
+
+- **Authentication → URL Configuration:** *Site URL* = tu dominio; en *Redirect URLs* agrega `https://tu-dominio/auth/confirm` y `https://tu-dominio/auth/callback`.
+- **Authentication → Emails → Templates:** cambia el enlace de cada plantilla para que pase por `/auth/confirm`:
+
+  | Plantilla | Enlace |
+  |---|---|
+  | Confirm signup | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup` |
+  | Invite user | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite` |
+  | Reset password | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery` |
+
+- Para invitar al equipo por correo, agrega `SUPABASE_SERVICE_ROLE_KEY`. Sin ella, el dueño comparte un enlace de registro (copiar o WhatsApp).
+- Apaga la *Data API* de Supabase si no la usas: la app solo entra a la base desde el servidor con Prisma, y cada consulta filtra por la barbería activa.
+
+### 3. Stripe (suscripciones)
+
+1. Crea tres productos con precio mensual recurrente en MXN (Básico, Estándar y Completo) y copia sus `price_…` a `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_STANDARD` y `STRIPE_PRICE_PRO`.
+2. Copia la llave secreta a `STRIPE_SECRET_KEY`.
+3. En *Developers → Webhooks* crea un endpoint `https://tu-dominio/api/stripe/webhook` con los eventos `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated` y `customer.subscription.deleted`. Copia su secreto a `STRIPE_WEBHOOK_SECRET`.
+4. Activa el *Customer portal* en Stripe (para cambiar tarjeta, plan o cancelar).
+
+Sin `STRIPE_SECRET_KEY` el cobro queda apagado y todo está disponible. Si alguien te paga por transferencia, actívalo desde `/admin` (+30 días).
+
+### 4. Mensajes automáticos
+
+La bandeja se llena sola mientras alguien usa el panel. Para que se prepare y envíe aunque nadie entre, programa una llamada cada 15 minutos a:
+
+```
+GET https://tu-dominio/api/cron/mensajes
+Authorization: Bearer <CRON_SECRET>
+```
+
+En Vercel Pro puedes usar Vercel Cron; en el plan gratis, un servicio externo como [cron-job.org](https://cron-job.org) con ese encabezado.
+
+### 5. WhatsApp Cloud API (envío automático)
+
+1. En [Meta for Developers](https://developers.facebook.com) crea una app de tipo *Business*, agrega WhatsApp y registra el número de la plataforma.
+2. Crea un token permanente (usuario de sistema) y copia `WHATSAPP_TOKEN` y `WHATSAPP_PHONE_NUMBER_ID`.
+3. En WhatsApp Manager → Plantillas, crea estas plantillas en **español (México)**. Las variables deben ir en este orden:
+
+| Nombre | Categoría | Texto sugerido |
+|---|---|---|
+| `barberos_confirmacion` | Utilidad | Hola {{1}}, recibimos tu reserva en {{2}}: {{3}}, {{4}} con {{5}}. Confírmala, cámbiala o cancélala aquí: {{6}} |
+| `barberos_recordatorio` | Utilidad | Hola {{1}}, te recordamos tu cita en {{2}} {{3}} con {{4}}. Confirma, cambia o cancela aquí: {{5}} |
+| `barberos_recordatorio_hoy` | Utilidad | Hola {{1}}, tu cita en {{2}} es hoy a las {{3}}. ¡Te esperamos! |
+| `barberos_no_llego` | Utilidad | Hola {{1}}, te esperábamos en {{2}}. ¿Todo bien? Si quieres, aparta otro horario aquí: {{3}} |
+| `barberos_resena` | Utilidad | Gracias por venir a {{2}}, {{1}}. ¿Cómo te quedó el corte? Califícanos con un toque: {{3}} |
+| `barberos_ya_toca` | Marketing | Hola {{1}}, ya toca tu corte. Aparta tu lugar en {{2}}: {{3}} |
+| `barberos_cumpleanos` | Marketing | ¡Feliz cumpleaños, {{1}}! De parte de todo {{2}}. Ven esta semana y te consentimos: {{3}} |
+| `barberos_falta_sello` | Marketing | Hola {{1}}, ¡te falta un solo sello en {{2}} para tu {{3}}! Aparta tu próxima visita: {{4}} |
+| `barberos_bienvenida_tarjeta` | Utilidad | ¡{{1}}, empezaste tu tarjeta en {{2}}! Llevas {{3}} sellos para tu {{4}}. Aquí la ves cuando quieras: {{5}} |
+| `barberos_premio` | Marketing | ¡{{1}}, completaste tu tarjeta en {{2}}! En tu próxima visita tienes {{3}}. Aparta tu lugar: {{4}} |
+| `barberos_fila_turno` | Utilidad | Hola {{1}}, ya casi te toca en {{2}}: vas {{3}} en la fila. Ve acercándote. {{4}} |
+| `barberos_lugar_libre` | Utilidad | Hola {{1}}, ¡se liberó un lugar en {{2}} {{3}}! Apártalo antes que alguien más: {{4}} |
+
+Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (y con "Enviar ahora" en la bandeja). Los de marketing solo van a clientes que aceptaron promociones. Las campañas siguen enviándose con un toque, porque su texto es libre.
+
+### 6. Lo demás
+
+- **Datos legales:** llena `LEGAL_NAME`, `LEGAL_EMAIL` y `LEGAL_ADDRESS`, y revisa con un abogado `/privacidad` y `/terminos` (son plantillas basadas en la LFPDPPP).
+- **Tu acceso de administrador:** pon tu correo en `SUPERADMIN_EMAILS` y entra a `/admin`.
+- **Captcha opcional:** con `NEXT_PUBLIC_TURNSTILE_SITE_KEY` y `TURNSTILE_SECRET_KEY` (Cloudflare Turnstile) las reservas públicas piden verificación. Sin ellas siguen protegidas por límite de intentos y campo trampa.
 
 ## Cómo está hecho
 
 ```
 prisma/
-  schema.prisma                 17 tablas
-  migrations/…_init             generada por Prisma
-  migrations/…_reglas           reglas que Prisma no expresa (ver abajo)
-  seed.ts
+  schema.prisma                 modelos (37 tablas)
+  migrations/                   init, reglas, crm, mejoras, whatsapp, sellos, enlace_cliente_y_pagos,
+                                validaciones, bienvenida_tarjeta, modulos, seguridad_rls, demo
+  seed.ts                       datos de demostración
 src/
-  proxy.ts                      sesión de Supabase y protección de rutas
+  proxy.ts                      sesión de Supabase y rutas públicas
   lib/
-    auth.ts                     usuario, barbería activa, permisos por rol
-    availability.ts             cálculo de horarios libres (funciones puras)
+    auth.ts                     sesión, barbería activa, permisos, suscripción, modo soporte
+    availability.ts             horarios libres (funciones puras)
     booking.ts                  reservar con validación de disponibilidad
-    sales.ts                    cobro en una transacción
-    time.ts                     zonas horarias sin librerías
+    sales.ts                    cobro en una transacción (inventario, sellos, puntos, paquetes, folio)
+    validate.ts                 validación de campos (mismos mensajes en navegador y servidor)
+    queue.ts                    fila virtual: lugar, espera estimada y avisos
+    waitlist.ts                 lista de espera y clientes que faltan
+    expenses.ts                 gastos y utilidad
+    audit.ts                    bitácora de acciones sensibles
+    demo.ts, demo-data.ts       modo demo y datos de ejemplo (también los usa db:seed)
+    loyalty.ts                  textos y vista previa del premio de la tarjeta
+    crm.ts                      etapas, VIP, segmentos, cumpleaños, plantillas
+    messages.ts                 cola de mensajes automáticos y envío
+    whatsapp.ts                 WhatsApp Cloud API
+    billing.ts                  planes, acceso y Stripe
+    cash.ts                     corte de caja y comisiones
+    payroll.ts                  calendario y periodos de pago de comisiones
+    guard.ts                    límite de intentos y Turnstile
   app/
-    (auth)/                     login y registro
-    onboarding/                 alta de barbería
-    (panel)/                    todas las secciones del panel
-    b/[slug]/                   reservas públicas
-  components/                   UI compartida
+    page.tsx                    página de venta
+    (auth)/  onboarding/  (panel)/  b/[slug]/  c/[token]/  f/[slug]/  mi/[token]/  suscripcion/  admin/
+    api/cron/mensajes  api/stripe/webhook
+tests/                          npm test (lógica y cobros) · tests/e2e: npm run test:e2e
 ```
 
-**Disponibilidad.** Un horario está libre si cae dentro del horario de la barbería **y** del turno del barbero, y no choca con cierres, ausencias ni otras citas activas. Para reservas en línea también respeta la anticipación mínima y el máximo de días.
+**Doble reserva imposible.** Una restricción `EXCLUDE USING gist` en Postgres impide que dos citas activas del mismo barbero se encimen, aunque se reserven al mismo tiempo.
 
-**Doble reserva imposible.** La migración `reglas` agrega una restricción `EXCLUDE USING gist` en Postgres: dos citas activas del mismo barbero no pueden encimarse aunque se reserven al mismo milisegundo. Las canceladas y los no-show no bloquean.
+**Ventas.** Cada cobro corre en una transacción: copia precio y comisión al ticket, desglosa el IVA incluido, descuenta inventario solo si alcanza, canjea y otorga puntos, asigna folio consecutivo y marca la cita como terminada. Si algo falla, no se guarda nada.
 
-**Ventas.** Cada cobro corre en una transacción: copia precio y comisión al ticket, desglosa el IVA incluido, descuenta inventario solo si alcanza (`stock >= cantidad`), asigna folio consecutivo por barbería y marca la cita como terminada. Si algo falla, no se guarda nada.
+**Etapas del cliente.** Una visita es una cita terminada o una venta sin cita. *En riesgo* si ya pasó 1.5 veces su frecuencia, *perdido* después de los días configurados (90 por defecto), *nuevo* si su primera visita fue hace menos de 30 días. *VIP* es el 10% que más gasta, con al menos 3 visitas.
 
-**Historial intacto.** Citas y tickets guardan nombre y precio del servicio al momento. Subir el precio del corte no cambia ventas ni comisiones pasadas.
+**Lealtad.** *Sellos:* al cobrar un servicio (con el gasto mínimo configurado) se da un sello por visita; al llegar al número configurado se convierte en un premio que se aplica en caja, y esa visita no suma sello. *Puntos:* se ganan sobre lo pagado sin propina y se canjean como descuento. En ambos casos todo ocurre dentro de la transacción del cobro y cancelar la venta lo revierte. Los saldos nunca bajan de cero.
 
-**Zona horaria.** Las citas se guardan en UTC y se muestran en la zona de la barbería (`America/Mexico_City` por defecto). Los horarios semanales se guardan en minutos locales (9:30 = 570).
+**Mensajes.** `syncOutbox` revisa citas y clientes y deja en la bandeja lo que toca, sin duplicar (`dedupeKey`). Los recordatorios de citas canceladas o pasadas se descartan solos.
+
+**Reservas públicas.** Límite de intentos por IP, teléfono y barbería (en Postgres, sin servicios externos), campo trampa para bots, Turnstile opcional y máximo 2 citas futuras por teléfono. Si la barbería eligió bloquear a quien falta seguido, esos teléfonos no reservan en línea (cuentan los “no llegó” de los últimos 6 meses).
+
+**Lista de espera.** Cuando se cancela una cita futura (desde el panel o desde el enlace del cliente), se avisa a los primeros 3 de la lista de ese día a los que de verdad les sirve el hueco (mismo barbero o “cualquiera”, y su servicio cabe). El enlace abre la reserva con servicio, barbero y día ya elegidos. No se aparta el lugar: el primero que reserva se lo queda.
+
+**Paquetes.** Al venderse se guarda una copia de sus condiciones (servicios, usos, vigencia), así que editar el paquete no cambia los ya vendidos. Cada servicio cubierto consume un uso dentro de la transacción del cobro; cancelar la venta lo devuelve.
+
+**Calificaciones.** Se piden desde el mensaje de después de la visita, una por cita y hasta 30 días después. En la página pública se muestra el promedio a partir de 3 calificaciones.
+
+**API de Supabase cerrada.** Todas las tablas tienen RLS activo y sin políticas, y los roles `anon` y `authenticated` no tienen permisos: con la llave pública nadie puede leer ni modificar datos por la API REST de Supabase. La app no se ve afectada porque todo pasa por el servidor con Prisma, que se conecta como dueño de las tablas. Si agregas una tabla, actívale RLS en su migración (`npm test` avisa si falta).
+
+**Historial intacto.** Citas y tickets guardan nombre y precio del momento. **Zona horaria:** todo en UTC, mostrado en la zona de la barbería.
 
 ## Diseño
 
-Oscuro y sobrio, inspirado en la barbería clásica:
+Claro y moderno, igual de cómodo en celular que en el mostrador: fondo `#F5F6FA`, tarjetas blancas, índigo `#4F46E5` como color de marca y verde/ámbar/rojo para estados. Albert Sans en toda la interfaz e íconos de [lucide](https://lucide.dev). Menú lateral en computadora y barra inferior tipo app en celular. Se instala en el teléfono como app ("Agregar a pantalla de inicio").
 
-- **Colores:** pizarra `#1C1B19` de fondo, espuma `#EEEAE3` para el texto, ceniza `#9C978D` para lo secundario, y un solo acento frío, níquel `#C9CFD1`, como el acero de una navaja. Los estados de las citas usan tonos apagados (arena, salvia, rosa viejo).
-- **Tipografía:** Marcellus para títulos y cifras (letras romanas grabadas, como en los letreros y las navajas), Albert Sans para la interfaz.
-- **El detalle:** la regla de horas de la agenda se dibuja como los dientes de un peine: diente largo cada hora, corto cada 15 minutos. Aparece también en el login.
-- Sin sombras ni degradados: líneas finas, mucho espacio, y bordes redondeados según la jerarquía.
-
-Los tokens están al inicio de `src/app/globals.css`.
-
-## Pendiente para producción
-
-- Limitar intentos en la página pública de reservas (por ejemplo, con Upstash Rate Limit o Cloudflare Turnstile).
-- Recordatorios por WhatsApp o SMS.
-- Corte de caja por turno y reporte de comisiones por periodo.
-- Si vas a leer tablas desde el navegador con `supabase-js`, activa RLS. Esta app solo entra a la base desde el servidor con Prisma, y cada consulta filtra por la barbería activa.
+Los tokens están al inicio de `src/app/globals.css`; para cambiar el color de marca basta con `--color-brand`, `--color-brand-hover` y `--color-brand-soft`.

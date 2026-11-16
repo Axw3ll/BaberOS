@@ -1,5 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { DEMO_COOKIE } from "@/lib/demo-session";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { ActionResult } from "@/components/action-form";
 
@@ -18,7 +20,11 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
   const email = String(data.get("email") ?? "").trim();
   const password = String(data.get("password") ?? "");
   if (!name) return { error: "Escribe tu nombre." };
+  if (name.length > 80) return { error: "El nombre es demasiado largo (máximo 80 caracteres)." };
+  if (!/^\S+@\S+\.\S{2,}$/.test(email) || email.length > 160) return { error: "El correo no es válido." };
+  if (password.length > 72) return { error: "La contraseña es demasiado larga (máximo 72 caracteres)." };
   if (password.length < 8) return { error: "La contraseña necesita al menos 8 caracteres." };
+  if (data.get("terms") !== "on") return { error: "Acepta los términos y el aviso de privacidad para continuar." };
 
   const sb = await supabaseServer();
   const { data: res, error } = await sb.auth.signUp({
@@ -27,11 +33,26 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
   });
   if (error) return { error: error.message.includes("registered") ? "Ese email ya tiene cuenta. Inicia sesión." : "No se pudo crear la cuenta. Revisa el email." };
   if (!res.session) return { ok: "Te enviamos un correo para confirmar tu cuenta. Ábrelo y vuelve a entrar." };
-  redirect("/onboarding");
+  // /hoy decide: si ya lo agregaron a un equipo entra directo; si no, lo manda a registrar su barbería
+  redirect("/hoy");
 }
 
 export async function signOut() {
+  const jar = await cookies();
+  if (jar.get(DEMO_COOKIE)) {
+    jar.delete(DEMO_COOKIE);
+    redirect("/?ver=1");
+  }
   const sb = await supabaseServer();
   await sb.auth.signOut();
   redirect("/login");
+}
+
+export async function requestReset(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const email = String(data.get("email") ?? "").trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return { error: "Escribe un email válido." };
+  const sb = await supabaseServer();
+  await sb.auth.resetPasswordForEmail(email, { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/auth/confirm?next=/cuenta/contrasena` });
+  // Misma respuesta exista o no la cuenta: no revela qué correos están registrados
+  return { ok: "Si ese correo tiene cuenta, te llegará un enlace en unos minutos." };
 }

@@ -1,44 +1,132 @@
-import { currentContext, devAuth, ROLE_LABEL, sectionsFor } from "@/lib/auth";
-import { Nav } from "@/components/nav";
+import { after } from "next/server";
+import Link from "next/link";
+import { CreditCard, LogOut, Scissors } from "lucide-react";
+import { accessFor, billingEnabled, hasFeature } from "@/lib/billing";
+import { baseUrl, syncSoon } from "@/lib/messages";
+import { currentContext, devAuth, ROLE_LABEL, SECTION_FEATURE, sectionsFor } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { today } from "@/lib/time";
+import { initials } from "@/lib/format";
+import { MobileNav, Nav } from "@/components/nav";
 import { signOut } from "../(auth)/actions";
 import { switchShop } from "./actions";
+import { exitSupport } from "../admin/actions";
+import { exitDemo } from "../demo/actions";
+import { stopViewAs } from "./ver-como/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  const { me, shop, shops } = await currentContext();
+  const { me, shop, shops, support, viewingAs } = await currentContext();
+  // Secciones fuera del plan: el dueño las ve (al tocarlas le explicamos el plan); el resto del equipo no
+  const planAccess = accessFor(shop);
+  const sections = sectionsFor(me.role).filter((s) => me.role === "OWNER" || !SECTION_FEATURE[s] || hasFeature(planAccess, SECTION_FEATURE[s]!));
+  // Prepara recordatorios y avisos después de responder, sin hacer esperar a la página
+  const base = await baseUrl();
+  after(() => syncSoon(shop, base));
+
+  // Pendientes de hoy o atrasados y mensajes por enviar: se ven como número junto a "Seguimiento"
+  const [due, messages] = await Promise.all([
+    prisma.task.count({
+      where: { shopId: shop.id, doneAt: null, dueOn: { lte: new Date(`${today(shop.timezone)}T00:00:00Z`) },
+        OR: [{ assignedToId: me.id }, { assignedToId: null }] },
+    }),
+    prisma.outboundMessage.count({
+      where: { shopId: shop.id, status: "PENDING", dueAt: { lte: new Date() }, ...(me.role === "BARBER" && { appointment: { staffId: me.id } }) },
+    }),
+  ]);
+  const badges = { seguimiento: due + (hasFeature(planAccess, "mensajes") ? messages : 0) };
+  const access = accessFor(shop);
+  const banner = shop.isDemo ? null : access.state === "past_due"
+    ? { tone: "bg-warning/10 text-warning", text: "No pudimos cobrar tu suscripción. Actualiza tu tarjeta para no perder el acceso." }
+    : access.state === "trial" && (access.daysLeft ?? 99) <= 7
+      ? { tone: "bg-brand-soft text-brand", text: `Te quedan ${access.daysLeft} ${access.daysLeft === 1 ? "día" : "días"} de prueba gratis.` }
+      : null;
+
+  const logo = (
+    <span className="flex items-center gap-2.5">
+      <span className="grid size-8 place-items-center rounded-lg bg-brand text-on-brand"><Scissors className="size-4" /></span>
+      <span className="font-display text-lg">BarberOS</span>
+    </span>
+  );
+  const shopSwitch = shops.length > 1 ? (
+    <form action={switchShop} className="flex gap-1.5">
+      <select name="shopId" defaultValue={shop.id} aria-label="Barbería" className="field py-1.5 text-sm">
+        {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <button className="btn-quiet px-2.5 py-1.5 text-xs">Cambiar</button>
+    </form>
+  ) : null;
+  const user = (
+    <div className="flex items-center gap-3">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{initials(me.name)}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{me.name}</span>
+        <span className="block text-xs text-muted">{ROLE_LABEL[me.role]}</span>
+      </span>
+      {!devAuth && (
+        <form action={signOut}>
+          <button className="btn-ghost p-2" aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut className="size-4" /></button>
+        </form>
+      )}
+    </div>
+  );
 
   return (
-    <div className="lg:grid lg:min-h-dvh lg:grid-cols-[232px_1fr]">
-      <aside className="border-b border-line-soft px-4 pt-5 pb-3 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-r lg:border-b-0 lg:px-5 lg:py-8">
-        <div className="mb-4 flex items-baseline justify-between lg:mb-10 lg:block">
-          <span className="font-display text-xl tracking-wide">BarberOS</span>
-          {shops.length > 1 ? (
-            <form action={switchShop} className="lg:mt-5">
-              <select name="shopId" defaultValue={shop.id} aria-label="Barbería"
-                className="field max-w-48 py-1.5 text-sm" >
-                {shops.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-              <button className="btn-ghost text-xs">Cambiar</button>
-            </form>
-          ) : (
-            <p className="truncate text-sm text-ash lg:mt-2">{shop.name}</p>
-          )}
+    <div className="lg:grid lg:min-h-dvh lg:grid-cols-[256px_1fr]">
+      <aside className="hidden border-r border-line bg-surface print:!hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:px-4 lg:py-6">
+        <div className="mb-6 px-2">
+          {logo}
+          <div className="mt-4">{shopSwitch ?? <p className="truncate rounded-lg bg-hover px-3 py-2 text-sm text-muted">{shop.name}</p>}</div>
         </div>
-
-        <Nav sections={sectionsFor(me.role)} />
-
-        <div className="mt-auto hidden border-t border-line-soft pt-5 lg:block">
-          <p className="truncate text-sm text-foam">{me.name}</p>
-          <p className="text-sm text-ash-2">{ROLE_LABEL[me.role]}</p>
-          {!devAuth && (
-            <form action={signOut}>
-              <button className="mt-3 text-sm text-ash transition-colors hover:text-foam">Cerrar sesión</button>
-            </form>
+        <div className="-mx-1 flex-1 overflow-y-auto px-1"><Nav sections={sections} badges={badges} /></div>
+        <div className="mt-4 border-t border-line-soft px-2 pt-4">
+          {me.role === "OWNER" && billingEnabled() && (
+            <Link href="/suscripcion" className="mb-3 flex items-center gap-2 rounded-lg px-1 text-sm text-muted hover:text-fg">
+              <CreditCard className="size-4" />Suscripción{access.state === "trial" && <span className="ml-auto rounded-full bg-brand-soft px-2 text-xs text-brand">Prueba</span>}
+            </Link>
           )}
+          {user}
         </div>
       </aside>
-      <main className="min-w-0 px-5 py-10 sm:px-8 lg:px-14 lg:py-14">
-        <div className="mx-auto max-w-[1180px]">{children}</div>
+
+      <header className="sticky top-0 z-30 flex print:hidden items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+        {logo}
+        <span className="min-w-0 truncate text-sm text-muted">{shop.name}</span>
+      </header>
+
+      <main className="panel min-w-0 px-4 pt-6 pb-28 sm:px-6 lg:px-10 lg:py-10 print:p-0">
+        <div className="mx-auto max-w-[1200px]">
+          {support && (
+            <form action={exitSupport} className="mb-6 flex items-center justify-between gap-3 rounded-xl bg-danger px-4 py-3 text-sm font-medium text-white">
+              <span>Modo soporte: estás dentro de la cuenta de {shop.name}. Lo que hagas queda a nombre de su dueño.</span>
+              <button className="shrink-0 underline">Salir</button>
+            </form>
+          )}
+          {viewingAs && (
+            <form action={stopViewAs} className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warning px-4 py-3 text-sm font-medium text-white print:hidden">
+              <span>Estás viendo el sistema como {me.name} ({ROLE_LABEL[me.role].toLowerCase()}). Solo en desarrollo.</span>
+              <button className="shrink-0 rounded-lg bg-white/20 px-3 py-1.5 hover:bg-white/30">Volver a mi cuenta</button>
+            </form>
+          )}
+          {shop.isDemo && (
+            <form action={exitDemo} className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-soft px-4 py-3 text-sm print:hidden">
+              <span><strong>Estás viendo una demostración.</strong> Toca lo que quieras: agenda, cobra, mueve la fila. Nada sale de aquí y se borra sola en 24 horas.</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <button name="to" value="registro" className="btn-primary py-1.5">Crear mi barbería gratis</button>
+                <button name="to" value="salir" className="btn-ghost py-1.5">Salir</button>
+              </span>
+            </form>
+          )}
+          {banner && (
+            <Link href="/suscripcion" className={`mb-6 flex items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-medium ${banner.tone}`}>
+              <span>{banner.text}</span>
+              <span className="shrink-0 underline">{me.role === "OWNER" ? "Elegir plan" : "Ver"}</span>
+            </Link>
+          )}
+          {children}
+        </div>
       </main>
+
+      <MobileNav sections={sections} badges={badges} footer={<div className="space-y-3">{shopSwitch}{me.role === "OWNER" && billingEnabled() && <Link href="/suscripcion" className="flex items-center gap-2 text-sm text-muted"><CreditCard className="size-4" />Suscripción</Link>}{user}</div>} />
     </div>
   );
 }
