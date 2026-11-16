@@ -95,3 +95,32 @@ test("cookie de demo: válida entra; alterada, de otro usuario o vencida no", as
   assert.equal(await verifyDemo(""), null);
   assert.equal(await verifyDemo("basura"), null);
 });
+
+test("suscripción: prueba de 14 días, cobro manual por WhatsApp y cobro apagado", async () => {
+  const { accessFor, billingEnabled } = await import("../src/lib/billing");
+  const day = 86_400_000, now = Date.now();
+  const shop = (o: Partial<{ trialEndsAt: Date; subscriptionStatus: string | null; currentPeriodEnd: Date | null; plan: "TRIAL" | "BASIC" | "PRO" }> = {}) =>
+    ({ plan: "TRIAL" as const, trialEndsAt: new Date(now + 14 * day), subscriptionStatus: null, currentPeriodEnd: null, ...o });
+  const saved = { stripe: process.env.STRIPE_SECRET_KEY, wa: process.env.COBRO_WHATSAPP };
+  try {
+    delete process.env.STRIPE_SECRET_KEY; delete process.env.COBRO_WHATSAPP;
+    assert.equal(billingEnabled(), false);
+    assert.equal(accessFor(shop({ trialEndsAt: new Date(now - day) })).state, "free"); // sin cobro: todo gratis siempre
+
+    process.env.COBRO_WHATSAPP = "312 555 0142"; // cobro manual
+    assert.equal(billingEnabled(), true);
+    const t = accessFor(shop());
+    assert.equal(t.state, "trial");
+    assert.equal(t.daysLeft, 14);
+    assert.equal(accessFor(shop({ trialEndsAt: new Date(now - day) })).state, "expired");
+    // Activado a mano desde /admin por 30 días
+    const paid = accessFor(shop({ trialEndsAt: new Date(now - day), subscriptionStatus: "manual", currentPeriodEnd: new Date(now + 30 * day), plan: "BASIC" }));
+    assert.equal(paid.state, "active");
+    assert.equal(paid.plan, "BASIC");
+    // Y al terminar esos 30 días, vence
+    assert.equal(accessFor(shop({ trialEndsAt: new Date(now - 40 * day), subscriptionStatus: "manual", currentPeriodEnd: new Date(now - day), plan: "BASIC" })).state, "expired");
+  } finally {
+    if (saved.stripe === undefined) delete process.env.STRIPE_SECRET_KEY; else process.env.STRIPE_SECRET_KEY = saved.stripe;
+    if (saved.wa === undefined) delete process.env.COBRO_WHATSAPP; else process.env.COBRO_WHATSAPP = saved.wa;
+  }
+});

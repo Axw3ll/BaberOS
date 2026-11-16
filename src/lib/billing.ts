@@ -7,8 +7,11 @@ import type { Plan } from "@/generated/prisma/enums";
 // Suscripción a BarberOS
 //
 // Cada barbería empieza con 14 días de prueba (todo incluido). Después necesita un plan pagado.
-// Sin STRIPE_SECRET_KEY el cobro está apagado y todo queda disponible (desarrollo o instalación propia).
-// También se puede activar a mano desde /admin (por ejemplo, si te pagan por transferencia).
+// Tres modos:
+//  - Con STRIPE_SECRET_KEY: pagan con tarjeta desde /suscripcion (Stripe).
+//  - Con COBRO_WHATSAPP (tu número) y sin Stripe: cobro manual. La prueba vence igual; para pagar te escriben
+//    por WhatsApp, te transfieren y activas el plan desde /admin (30 días cada vez).
+//  - Sin ninguno: el cobro está apagado y todo queda disponible (desarrollo o instalación propia).
 // ─────────────────────────────────────────────────────────────────────
 
 export const PLANS = {
@@ -27,7 +30,11 @@ export type PaidPlan = keyof typeof PLANS;
 export const PRO_SECTIONS = ["campanas", "reportes"] as const;
 export const BASIC_STAFF_LIMIT = 3;
 
-export const billingEnabled = () => Boolean(process.env.STRIPE_SECRET_KEY);
+export const stripeEnabled = () => Boolean(process.env.STRIPE_SECRET_KEY);
+/** Tu WhatsApp para cobro manual (10 dígitos), si no usas Stripe. */
+export const manualBillingPhone = () => (stripeEnabled() ? null : (process.env.COBRO_WHATSAPP ?? "").replace(/\D/g, "") || null);
+/** ¿Se cobra la suscripción? (con Stripe o a mano). Si no, todo es gratis. */
+export const billingEnabled = () => stripeEnabled() || manualBillingPhone() !== null;
 
 let client: Stripe | null = null;
 export function stripe() {

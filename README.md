@@ -81,6 +81,8 @@ Solo dueño y encargado cancelan ventas, pagan comisiones y borran clientes, y n
 | Campañas y reportes | ✓ | — | ✓ |
 | Personas en el equipo | Sin límite | 3 | Sin límite |
 
+**Cómo se cobra:** con Stripe (`STRIPE_SECRET_KEY`), con tarjeta desde `/suscripcion`. Sin Stripe pero con `COBRO_WHATSAPP` (tu número), el cobro es manual: la prueba vence igual, el botón "Pagar por transferencia" abre un chat contigo y activas el plan desde `/admin` por 30 días. Sin ninguno de los dos, el cobro está apagado y todo es gratis (útil en desarrollo).
+
 Al vencer la prueba o el plan, el panel lleva a `/suscripcion` y la página pública deja de recibir reservas; los datos se conservan. Si falla un pago hay 7 días de gracia. Precios y funciones se cambian en `src/lib/billing.ts`.
 
 ## Publicar en producción

@@ -3,11 +3,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { currentContext } from "@/lib/auth";
 import { baseUrl } from "@/lib/messages";
-import { PLANS, stripe, type PaidPlan } from "@/lib/billing";
+import { PLANS, stripe, stripeEnabled, type PaidPlan } from "@/lib/billing";
 
 async function ownerContext() {
   const ctx = await currentContext();
-  if (ctx.me.role !== "OWNER" || ctx.shop.isDemo) redirect("/suscripcion");
+  if (ctx.me.role !== "OWNER" || ctx.shop.isDemo || !stripeEnabled()) redirect("/suscripcion");
   return ctx;
 }
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Check, ChevronLeft, CreditCard, Crown, Scissors } from "lucide-react";
+import { Check, ChevronLeft, CreditCard, Crown, MessageCircle, Scissors } from "lucide-react";
 import { currentContext } from "@/lib/auth";
-import { accessFor, billingEnabled, PLANS, type PaidPlan } from "@/lib/billing";
+import { accessFor, billingEnabled, manualBillingPhone, PLANS, type PaidPlan } from "@/lib/billing";
+import { whatsappUrl } from "@/lib/crm";
 import { dateLabel, toLocalDate } from "@/lib/time";
 import { openPortal, startCheckout } from "./actions";
 
@@ -10,12 +11,16 @@ export const metadata = { title: "Suscripción" };
 const PRO_NAME: Record<string, string> = { campanas: "Campañas", reportes: "Reportes" };
 
 export default async function SuscripcionPage({ searchParams }: { searchParams: Promise<{ ok?: string; pro?: string; error?: string }> }) {
-  const { shop, me } = await currentContext();
+  const { shop, me, user } = await currentContext();
   const sp = await searchParams;
   const access = accessFor(shop);
   const owner = me.role === "OWNER";
   const tz = shop.timezone;
   const enabled = billingEnabled();
+  // Cobro manual (sin Stripe): el botón abre WhatsApp contigo con el mensaje listo
+  const manualPhone = manualBillingPhone();
+  const askToPay = (plan: string) => whatsappUrl(manualPhone ?? "",
+    `Hola, quiero activar el plan ${plan} de BarberOS para "${shop.name}" (${shop.slug}). Mi correo es ${user.email}. ¿Me pasas los datos para transferir?`);
 
   const status =
     access.state === "free" ? { tone: "success", text: "Cobro desactivado: todas las funciones disponibles." }
@@ -62,6 +67,10 @@ export default async function SuscripcionPage({ searchParams }: { searchParams: 
                     </ul>
                     {current ? (
                       <span className="btn-quiet mt-6 cursor-default">Tu plan actual</span>
+                    ) : manualPhone ? (
+                      <a href={askToPay(p.name)} target="_blank" rel="noopener" className={`${k === "PRO" ? "btn-primary" : "btn-quiet"} mt-6 w-full`}>
+                        <MessageCircle className="size-4" />Pagar {p.name} por transferencia
+                      </a>
                     ) : shop.stripeSubscriptionId && access.state !== "expired" ? (
                       <form action={openPortal} className="mt-6"><button className={k === "PRO" ? "btn-primary w-full" : "btn-quiet w-full"}>Cambiar a {p.name}</button></form>
                     ) : (
@@ -79,7 +88,11 @@ export default async function SuscripcionPage({ searchParams }: { searchParams: 
                 <button className="btn-ghost"><CreditCard className="size-4" />Cambiar tarjeta, ver facturas o cancelar</button>
               </form>
             )}
-            <p className="mt-6 text-sm text-faint">Pagos seguros con Stripe (tarjeta). Cancela cuando quieras. Precios con IVA incluido.</p>
+            <p className="mt-6 text-sm text-faint">
+              {manualPhone
+                ? "Pago por transferencia o depósito: te mandamos los datos por WhatsApp y en cuanto se refleje activamos tu plan por 30 días. Precios con IVA incluido."
+                : "Pagos seguros con Stripe (tarjeta). Cancela cuando quieras. Precios con IVA incluido."}
+            </p>
           </>
         )}
       </div>
