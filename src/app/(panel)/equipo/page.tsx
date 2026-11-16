@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { canEmailInvites } from "@/lib/supabase/admin";
 import { prisma } from "@/lib/prisma";
 import { requireSection, ROLE_LABEL } from "@/lib/auth";
 import { summarize } from "@/lib/schedule";
@@ -9,9 +10,9 @@ import { addStaff } from "./actions";
 
 export const metadata = { title: "Equipo" };
 
-export default async function EquipoPage({ searchParams }: { searchParams: Promise<{ nuevo?: string }> }) {
+export default async function EquipoPage({ searchParams }: { searchParams: Promise<{ nuevo?: string; limite?: string }> }) {
   const { shop } = await requireSection("equipo");
-  const { nuevo } = await searchParams;
+  const { nuevo, limite } = await searchParams;
   const staff = await prisma.staff.findMany({
     where: { shopId: shop.id },
     include: { schedule: true, _count: { select: { services: true } } },
@@ -23,10 +24,16 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
       <PageHeader title="Equipo" subtitle="Quién trabaja en la barbería, qué hace y en qué horario."
         actions={<Link href="/equipo?nuevo=1" className="btn-primary">Agregar persona</Link>} />
 
+      {limite && (
+        <p role="alert" className="mb-6 rounded-xl bg-warning/10 px-4 py-3 text-sm text-warning">
+          El plan Básico incluye hasta {limite} personas activas. Da de baja a alguien o <Link href="/suscripcion" className="underline">cambia a Pro</Link> para reactivarla.
+        </p>
+      )}
       {nuevo && (
         <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">
           <h2 className="font-display text-xl">Nueva persona</h2>
-          <p className="mt-1 mb-6 text-sm text-muted">Si escribes su email, podrá entrar con su propia cuenta: solo tiene que registrarse en BarberOS con ese mismo email. No se manda correo; te damos un enlace para compartirle.</p>
+          <p className="mt-1 mb-6 text-sm text-muted">Si escribes su email, podrá entrar con su propia cuenta.{" "}
+            {canEmailInvites() ? "Le llega un correo de invitación para elegir su contraseña; también te damos un enlace para mandárselo por WhatsApp." : "Solo tiene que registrarse en BarberOS con ese mismo email; te damos un enlace para mandárselo por WhatsApp."}</p>
           <ActionForm action={addStaff}>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Nombre"><input name="name" required className="field" /></Field>

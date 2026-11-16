@@ -176,6 +176,10 @@ export async function toggleStaff(data: FormData) {
   const { ctx, s } = await editable(String(data.get("id")));
   if (s.role === "OWNER") return;
   if (s.id === ctx.me.id) return;
+  // Reactivar cuenta para el límite del plan Básico (si no, se podría dar de baja y volver a dar de alta para pasarlo)
+  if (!s.active && !hasPro(accessFor(ctx.shop)) && (await prisma.staff.count({ where: { shopId: ctx.shop.id, active: true } })) >= BASIC_STAFF_LIMIT) {
+    redirect(`/equipo?limite=${BASIC_STAFF_LIMIT}`);
+  }
   await prisma.staff.update({ where: { id: s.id }, data: { active: !s.active } });
   revalidatePath("/equipo");
   redirect("/equipo");
