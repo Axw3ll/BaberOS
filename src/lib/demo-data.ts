@@ -122,7 +122,7 @@ export async function buildDemoShop(db: Db, opts: {
   type Plan = [day: number, minute: number, staffId: string, svc: (typeof services)[number], cust: number, planned: "CONFIRMED" | "PENDING" | "NO_SHOW"];
   const plan: Plan[] = [
     [0, 600, toño.id, fade, 0, "CONFIRMED"], [0, 660, toño.id, corte, 1, "CONFIRMED"], [0, 720, toño.id, combo, 2, "CONFIRMED"],
-    [0, 840, toño.id, barba, 3, "CONFIRMED"], [0, 960, toño.id, fade, 4, "PENDING"],
+    [0, 840, toño.id, barba, 3, "CONFIRMED"], [0, 960, toño.id, corte, 4, "PENDING"],
     [0, 615, owner.id, corte, 5, "CONFIRMED"], [0, 690, owner.id, barba, 6, "NO_SHOW"], [0, 900, owner.id, combo, 7, "CONFIRMED"],
     [0, 1035, owner.id, corte, 8, "CONFIRMED"],
     [0, 735, luis.id, fade, 9, "CONFIRMED"], [0, 810, luis.id, corte, 10, "CONFIRMED"], [0, 1110, luis.id, barba, 11, "PENDING"],
