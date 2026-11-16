@@ -110,8 +110,8 @@ export default async function ClientesPage({ searchParams }: {
           {sort !== "reciente" && <input type="hidden" name="sort" value={sort} />}
           <input name="q" defaultValue={term} placeholder="Buscar por nombre, teléfono o email" aria-label="Buscar cliente" className="field" />
         </form>
-        <nav aria-label="Ordenar" className="flex items-center gap-2 text-sm text-muted">
-          Ordenar por
+        <nav aria-label="Ordenar" className="flex max-w-full items-center gap-3 text-sm text-muted overflow-x-auto pb-1 [scrollbar-width:none] [&>*]:shrink-0 [&>*]:whitespace-nowrap sm:gap-2">
+          <span>Ordenar por</span>
           {(Object.keys(SORTS) as Sort[]).filter((k) => seesMoney || k !== "gasto").map((k) => (
             <Link key={k} href={href({ sort: k === "reciente" ? undefined : k })}
               className={k === sort ? "text-fg" : "hover:text-fg"} aria-current={k === sort ? "true" : undefined}>
@@ -121,7 +121,7 @@ export default async function ClientesPage({ searchParams }: {
         </nav>
       </div>
 
-      <nav aria-label="Segmentos" className="mb-8 flex flex-wrap gap-2">
+      <nav aria-label="Segmentos" className="mb-8 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&>*]:shrink-0 [&>*]:whitespace-nowrap sm:flex-wrap sm:overflow-visible sm:pb-0">
         {SEGMENTS.map((s) => (
           <Chip key={s.id} href={href({ seg: s.id === "todos" ? undefined : s.id })} active={seg === s.id}
             color={s.id in STAGE ? STAGE[s.id as keyof typeof STAGE].color : undefined}>
@@ -140,7 +140,28 @@ export default async function ClientesPage({ searchParams }: {
           {term ? "Revisa el nombre o prueba con el teléfono." : all.length ? "Prueba con otro filtro." : "Se registran solos al agendar o cobrar con teléfono."}
         </Empty>
       ) : (
-        <div className="table-card">
+        <>
+        {/* Celular: tarjetas con lo esencial */}
+        <ul className="card divide-y divide-line-soft sm:hidden">
+          {shown.map((c) => (
+            <li key={c.id}>
+              <Link href={`/clientes/${c.id}`} className="block px-4 py-3 transition-colors hover:bg-hover">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate font-medium">{c.name}{c.vip && <span className="ml-2 text-xs text-warning">VIP</span>}</span>
+                  <Dot color={STAGE[c.stage].color}>{STAGE[c.stage].label}</Dot>
+                </span>
+                <span className="mt-0.5 flex justify-between gap-3 text-sm text-muted">
+                  <span className="tnum">{c.phone}</span>
+                  <span className="text-right">
+                    {c.visits} {c.visits === 1 ? "visita" : "visitas"}
+                    {c.lastVisit && ` · ${c.daysSince === 0 ? "hoy" : `hace ${c.daysSince} d`}`}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <div className="table-card hidden sm:block">
           <table className="w-full min-w-[720px] text-left">
             <thead className="text-sm text-muted">
               <tr className="border-b border-line">
@@ -183,10 +204,11 @@ export default async function ClientesPage({ searchParams }: {
               ))}
             </tbody>
           </table>
-          {list.length > shown.length && (
-            <p className="mt-4 text-sm text-muted">Mostrando {shown.length} de {list.length}. Usa la búsqueda o los filtros para encontrar a los demás.</p>
-          )}
         </div>
+        {list.length > shown.length && (
+          <p className="mt-4 text-sm text-muted">Mostrando {shown.length} de {list.length}. Usa la búsqueda o los filtros para encontrar a los demás.</p>
+        )}
+        </>
       )}
     </>
   );

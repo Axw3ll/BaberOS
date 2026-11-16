@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -40,7 +41,7 @@ export async function updateService(_: ActionResult, data: FormData): Promise<Ac
   if ("error" in r) return { error: r.error };
   const before = await prisma.service.findFirst({ where: { id, shopId: shop.id } });
   if (before && Number(before.price) !== r.data.price) {
-    await audit(shop.id, me.id, "precio.cambio", `Cambió el precio de ${r.data.name}: $${Number(before.price)} → $${r.data.price}`, { type: "service", id });
+    await audit(shop.id, me.id, "precio.cambio", `Cambió el precio de ${r.data.name}: ${money(before.price)} → ${money(r.data.price)}`, { type: "service", id });
   }
   const valid = await prisma.staff.findMany({ where: { shopId: shop.id, id: { in: r.staffIds } }, select: { id: true } });
   await prisma.$transaction([

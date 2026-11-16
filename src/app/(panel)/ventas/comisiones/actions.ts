@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
@@ -25,7 +26,7 @@ export async function payCommissions(data: FormData) {
     });
     await tx.saleItem.updateMany({ where: { id: { in: items.map((i) => i.id) } }, data: { payoutId: p.id } });
     const who = await tx.staff.findUnique({ where: { id: staffId }, select: { name: true } });
-    await tx.auditLog.create({ data: { shopId: shop.id, staffId: me.id, action: "comision.pago", summary: `Pagó $${p.amount.toFixed(2)} de comisiones a ${who?.name ?? "—"}`, entityType: "payout", entityId: p.id } });
+    await tx.auditLog.create({ data: { shopId: shop.id, staffId: me.id, action: "comision.pago", summary: `Pagó ${money(p.amount)} de comisiones a ${who?.name ?? "—"}`, entityType: "payout", entityId: p.id } });
   });
   revalidatePath("/ventas/comisiones");
   revalidatePath("/hoy");

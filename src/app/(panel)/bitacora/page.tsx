@@ -33,13 +33,14 @@ export default async function BitacoraPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <PageHeader title="Bitácora" subtitle="Quién hizo qué: cobros, descuentos, cancelaciones, cambios de precio, pagos y cortes." />
-      <div className="mb-3 flex flex-wrap gap-2">
+      {/* En celular los filtros van en una fila que se desliza; en computadora, en varias líneas */}
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&>*]:shrink-0 [&>*]:whitespace-nowrap sm:flex-wrap sm:overflow-visible sm:pb-0">
         <Chip href={href({ a: undefined })} active={!action}>Todo</Chip>
         {(Object.keys(AUDIT_ACTIONS) as AuditAction[]).map((k) => (
           <Chip key={k} href={href({ a: k })} active={action === k} color={TONE[k]}>{AUDIT_ACTIONS[k]}</Chip>
         ))}
       </div>
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&>*]:shrink-0 [&>*]:whitespace-nowrap sm:flex-wrap sm:overflow-visible sm:pb-0">
         <Chip href={href({ s: undefined })} active={!s}>Todo el equipo</Chip>
         {staff.map((p) => <Chip key={p.id} href={href({ s: p.id })} active={s === p.id}>{p.name}</Chip>)}
       </div>

@@ -58,6 +58,8 @@ async function publicDay(dayIndex: number) {
 
 test.beforeAll(async ({ browser }) => {
   await cleanupShops(); // restos de una corrida anterior que se interrumpió
+  // Los límites de intentos de la página pública (por IP y teléfono) se llenarían al correr las pruebas varias veces
+  await sql(`DELETE FROM rate_limits`);
   ctx = await browser.newContext();
   page = await ctx.newPage();
   page.on("dialog", (d) => d.accept());

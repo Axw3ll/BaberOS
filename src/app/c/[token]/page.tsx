@@ -66,7 +66,7 @@ export default async function ClientAppointmentPage({ params }: { params: Promis
         {a.shop.loyaltyMode === "STAMPS" && (a.customer.stamps > 0 || a.customer.stampRewards > 0) && (
           <div className="mt-4">
             <p className="mb-2 px-1 text-sm font-medium text-muted">Tu tarjeta de {a.shop.name}</p>
-            <StampCard stamps={a.customer.stamps} required={a.shop.stampsRequired} rewards={a.customer.stampRewards} rewardLabel={stampRewardLabel(a.shop)} compact />
+            <StampCard stamps={a.customer.stamps} required={a.shop.stampsRequired} rewards={a.customer.stampRewards} rewardLabel={stampRewardLabel(a.shop)} compact you />
           </div>
         )}
         {(a.shop.address || a.shop.phone) && (

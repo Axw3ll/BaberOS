@@ -38,7 +38,7 @@ export default async function QueuePublicPage({ params }: { params: Promise<{ sl
       <div className="mx-auto -mt-12 max-w-md space-y-4 px-4 pb-12">
         <section className="card grid grid-cols-2 divide-x divide-line-soft p-0">
           <div className="flex items-center gap-3 p-4"><Users className="size-5 text-brand" /><span><span className="block font-display text-2xl tnum">{waiting.length}</span><span className="text-sm text-muted">en la fila</span></span></div>
-          <div className="flex items-center gap-3 p-4"><Clock className="size-5 text-brand" /><span><span className="block font-display text-2xl tnum">{waiting.length ? `~${wait} min` : "Ya"}</span><span className="text-sm text-muted">de espera</span></span></div>
+          <div className="flex items-center gap-3 p-4"><Clock className="size-5 text-brand" /><span><span className="block font-display text-2xl tnum">{waiting.length ? `~${wait} min` : "Sin espera"}</span><span className="text-sm text-muted">{waiting.length ? "de espera" : "nadie antes que tú"}</span></span></div>
         </section>
         <section className="card p-5">
           {open ? <JoinForm slug={slug} services={services} staff={staff} /> : (

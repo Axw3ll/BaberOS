@@ -49,6 +49,9 @@
 }
 
 @layer base {
+  /* Las columnas de grid y flex pueden encogerse: así una fila larga (días, chips, una tabla) hace scroll o se corta
+     dentro de su tarjeta en vez de ensanchar toda la página en el celular. Las utilidades (min-w-*) siguen ganando. */
+  .grid > *, main > * { min-width: 0; }
   html {
     color-scheme: light;
     background: var(--color-canvas);

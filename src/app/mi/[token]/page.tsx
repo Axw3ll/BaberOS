@@ -47,7 +47,7 @@ export default async function MyPage({ params }: { params: Promise<{ token: stri
       <div className="mx-auto -mt-12 max-w-md space-y-4 px-4 pb-12">
         {shop.loyaltyMode === "STAMPS" && (
           <section className="card p-4">
-            <StampCard stamps={c.stamps} required={shop.stampsRequired} rewards={c.stampRewards} rewardLabel={stampRewardLabel(shop)} />
+            <StampCard stamps={c.stamps} required={shop.stampsRequired} rewards={c.stampRewards} rewardLabel={stampRewardLabel(shop)} you />
             <p className="mt-3 text-sm text-muted">Ganas un sello en cada visita. Al juntar {shop.stampsRequired}, tu siguiente visita tiene {stampRewardLabel(shop)}.</p>
           </section>
         )}

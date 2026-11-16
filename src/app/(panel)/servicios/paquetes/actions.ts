@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
@@ -29,7 +30,7 @@ export async function savePackage(_: ActionResult, data: FormData): Promise<Acti
       prisma.packageService.deleteMany({ where: { packageId: id } }),
       prisma.packageService.createMany({ data: valid.map((s) => ({ packageId: id, serviceId: s.id })) }),
     ]);
-    if (Number(before.price) !== price.value) await audit(shop.id, me.id, "precio.cambio", `Cambió el precio del paquete ${fields.name}: $${Number(before.price)} → $${price.value}`);
+    if (Number(before.price) !== price.value) await audit(shop.id, me.id, "precio.cambio", `Cambió el precio del paquete ${fields.name}: ${money(before.price)} → ${money(price.value!)}`);
   } else {
     await prisma.package.create({ data: { ...fields, shopId: shop.id, services: { create: valid.map((s) => ({ serviceId: s.id })) } } });
   }

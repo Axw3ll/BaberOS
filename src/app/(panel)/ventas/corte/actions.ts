@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -34,6 +35,6 @@ export async function closeCash(_: ActionResult, data: FormData): Promise<Action
   });
   revalidatePath("/ventas/corte");
   await audit(shop.id, me.id, "caja.corte",
-    `Hizo el corte: esperado $${expected.toFixed(2)}, contado $${counted.toFixed(2)}${counted !== expected ? ` (diferencia $${(counted - expected).toFixed(2)})` : ""}`, { type: "cash", id: c.id });
+    `Hizo el corte: esperado ${money(expected)}, contado ${money(counted)}${counted !== expected ? ` (diferencia ${money((counted - expected))})` : ""}`, { type: "cash", id: c.id });
   redirect(`/ventas/corte?listo=${c.id}`);
 }

@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { audit } from "@/lib/audit";
@@ -50,7 +51,7 @@ export async function chargeSale(input: {
     });
     saleId = sale.id;
     await audit(shop.id, me.id, Number(sale.discount) > 0 ? "venta.descuento" : "venta.cobro",
-      `Cobró la venta #${sale.folio} por $${Number(sale.total).toFixed(2)}${Number(sale.discount) > 0 ? ` con $${Number(sale.discount).toFixed(2)} de descuento` : ""}`,
+      `Cobró la venta #${sale.folio} por ${money(Number(sale.total))}${Number(sale.discount) > 0 ? ` con ${money(Number(sale.discount))} de descuento` : ""}`,
       { type: "sale", id: sale.id });
   } catch (e) {
     if (e instanceof SaleError) return { error: e.message };
@@ -67,7 +68,7 @@ export async function cancelSale(data: FormData) {
   if (!canAccess(me.role, "ajustes")) return; // solo dueño y encargado
   const id = String(data.get("id"));
   const s = await voidSale(shop.id, id);
-  await audit(shop.id, me.id, "venta.cancelada", `Canceló la venta #${s.folio} por $${Number(s.total).toFixed(2)}`, { type: "sale", id });
+  await audit(shop.id, me.id, "venta.cancelada", `Canceló la venta #${s.folio} por ${money(Number(s.total))}`, { type: "sale", id });
   revalidatePath(`/ventas/${id}`);
   revalidatePath("/ventas");
 }
@@ -105,7 +106,7 @@ export async function quickCharge(_: { error?: string } | void, data: FormData):
       lines: a.services.map((s) => ({ kind: "SERVICE" as const, serviceId: s.serviceId, staffId: a.staffId, quantity: 1 })),
     });
     saleId = sale.id;
-    await audit(shop.id, me.id, "venta.cobro", `Cobró la venta #${sale.folio} por $${Number(sale.total).toFixed(2)} desde la cita`, { type: "sale", id: sale.id });
+    await audit(shop.id, me.id, "venta.cobro", `Cobró la venta #${sale.folio} por ${money(Number(sale.total))} desde la cita`, { type: "sale", id: sale.id });
   } catch (e) {
     if (e instanceof SaleError) return { error: e.message };
     throw e;

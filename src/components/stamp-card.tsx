@@ -1,8 +1,10 @@
 import { Gift, Scissors } from "lucide-react";
 
 /** Tarjeta de sellos: un círculo por visita; el último es el premio. */
-export function StampCard({ stamps, required, rewards, rewardLabel, compact = false }: {
+export function StampCard({ stamps, required, rewards, rewardLabel, compact = false, you = false }: {
   stamps: number; required: number; rewards: number; rewardLabel: string; compact?: boolean;
+  /** true en las páginas que ve el propio cliente: "tienes" en vez de "tiene" */
+  you?: boolean;
 }) {
   const left = required - stamps;
   return (
@@ -10,7 +12,7 @@ export function StampCard({ stamps, required, rewards, rewardLabel, compact = fa
       {rewards > 0 && (
         <p className="mb-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-sm font-semibold">
           <Gift className="size-4 shrink-0" />
-          {rewards === 1 ? `Tiene un premio listo: ${rewardLabel}` : `Tiene ${rewards} premios listos: ${rewardLabel}`}
+          {rewards === 1 ? `${you ? "Tienes" : "Tiene"} un premio listo: ${rewardLabel}` : `${you ? "Tienes" : "Tiene"} ${rewards} premios listos: ${rewardLabel}`}
         </p>
       )}
       <div className={`grid gap-2 ${required <= 6 ? "grid-cols-6" : required <= 10 ? "grid-cols-5" : "grid-cols-6"}`} role="img"
@@ -26,7 +28,7 @@ export function StampCard({ stamps, required, rewards, rewardLabel, compact = fa
         })}
       </div>
       <p className="mt-3 text-sm text-white/85">
-        {stamps} de {required} sellos · {left === 1 ? "¡le falta uno!" : `faltan ${left}`} para {rewardLabel}
+        {stamps} de {required} sellos · {left === 1 ? (you ? "¡te falta uno!" : "¡le falta uno!") : `faltan ${left}`} para {rewardLabel}
       </p>
     </div>
   );

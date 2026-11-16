@@ -4,7 +4,7 @@ import { FREQUENCY_LABEL, payrollInfo, WEEKDAYS } from "@/lib/payroll";
 import { prisma } from "@/lib/prisma";
 import { canAccess, requireSection } from "@/lib/auth";
 import { unpaidCommissions } from "@/lib/cash";
-import { dateLabel, dateTimeLabel, toLocalDate } from "@/lib/time";
+import { dateLabel, dateTimeLabel, toLocalDate, today } from "@/lib/time";
 import { initials, money } from "@/lib/format";
 import { Empty, Figure, Figures, PageHeader, SectionTitle } from "@/components/ui";
 import { payCommissions } from "./actions";
@@ -16,6 +16,11 @@ export default async function ComisionesPage() {
   const admin = canAccess(me.role, "ajustes");
   const onlyMe = me.role === "BARBER" ? me.id : undefined;
   const tz = shop.timezone;
+  // "28 dic" es ambiguo si fue el año pasado: entonces se muestra el año
+  const sinceLabel = (d: Date) => {
+    const day = toLocalDate(d, tz);
+    return dateLabel(day, { day: "numeric", month: "short", ...(day.slice(0, 4) !== today(tz).slice(0, 4) && { year: "numeric" }) });
+  };
   const pay = payrollInfo(shop);
   const [pending, history] = await Promise.all([
     unpaidCommissions(shop.id, onlyMe, pay.cutoff),
@@ -62,7 +67,7 @@ export default async function ComisionesPage() {
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{p.name}</span>
                     <span className="block text-sm text-muted">
-                      Servicios {money(p.services)} · productos {money(p.products)} · desde el {dateLabel(toLocalDate(p.since, tz), { day: "numeric", month: "short" })}
+                      Servicios {money(p.services)} · productos {money(p.products)} · desde el {sinceLabel(p.since)}
                     </span>
                   </span>
                   <span className="text-right">

@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
@@ -25,7 +26,7 @@ export async function addExpense(_: ActionResult, data: FormData): Promise<Actio
   const e = await prisma.expense.create({
     data: { shopId: shop.id, createdById: me.id, date: new Date(`${date}T00:00:00Z`), category, amount: amount.value!, method: method as "CASH", note: note.value },
   });
-  await audit(shop.id, me.id, "gasto.registro", `Registró un gasto de $${amount.value!.toFixed(2)} en ${category}${note.value ? ` (${note.value})` : ""}`, { type: "expense", id: e.id });
+  await audit(shop.id, me.id, "gasto.registro", `Registró un gasto de ${money(amount.value!)} en ${category}${note.value ? ` (${note.value})` : ""}`, { type: "expense", id: e.id });
   revalidatePath("/gastos");
   revalidatePath("/ventas/corte");
   return { ok: "Gasto registrado." };
@@ -36,7 +37,7 @@ export async function deleteExpense(data: FormData) {
   const e = await prisma.expense.findFirst({ where: { id: String(data.get("id")), shopId: shop.id } });
   if (!e) return;
   await prisma.expense.delete({ where: { id: e.id } });
-  await audit(shop.id, me.id, "gasto.borrado", `Borró un gasto de $${Number(e.amount).toFixed(2)} en ${e.category}`);
+  await audit(shop.id, me.id, "gasto.borrado", `Borró un gasto de ${money(Number(e.amount))} en ${e.category}`);
   revalidatePath("/gastos");
   revalidatePath("/ventas/corte");
 }

@@ -28,17 +28,17 @@ export function ScheduleEditor({ days, offLabel = "Descansa" }: { days: Day[]; o
             </label>
             {d.on ? (
               <>
-                <span className="flex items-center gap-2">
-                  <input type="time" name={`d${wd}_s1`} value={d.s1} onChange={(e) => set(wd, { s1: e.target.value })} className="field w-32 py-1.5 tnum" aria-label={`${NAMES[wd]} entrada`} />
+                <span className="flex w-full items-center gap-2 sm:w-auto">
+                  <input type="time" name={`d${wd}_s1`} value={d.s1} onChange={(e) => set(wd, { s1: e.target.value })} className="field min-w-0 flex-1 py-1.5 tnum sm:w-32 sm:flex-none" aria-label={`${NAMES[wd]} entrada`} />
                   <span className="text-faint">a</span>
-                  <input type="time" name={`d${wd}_e1`} value={d.e1} onChange={(e) => set(wd, { e1: e.target.value })} className="field w-32 py-1.5 tnum" aria-label={`${NAMES[wd]} salida`} />
+                  <input type="time" name={`d${wd}_e1`} value={d.e1} onChange={(e) => set(wd, { e1: e.target.value })} className="field min-w-0 flex-1 py-1.5 tnum sm:w-32 sm:flex-none" aria-label={`${NAMES[wd]} salida`} />
                 </span>
                 {split[wd] ? (
-                  <span className="flex items-center gap-2">
+                  <span className="flex w-full items-center gap-2 sm:w-auto">
                     <span className="text-faint">y</span>
-                    <input type="time" name={`d${wd}_s2`} value={d.s2} onChange={(e) => set(wd, { s2: e.target.value })} className="field w-32 py-1.5 tnum" aria-label={`${NAMES[wd]} entrada del segundo turno`} />
+                    <input type="time" name={`d${wd}_s2`} value={d.s2} onChange={(e) => set(wd, { s2: e.target.value })} className="field min-w-0 flex-1 py-1.5 tnum sm:w-32 sm:flex-none" aria-label={`${NAMES[wd]} entrada del segundo turno`} />
                     <span className="text-faint">a</span>
-                    <input type="time" name={`d${wd}_e2`} value={d.e2} onChange={(e) => set(wd, { e2: e.target.value })} className="field w-32 py-1.5 tnum" aria-label={`${NAMES[wd]} salida del segundo turno`} />
+                    <input type="time" name={`d${wd}_e2`} value={d.e2} onChange={(e) => set(wd, { e2: e.target.value })} className="field min-w-0 flex-1 py-1.5 tnum sm:w-32 sm:flex-none" aria-label={`${NAMES[wd]} salida del segundo turno`} />
                     <button type="button" className="btn-ghost text-sm" onClick={() => { setSplit((s) => ({ ...s, [wd]: false })); set(wd, { s2: "", e2: "" }); }}>Quitar</button>
                   </span>
                 ) : (

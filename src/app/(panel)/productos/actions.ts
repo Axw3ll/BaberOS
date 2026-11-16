@@ -1,4 +1,5 @@
 "use server";
+import { money } from "@/lib/format";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -62,7 +63,7 @@ export async function updateProduct(_: ActionResult, data: FormData): Promise<Ac
   const before = await prisma.product.findFirst({ where: { id, shopId: shop.id } });
   await prisma.product.update({ where: { id, shopId: shop.id }, data: r.data });
   if (before && Number(before.price) !== r.data.price) {
-    await audit(shop.id, me.id, "precio.cambio", `Cambió el precio de ${r.data.name}: $${Number(before.price)} → $${r.data.price}`, { type: "product", id });
+    await audit(shop.id, me.id, "precio.cambio", `Cambió el precio de ${r.data.name}: ${money(before.price)} → ${money(r.data.price)}`, { type: "product", id });
   }
   revalidatePath("/productos");
   revalidatePath(`/productos/${id}`);

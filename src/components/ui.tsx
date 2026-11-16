@@ -23,7 +23,8 @@ export function PageHeader({ title, subtitle, actions, back }: {
 
 export function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
   return (
-    <div className="section-title mb-4 flex items-center justify-between gap-4">
+    // flex-wrap: si la nota de la derecha es larga, baja a la siguiente línea en vez de apretar el título
+    <div className="section-title mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <h2 className="font-display text-lg text-fg">{children}</h2>
       {aside && <div className="text-sm text-muted">{aside}</div>}
     </div>

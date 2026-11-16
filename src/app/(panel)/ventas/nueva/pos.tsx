@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { money as money2 } from "@/lib/format";
 import { chargeSale, lookupCustomer } from "../actions";
 import { previewStampDiscount } from "@/lib/loyalty";
@@ -42,6 +42,16 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
   const [name, setName] = useState(initialCustomer?.name ?? "");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  // ¿Se ve el ticket en pantalla? (en celular, si no, se muestra una barra con el total)
+  const ticketRef = useRef<HTMLElement>(null);
+  const [ticketVisible, setTicketVisible] = useState(false);
+  useEffect(() => {
+    const el = ticketRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setTicketVisible(e.isIntersecting), { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
   const [known, setKnown] = useState<({ name: string } & CustomerLoyalty) | null>(null);
   const [usePoints, setUsePoints] = useState(false);
   const [useReward, setUseReward] = useState(false);
@@ -184,7 +194,7 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
         )}
       </section>
 
-      <aside className="lg:sticky lg:top-14 lg:self-start">
+      <aside ref={ticketRef} id="ticket" className="scroll-mt-4 lg:sticky lg:top-14 lg:self-start">
         <div className="card p-6">
           <p className="font-display text-xl">Ticket</p>
           {lines.length === 0 ? (
@@ -308,6 +318,17 @@ export function Pos({ services, products, staff, me, appointmentId, initial, loy
           </button>
         </div>
       </aside>
+
+      {/* Celular: el ticket queda abajo de la lista; esta barra muestra el total y lleva a él */}
+      {lines.length > 0 && !ticketVisible && (
+        <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-40 border-t border-line bg-surface/95 px-4 py-2.5 backdrop-blur lg:hidden print:hidden">
+          <button type="button" onClick={() => ticketRef.current?.scrollIntoView({ behavior: "smooth" })}
+            className="btn-primary flex w-full items-center justify-between py-2.5">
+            <span>{lines.reduce((a, l) => a + l.quantity, 0)} en el ticket</span>
+            <span className="tnum">Ver ticket · {money2(total)}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
