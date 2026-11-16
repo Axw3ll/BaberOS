@@ -37,6 +37,7 @@ export default async function SuscripcionPage({ searchParams }: { searchParams: 
         </div>
 
         <h1 className="font-display text-3xl">Suscripción de {shop.name}</h1>
+        {shop.isDemo && <p className="mt-4 rounded-xl bg-brand-soft p-4 text-brand">Esta es una demostración: aquí no se cobra nada. Así se ven los planes que elegirías al crear tu barbería.</p>}
         {sp.ok && <p className="mt-4 rounded-xl bg-success/10 p-4 text-success">¡Gracias! Tu pago se está confirmando; en unos segundos verás tu plan activo.</p>}
         {sp.pro && <p className="mt-4 rounded-xl bg-brand-soft p-4 text-brand"><Crown className="mr-1.5 inline size-4" />{PRO_NAME[sp.pro] ?? "Esta sección"} es parte del plan Pro.</p>}
         <p className={`mt-4 rounded-xl p-4 ${tones[status.tone]}`}>{status.text}</p>

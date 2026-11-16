@@ -5,6 +5,8 @@ import {
 } from "lucide-react";
 import { currentUser } from "@/lib/auth";
 import { PLANS } from "@/lib/billing";
+import { demoEnabled } from "@/lib/demo-session";
+import { DemoButton } from "@/components/demo-button";
 
 export const metadata = {
   title: "BarberOS: agenda, clientes y caja para tu barbería",
@@ -41,6 +43,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
   // Con sesión, directo al panel (con ?ver=1 se puede ver esta página igual)
   const { ver } = await searchParams;
   if (!ver && (await currentUser())) redirect("/hoy");
+  const demo = demoEnabled();
 
   return (
     <div className="min-h-dvh bg-canvas text-fg">
@@ -70,9 +73,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/registro" className="btn-primary px-6 py-3 text-base">Empieza gratis 14 días</Link>
-                <a href="#funciones" className="btn-quiet px-6 py-3 text-base">Ver qué incluye</a>
+                {demo ? <DemoButton /> : <a href="#funciones" className="btn-quiet px-6 py-3 text-base">Ver qué incluye</a>}
               </div>
-              <p className="mt-4 text-sm text-faint">Sin tarjeta. Listo en 5 minutos.</p>
+              <p className="mt-4 text-sm text-faint">Sin tarjeta. Listo en 5 minutos.{demo && " La demo es una barbería de ejemplo: entra sin registrarte y toca todo."}</p>
             </div>
 
             {/* Vista de ejemplo del día */}
@@ -190,7 +193,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         <section className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6">
           <h2 className="font-display text-3xl">Empieza hoy, en 5 minutos</h2>
           <p className="mt-2 text-muted">Da de alta tus servicios y tu equipo, y comparte tu enlace.</p>
-          <Link href="/registro" className="btn-primary mt-6 px-6 py-3 text-base">Crear mi barbería gratis</Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link href="/registro" className="btn-primary px-6 py-3 text-base">Crear mi barbería gratis</Link>
+            {demo && <DemoButton label="Probar la demo primero" />}
+          </div>
         </section>
       </main>
 

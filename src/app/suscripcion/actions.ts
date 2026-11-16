@@ -7,7 +7,7 @@ import { PLANS, stripe, type PaidPlan } from "@/lib/billing";
 
 async function ownerContext() {
   const ctx = await currentContext();
-  if (ctx.me.role !== "OWNER") redirect("/suscripcion");
+  if (ctx.me.role !== "OWNER" || ctx.shop.isDemo) redirect("/suscripcion");
   return ctx;
 }
 

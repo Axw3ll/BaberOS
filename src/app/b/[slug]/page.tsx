@@ -8,8 +8,8 @@ import { accessFor, canUsePanel } from "@/lib/billing";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const shop = await prisma.barbershop.findUnique({ where: { slug }, select: { name: true, description: true } });
-  return { title: shop ? `Reservar en ${shop.name}` : "Reservar", description: shop?.description ?? undefined };
+  const shop = await prisma.barbershop.findUnique({ where: { slug }, select: { name: true, description: true, isDemo: true } });
+  return { title: shop ? `Reservar en ${shop.name}` : "Reservar", description: shop?.description ?? undefined, ...(shop?.isDemo && { robots: { index: false } }) };
 }
 
 export default async function PublicBookingPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ c?: string; fecha?: string; servicio?: string; barbero?: string }> }) {

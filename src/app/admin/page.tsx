@@ -24,7 +24,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const { q = "" } = await searchParams;
 
   const shops = await prisma.barbershop.findMany({
-    where: q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { owner: { email: { contains: q, mode: "insensitive" } } }] } : {},
+    where: { isDemo: false, ...(q && { OR: [{ name: { contains: q, mode: "insensitive" } }, { owner: { email: { contains: q, mode: "insensitive" } } }] }) },
     include: { owner: true, _count: { select: { customers: true, staff: true } } },
     orderBy: { createdAt: "desc" },
     take: 200,

@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 import { supabaseServer } from "./supabase/server";
 import type { Role } from "@/generated/prisma/enums";
 import { accessFor, canUsePanel, hasPro, PRO_SECTIONS } from "./billing";
+import { DEMO_COOKIE, demoEmail, verifyDemo } from "./demo-session";
 
 const DEV_EMAIL = process.env.NODE_ENV !== "production" ? process.env.DEV_AUTH_EMAIL : undefined;
 const DEV_ID = "00000000-0000-4000-8000-000000000001";
@@ -13,6 +14,9 @@ export const devAuth = Boolean(DEV_EMAIL);
 
 /** Quién está en sesión, sin tocar la base. getClaims valida el JWT localmente (llaves asimétricas). */
 const session = cache(async (): Promise<{ id: string; email: string; name: string } | null> => {
+  // Demo ("Ver demo"): cookie firmada, sin cuenta. Va primero para que también funcione en desarrollo
+  const demoId = await verifyDemo((await cookies()).get(DEMO_COOKIE)?.value);
+  if (demoId) return { id: demoId, email: demoEmail(demoId), name: "Dueño" };
   if (DEV_EMAIL) return { id: DEV_ID, email: DEV_EMAIL, name: "Desarrollo" };
   const sb = await supabaseServer();
   const { data } = await sb.auth.getClaims();
@@ -28,7 +32,7 @@ async function ensureUser(s: { id: string; email: string; name: string }, exists
     ? await prisma.user.findUniqueOrThrow({ where: { id: s.id } })
     : await prisma.user.upsert({ where: { id: s.id }, update: {}, create: s });
   if (pendingInvite || !exists) {
-    await prisma.staff.updateMany({ where: { email: user.email, userId: null }, data: { userId: user.id } });
+    await prisma.staff.updateMany({ where: { email: user.email, userId: null, shop: { isDemo: false } }, data: { userId: user.id } });
   }
   return user;
 }
@@ -39,7 +43,7 @@ export const currentUser = cache(async () => {
   if (!s) return null;
   const [user, invite] = await Promise.all([
     prisma.user.findUnique({ where: { id: s.id } }),
-    prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+    prisma.staff.findFirst({ where: { email: s.email, userId: null, shop: { isDemo: false } }, select: { id: true } }),
   ]);
   if (user && !invite) return user;
   return ensureUser(s, Boolean(user), Boolean(invite));
@@ -72,7 +76,7 @@ export const currentContext = cache(async () => {
   });
   let [user, invite, memberships] = await Promise.all([
     prisma.user.findUnique({ where: { id: s.id } }),
-    prisma.staff.findFirst({ where: { email: s.email, userId: null }, select: { id: true } }),
+    prisma.staff.findFirst({ where: { email: s.email, userId: null, shop: { isDemo: false } }, select: { id: true } }),
     membershipsQuery(),
   ]);
   if (!user || invite) {

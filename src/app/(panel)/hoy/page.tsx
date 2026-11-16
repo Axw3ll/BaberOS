@@ -106,7 +106,7 @@ export default async function HoyPage() {
         {pending > 0 && <Figure value={pending} label="Por confirmar" icon={Clock} tone="warning" />}
       </div>
 
-      {canAccess(me.role, "ajustes") && <GettingStarted shop={shop} />}
+      {canAccess(me.role, "ajustes") && !shop.isDemo && <GettingStarted shop={shop} />}
 
       {myGoal && (
         <section className="mb-6">

@@ -20,7 +20,9 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 
 > Después de cada `git pull` con migraciones nuevas: `npm install`, `npm run db:deploy` y reinicia `npm run dev` (el servidor de desarrollo guarda en memoria el cliente de Prisma anterior).
 
-**Datos de demostración:** `SEED_OWNER_EMAIL=tu@email.com npm run db:seed` crea "Barbería El Filo" con equipo, servicios, productos, clientes con meses de historial, citas, ventas, etiquetas, seguimientos y una campaña. Entra una vez con ese email antes de correrlo.
+**Datos de demostración:** `SEED_OWNER_EMAIL=tu@email.com npm run db:seed` crea "Barbería El Filo" con equipo, servicios, productos, clientes con meses de historial, citas, ventas, lealtad, un paquete, calificaciones, gastos, gente en la fila y en la lista de espera, etiquetas, seguimientos y una campaña. Tarda menos de un segundo. Entra una vez con ese email antes de correrlo.
+
+**Botón "Ver demo":** en la página de inicio, cualquiera entra a una barbería de ejemplo sin registrarse (los mismos datos de arriba, en `src/lib/demo-data.ts`). Cada visitante tiene la suya, así que nadie ve los cambios de otro, y se borra sola a las 24 horas. En una demo no salen WhatsApp automáticos, invitaciones por correo ni cobros, y no aparece en `/admin`. En producción necesita `DEMO_SECRET`; máximo 6 demos por hora desde la misma conexión.
 
 **Sin Supabase Auth:** con `DEV_AUTH_EMAIL="tu@email.com"` en `.env`, `npm run dev` entra directo con ese usuario. En producción se ignora. La página de venta (`/`) se ve igual con `/?ver=1`.
 
@@ -51,7 +53,7 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 | **Gastos** | Renta, sueldos, insumos… por categoría. Utilidad del mes = ventas − comisiones − costo de productos − gastos |
 | **Bitácora** | Quién canceló una venta o cita, cambió un precio o una comisión, ajustó puntos, pagó comisiones o cambió reglas |
 | **Productos, Servicios, Equipo, Ajustes** | Inventario con kardex, servicios y paquetes, roles, horarios, metas del mes y presentación de cada barbero, invitaciones, mensajes automáticos, lealtad, etiquetas y reglas: descuento máximo por rol, qué hacer con quien falta seguido (avisar o no dejarlo reservar en línea) y fila virtual |
-| **/** | Página de venta de BarberOS: funciones, precios y preguntas frecuentes (con sesión, lleva al panel) |
+| **/** | Página de venta de BarberOS: funciones, precios, preguntas frecuentes y el botón "Ver demo" (con sesión, lleva al panel) |
 | **/b/tu-barberia** | Página pública: descripción, Instagram, mapa, horario, equipo, calificaciones y reservas (protegidas contra abuso). Si un día está lleno: “Avísame si se libera un lugar” |
 | **/f/tu-barberia** | Fila virtual pública |
 | **/c/…** | Enlace privado de cada cita: confirmar, cambiar o cancelar, agregarla al calendario y, después de la visita, calificarla. Las calificaciones de 3 o menos crean una tarea para llamarle; la invitación a Google se muestra a todos |
@@ -154,7 +156,7 @@ Cuando Meta las apruebe, los mensajes se envían solos con la tarea programada (
 prisma/
   schema.prisma                 modelos (37 tablas)
   migrations/                   init, reglas, crm, mejoras, whatsapp, sellos, enlace_cliente_y_pagos,
-                                validaciones, bienvenida_tarjeta, modulos, seguridad_rls
+                                validaciones, bienvenida_tarjeta, modulos, seguridad_rls, demo
   seed.ts                       datos de demostración
 src/
   proxy.ts                      sesión de Supabase y rutas públicas
@@ -168,6 +170,7 @@ src/
     waitlist.ts                 lista de espera y clientes que faltan
     expenses.ts                 gastos y utilidad
     audit.ts                    bitácora de acciones sensibles
+    demo.ts, demo-data.ts       modo demo y datos de ejemplo (también los usa db:seed)
     loyalty.ts                  textos y vista previa del premio de la tarjeta
     crm.ts                      etapas, VIP, segmentos, cumpleaños, plantillas
     messages.ts                 cola de mensajes automáticos y envío

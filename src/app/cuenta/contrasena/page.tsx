@@ -1,5 +1,7 @@
 import { Scissors } from "lucide-react";
 import { requireUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { isDemoEmail } from "@/lib/demo";
 import { ActionForm, Submit } from "@/components/action-form";
 import { Field } from "@/components/ui";
 import { setPassword } from "./actions";
@@ -8,6 +10,7 @@ export const metadata = { title: "Tu contraseña" };
 
 export default async function PasswordPage() {
   const user = await requireUser();
+  if (isDemoEmail(user.email)) redirect("/hoy");
   return (
     <main className="grid min-h-dvh place-items-center bg-canvas px-4">
       <div className="card w-full max-w-sm p-7">

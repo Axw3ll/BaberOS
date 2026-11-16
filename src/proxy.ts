@@ -1,11 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { DEMO_COOKIE, verifyDemo } from "@/lib/demo-session";
 
 // Refresca la sesión de Supabase en cada request y protege el panel.
 const PUBLIC = ["/login", "/registro", "/recuperar", "/b/", "/c/", "/mi/", "/f/", "/auth/", "/privacidad", "/terminos", "/api/cron/", "/api/stripe/", "/manifest.webmanifest"];
 
 export async function proxy(request: NextRequest) {
   if (process.env.NODE_ENV !== "production" && process.env.DEV_AUTH_EMAIL) return NextResponse.next();
+  // Quien está viendo la demo entra al panel sin cuenta (la barbería de demo es solo suya)
+  if (await verifyDemo(request.cookies.get(DEMO_COOKIE)?.value)) return NextResponse.next();
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(

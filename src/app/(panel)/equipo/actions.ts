@@ -54,7 +54,8 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
     },
   });
   revalidatePath("/equipo");
-  const sent = email && !existingUser ? await sendInvite(email, name) : null;
+  // En la demo no se mandan correos: alguien podría escribir el de otra persona
+  const sent = email && !existingUser && !shop.isDemo ? await sendInvite(email, name) : null;
   redirect(`/equipo/${s.id}${sent === null ? "" : sent ? "?invitacion=enviada" : "?invitacion=error"}`);
 }
 
@@ -72,7 +73,7 @@ async function sendInvite(email: string, name: string) {
 export async function resendInvite(data: FormData) {
   const { shop } = await requireSection("equipo");
   const s = await prisma.staff.findFirst({ where: { id: String(data.get("id")), shopId: shop.id, userId: null } });
-  if (!s?.email) return;
+  if (!s?.email || shop.isDemo) return;
   const sent = await sendInvite(s.email, s.name);
   redirect(`/equipo/${s.id}?invitacion=${sent ? "enviada" : "error"}`);
 }

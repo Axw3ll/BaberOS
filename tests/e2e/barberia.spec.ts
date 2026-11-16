@@ -291,3 +291,32 @@ test("9. el cliente califica su visita y ve su tarjeta", async () => {
   await page.goto(`/mi/${ana.token}`);
   await expect(page.getByText("Te quedan 2 de 3")).toBeVisible();
 });
+
+test("10. ver demo: entra sin registrarse, recorre y sale", async ({ browser }) => {
+  // Contexto nuevo: como un visitante que llega a la página de venta
+  const visitor = await browser.newContext();
+  const p = await visitor.newPage();
+  await p.goto("/?ver=1");
+  await p.getByRole("button", { name: "Ver demo en vivo" }).click();
+  await p.waitForURL("**/hoy", { timeout: 60_000 });
+  await expect(p.getByText("Estás viendo una demostración")).toBeVisible();
+  await expect(p.getByRole("heading", { name: "Primeros pasos" })).toHaveCount(0);
+
+  const demo = await one<{ id: string; isDemo: boolean }>(`SELECT id, "isDemo" FROM barbershops WHERE "isDemo" ORDER BY "createdAt" DESC LIMIT 1`);
+  expect(demo.isDemo).toBe(true);
+  const counts = await one<{ appts: number; sales: number }>(
+    `SELECT (SELECT count(*)::int FROM appointments WHERE "shopId" = $1) AS appts, (SELECT count(*)::int FROM sales WHERE "shopId" = $1) AS sales`, [demo.id]);
+  expect(counts.appts).toBeGreaterThan(50);
+  expect(counts.sales).toBeGreaterThan(40);
+
+  await p.goto("/fila");
+  await expect(p.getByText("Pablo")).toBeVisible();
+  await p.goto("/suscripcion");
+  await expect(p.getByText(/aquí no se cobra nada/)).toBeVisible();
+
+  await p.goto("/hoy");
+  await p.getByRole("button", { name: "Salir" }).first().click();
+  await p.waitForURL(/\?ver=1/);
+  expect((await visitor.cookies()).some((c) => c.name === "barberos_demo")).toBe(false);
+  await visitor.close();
+});

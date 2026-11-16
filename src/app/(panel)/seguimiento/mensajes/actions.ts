@@ -35,7 +35,7 @@ export async function skipMessage(data: FormData) {
 /** Con la API de WhatsApp conectada: envía ya lo pendiente sin esperar a la tarea programada. */
 export async function sendAllNow() {
   const { shop, me } = await requireSection("seguimiento");
-  if (me.role === "BARBER" || !whatsappEnabled()) return;
+  if (me.role === "BARBER" || !whatsappEnabled() || shop.isDemo) return;
   await deliverPending(shop.id);
   revalidatePath("/seguimiento/mensajes");
   revalidatePath("/hoy");

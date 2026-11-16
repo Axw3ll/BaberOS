@@ -81,3 +81,17 @@ test("premio de la tarjeta de sellos", () => {
   assert.equal(previewStampDiscount({ stampReward: "AMOUNT", stampRewardValue: 500 }, [180], 180), 180);
   assert.equal(previewStampDiscount(free, [], 100), 0);
 });
+
+test("cookie de demo: válida entra; alterada, de otro usuario o vencida no", async () => {
+  const { signDemo, verifyDemo } = await import("../src/lib/demo-session");
+  const uid = "11111111-2222-4333-8444-555555555555";
+  const ok = await signDemo(uid);
+  assert.equal(await verifyDemo(ok), uid);
+  const [, exp, sig] = ok.split(".");
+  assert.equal(await verifyDemo(`22222222-2222-4333-8444-555555555555.${exp}.${sig}`), null); // otro usuario con la misma firma
+  assert.equal(await verifyDemo(`${uid}.${Number(exp) + 1000}.${sig}`), null); // alargar el vencimiento
+  assert.equal(await verifyDemo(`${uid}.${exp}.${"0".repeat(sig.length)}`), null); // firma inventada
+  assert.equal(await verifyDemo(`${uid}.${Date.now() - 1000}.${sig}`), null); // vencida
+  assert.equal(await verifyDemo(""), null);
+  assert.equal(await verifyDemo("basura"), null);
+});

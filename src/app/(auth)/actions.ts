@@ -1,5 +1,7 @@
 "use server";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { DEMO_COOKIE } from "@/lib/demo-session";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { ActionResult } from "@/components/action-form";
 
@@ -36,6 +38,11 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
 }
 
 export async function signOut() {
+  const jar = await cookies();
+  if (jar.get(DEMO_COOKIE)) {
+    jar.delete(DEMO_COOKIE);
+    redirect("/?ver=1");
+  }
   const sb = await supabaseServer();
   await sb.auth.signOut();
   redirect("/login");

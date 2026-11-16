@@ -293,6 +293,7 @@ export async function runAutomations(base: string) {
   let created = 0, sent = 0, failed = 0;
   for (const shop of shops) {
     if (!canUsePanel(accessFor(shop))) continue; // barberías vencidas no envían
+    if (shop.isDemo) continue; // las demos nunca envían: alguien podría poner el teléfono de otra persona
     created += await syncOutbox(shop, base);
     if (!autoSendEnabled()) continue;
     const r = await deliverPending(shop.id);

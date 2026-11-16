@@ -11,6 +11,7 @@ import { MobileNav, Nav } from "@/components/nav";
 import { signOut } from "../(auth)/actions";
 import { switchShop } from "./actions";
 import { exitSupport } from "../admin/actions";
+import { exitDemo } from "../demo/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const { me, shop, shops, support } = await currentContext();
@@ -31,7 +32,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   ]);
   const badges = { seguimiento: due + messages };
   const access = accessFor(shop);
-  const banner = access.state === "past_due"
+  const banner = shop.isDemo ? null : access.state === "past_due"
     ? { tone: "bg-warning/10 text-warning", text: "No pudimos cobrar tu suscripción. Actualiza tu tarjeta para no perder el acceso." }
     : access.state === "trial" && (access.daysLeft ?? 99) <= 7
       ? { tone: "bg-brand-soft text-brand", text: `Te quedan ${access.daysLeft} ${access.daysLeft === 1 ? "día" : "días"} de prueba gratis.` }
@@ -95,6 +96,15 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <form action={exitSupport} className="mb-6 flex items-center justify-between gap-3 rounded-xl bg-danger px-4 py-3 text-sm font-medium text-white">
               <span>Modo soporte: estás dentro de la cuenta de {shop.name}. Lo que hagas queda a nombre de su dueño.</span>
               <button className="shrink-0 underline">Salir</button>
+            </form>
+          )}
+          {shop.isDemo && (
+            <form action={exitDemo} className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand-soft px-4 py-3 text-sm print:hidden">
+              <span><strong>Estás viendo una demostración.</strong> Toca lo que quieras: agenda, cobra, mueve la fila. Nada sale de aquí y se borra sola en 24 horas.</span>
+              <span className="flex shrink-0 items-center gap-1">
+                <button name="to" value="registro" className="btn-primary py-1.5">Crear mi barbería gratis</button>
+                <button name="to" value="salir" className="btn-ghost py-1.5">Salir</button>
+              </span>
             </form>
           )}
           {banner && (
