@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "./prisma";
+import { accessFor, hasFeature } from "./billing";
 import { toLocalMinute, today, weekday } from "./time";
 import type { Barbershop } from "@/generated/prisma/client";
 
@@ -44,6 +45,7 @@ export async function withEstimates(shop: Barbershop, entries: Awaited<ReturnTyp
 
 export async function joinQueue(shop: Barbershop, input: { name: string; phone: string | null; serviceId?: string | null; staffId?: string | null; source: "ONLINE" | "PANEL" }) {
   if (!shop.queueEnabled && input.source === "ONLINE") throw new QueueError("La fila en línea no está disponible por ahora.");
+  if (!hasFeature(accessFor(shop), "fila")) throw new QueueError("La fila no está disponible por ahora.");
   // Si ya está formado con ese teléfono, se le devuelve su lugar (no se duplica)
   if (input.phone) {
     const existing = await prisma.queueEntry.findFirst({

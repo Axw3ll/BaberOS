@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "./prisma";
 import { supabaseServer } from "./supabase/server";
 import type { Role } from "@/generated/prisma/enums";
-import { accessFor, canUsePanel, hasPro, PRO_SECTIONS } from "./billing";
+import { accessFor, canUsePanel, hasFeature, type Feature } from "./billing";
 import { DEMO_COOKIE, DEMO_EMAIL_DOMAIN, demoEmail, verifyDemo } from "./demo-session";
 
 const DEV_EMAIL = process.env.NODE_ENV !== "production" ? process.env.DEV_AUTH_EMAIL : undefined;
@@ -127,12 +127,16 @@ export const canAccess = (role: Role, s: Section) => ACCESS[role].includes(s);
 export const sectionsFor = (role: Role) => ACCESS[role];
 
 /** Para páginas y server actions: corta si el rol no tiene acceso o si la suscripción no lo permite. */
+/** Secciones que dependen del plan. */
+export const SECTION_FEATURE: Partial<Record<Section, Feature>> = { fila: "fila", reportes: "reportes", gastos: "gastos", campanas: "campanas", bitacora: "bitacora" };
+
 export async function requireSection(s: Section) {
   const ctx = await currentContext();
   if (!canAccess(ctx.me.role, s)) redirect("/hoy");
   const access = accessFor(ctx.shop);
   if (!canUsePanel(access)) redirect("/suscripcion");
-  if ((PRO_SECTIONS as readonly string[]).includes(s) && !hasPro(access)) redirect(`/suscripcion?pro=${s}`);
+  const f = SECTION_FEATURE[s];
+  if (f && !hasFeature(access, f)) redirect(`/suscripcion?pro=${f}`);
   return ctx;
 }
 

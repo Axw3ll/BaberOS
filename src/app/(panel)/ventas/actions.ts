@@ -1,4 +1,5 @@
 "use server";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { money } from "@/lib/format";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -19,6 +20,7 @@ export async function chargeSale(input: {
   const { shop, me } = await requireSection("ventas");
   if (!["CASH", "CARD", "TRANSFER"].includes(input.method)) return { error: "Elige cómo pagó." };
   if (input.lines.some((l) => l.kind === "SERVICE" && !l.staffId)) return { error: "Indica qué barbero hizo cada servicio." };
+  if (input.lines.some((l) => l.kind === "PACKAGE") && !hasFeature(accessFor(shop), "paquetes")) return { error: "Vender paquetes viene desde el plan Estándar." };
 
   let customerId: string | null = null;
   if (input.appointmentId) {

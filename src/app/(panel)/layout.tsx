@@ -1,9 +1,9 @@
 import { after } from "next/server";
 import Link from "next/link";
 import { CreditCard, LogOut, Scissors } from "lucide-react";
-import { accessFor, billingEnabled } from "@/lib/billing";
+import { accessFor, billingEnabled, hasFeature } from "@/lib/billing";
 import { baseUrl, syncSoon } from "@/lib/messages";
-import { currentContext, devAuth, ROLE_LABEL, sectionsFor } from "@/lib/auth";
+import { currentContext, devAuth, ROLE_LABEL, SECTION_FEATURE, sectionsFor } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/time";
 import { initials } from "@/lib/format";
@@ -16,7 +16,9 @@ import { stopViewAs } from "./ver-como/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const { me, shop, shops, support, viewingAs } = await currentContext();
-  const sections = sectionsFor(me.role);
+  // Secciones fuera del plan: el dueño las ve (al tocarlas le explicamos el plan); el resto del equipo no
+  const planAccess = accessFor(shop);
+  const sections = sectionsFor(me.role).filter((s) => me.role === "OWNER" || !SECTION_FEATURE[s] || hasFeature(planAccess, SECTION_FEATURE[s]!));
   // Prepara recordatorios y avisos después de responder, sin hacer esperar a la página
   const base = await baseUrl();
   after(() => syncSoon(shop, base));

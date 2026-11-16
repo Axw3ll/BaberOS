@@ -100,7 +100,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                       <form action={activateManual} className="flex gap-1">
                         <input type="hidden" name="id" value={s.id} />
                         <button name="plan" value="BASIC" className="btn-ghost px-2 py-1 text-xs">+30 d Básico</button>
-                        <button name="plan" value="PRO" className="btn-ghost px-2 py-1 text-xs">+30 d Pro</button>
+                        <button name="plan" value="STANDARD" className="btn-ghost px-2 py-1 text-xs">+30 d Estándar</button>
+                        <button name="plan" value="PRO" className="btn-ghost px-2 py-1 text-xs">+30 d Completo</button>
                       </form>
                       <form action={suspend}><input type="hidden" name="id" value={s.id} /><button className="btn-ghost px-2 py-1 text-xs text-danger">Suspender</button></form>
                     </div>

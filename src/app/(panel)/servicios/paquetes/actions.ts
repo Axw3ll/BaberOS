@@ -3,12 +3,15 @@ import { money } from "@/lib/format";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 import type { ActionResult } from "@/components/action-form";
 
 export async function savePackage(_: ActionResult, data: FormData): Promise<ActionResult> {
   const { shop, me } = await requireSection("servicios");
+  if (!hasFeature(accessFor(shop), "paquetes")) redirect("/suscripcion?pro=paquetes");
   const id = String(data.get("id") || "");
   const kind = data.get("kind") === "MEMBERSHIP" ? "MEMBERSHIP" : "BUNDLE";
   const name = v.text(data.get("name"), "el nombre", { required: true, max: 60 });
@@ -40,6 +43,7 @@ export async function savePackage(_: ActionResult, data: FormData): Promise<Acti
 
 export async function togglePackage(data: FormData) {
   const { shop } = await requireSection("servicios");
+  if (!hasFeature(accessFor(shop), "paquetes")) redirect("/suscripcion?pro=paquetes");
   const p = await prisma.package.findFirst({ where: { id: String(data.get("id")), shopId: shop.id } });
   if (!p) return;
   await prisma.package.update({ where: { id: p.id }, data: { active: !p.active } });

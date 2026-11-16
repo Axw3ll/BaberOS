@@ -24,7 +24,8 @@ export async function extendTrial(data: FormData) {
 export async function activateManual(data: FormData) {
   await guard();
   const id = String(data.get("id"));
-  const plan = data.get("plan") === "PRO" ? "PRO" : "BASIC";
+  const raw = String(data.get("plan"));
+  const plan = raw === "PRO" || raw === "STANDARD" ? raw : "BASIC";
   const shop = await prisma.barbershop.findUniqueOrThrow({ where: { id } });
   const from = shop.currentPeriodEnd && shop.currentPeriodEnd.getTime() > Date.now() ? shop.currentPeriodEnd.getTime() : Date.now();
   await prisma.barbershop.update({ where: { id }, data: { plan, subscriptionStatus: "manual", currentPeriodEnd: new Date(from + 30 * DAY) } });

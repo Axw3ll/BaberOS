@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { Check, ChevronLeft, CreditCard, Crown, MessageCircle, Scissors } from "lucide-react";
 import { currentContext } from "@/lib/auth";
-import { accessFor, billingEnabled, manualBillingPhone, PLANS, type PaidPlan } from "@/lib/billing";
+import { accessFor, billingEnabled, FEATURES, manualBillingPhone, PLAN_ORDER, PLANS, type Feature, type PaidPlan } from "@/lib/billing";
 import { whatsappUrl } from "@/lib/crm";
 import { dateLabel, toLocalDate } from "@/lib/time";
 import { openPortal, startCheckout } from "./actions";
 
 export const metadata = { title: "Suscripción" };
 
-const PRO_NAME: Record<string, string> = { campanas: "Campañas", reportes: "Reportes" };
 
 export default async function SuscripcionPage({ searchParams }: { searchParams: Promise<{ ok?: string; pro?: string; error?: string }> }) {
   const { shop, me, user } = await currentContext();
@@ -44,23 +43,28 @@ export default async function SuscripcionPage({ searchParams }: { searchParams: 
         <h1 className="font-display text-3xl">Suscripción de {shop.name}</h1>
         {shop.isDemo && <p className="mt-4 rounded-xl bg-brand-soft p-4 text-brand">Esta es una demostración: aquí no se cobra nada. Así se ven los planes que elegirías al crear tu barbería.</p>}
         {sp.ok && <p className="mt-4 rounded-xl bg-success/10 p-4 text-success">¡Gracias! Tu pago se está confirmando; en unos segundos verás tu plan activo.</p>}
-        {sp.pro && <p className="mt-4 rounded-xl bg-brand-soft p-4 text-brand"><Crown className="mr-1.5 inline size-4" />{PRO_NAME[sp.pro] ?? "Esta sección"} es parte del plan Pro.</p>}
+        {sp.pro && sp.pro in FEATURES && (
+          <p className="mt-4 rounded-xl bg-brand-soft p-4 text-brand">
+            <Crown className="mr-1.5 inline size-4" />Para usar {FEATURES[sp.pro as Feature].label} necesitas el plan {PLANS[FEATURES[sp.pro as Feature].plan].name}{FEATURES[sp.pro as Feature].plan !== "PRO" && " o uno mayor"}.
+          </p>
+        )}
         <p className={`mt-4 rounded-xl p-4 ${tones[status.tone]}`}>{status.text}</p>
 
         {!owner ? (
           <p className="mt-6 text-muted">Solo el dueño de la barbería puede cambiar el plan. Avísale si ves este mensaje.</p>
         ) : !enabled ? null : (
           <>
-            <div className="mt-8 grid gap-4 md:grid-cols-2">
-              {(Object.keys(PLANS) as PaidPlan[]).map((k) => {
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {PLAN_ORDER.map((k) => {
                 const p = PLANS[k];
                 const current = access.state === "active" && access.plan === k;
                 return (
-                  <div key={k} className={`card flex flex-col p-6 ${k === "PRO" ? "border-brand ring-1 ring-brand" : ""}`}>
+                  <div key={k} className={`card flex flex-col p-6 ${k === "STANDARD" ? "border-brand ring-1 ring-brand" : ""}`}>
                     <div className="flex items-center justify-between">
                       <h2 className="font-display text-xl">{p.name}</h2>
-                      {k === "PRO" && <span className="rounded-full bg-brand px-2.5 py-0.5 text-xs font-semibold text-on-brand">Recomendado</span>}
+                      {k === "STANDARD" && <span className="rounded-full bg-brand px-2.5 py-0.5 text-xs font-semibold text-on-brand">El más elegido</span>}
                     </div>
+                    <p className="mt-1 text-sm text-muted">{p.tagline}</p>
                     <p className="mt-3"><span className="font-display text-4xl tnum">${p.price}</span> <span className="text-muted">MXN al mes</span></p>
                     <ul className="mt-5 flex-1 space-y-2 text-sm">
                       {p.features.map((f) => <li key={f} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success" />{f}</li>)}
@@ -68,15 +72,15 @@ export default async function SuscripcionPage({ searchParams }: { searchParams: 
                     {current ? (
                       <span className="btn-quiet mt-6 cursor-default">Tu plan actual</span>
                     ) : manualPhone ? (
-                      <a href={askToPay(p.name)} target="_blank" rel="noopener" className={`${k === "PRO" ? "btn-primary" : "btn-quiet"} mt-6 w-full`}>
+                      <a href={askToPay(p.name)} target="_blank" rel="noopener" className={`${k === "STANDARD" ? "btn-primary" : "btn-quiet"} mt-6 w-full`}>
                         <MessageCircle className="size-4" />Pagar {p.name} por transferencia
                       </a>
                     ) : shop.stripeSubscriptionId && access.state !== "expired" ? (
-                      <form action={openPortal} className="mt-6"><button className={k === "PRO" ? "btn-primary w-full" : "btn-quiet w-full"}>Cambiar a {p.name}</button></form>
+                      <form action={openPortal} className="mt-6"><button className={k === "STANDARD" ? "btn-primary w-full" : "btn-quiet w-full"}>Cambiar a {p.name}</button></form>
                     ) : (
                       <form action={startCheckout} className="mt-6">
                         <input type="hidden" name="plan" value={k} />
-                        <button disabled={!p.priceId} className={k === "PRO" ? "btn-primary w-full" : "btn-quiet w-full"}>Elegir {p.name}</button>
+                        <button disabled={!p.priceId} className={k === "STANDARD" ? "btn-primary w-full" : "btn-quiet w-full"}>Elegir {p.name}</button>
                       </form>
                     )}
                   </div>

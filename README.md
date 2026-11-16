@@ -75,11 +75,15 @@ Solo dueño y encargado cancelan ventas, pagan comisiones y borran clientes, y n
 
 ### Planes
 
-| | Prueba (14 días) | Básico $299/mes | Pro $599/mes |
-|---|---|---|---|
-| Agenda, clientes, lealtad, ventas, inventario, mensajes | ✓ | ✓ | ✓ |
-| Campañas y reportes | ✓ | — | ✓ |
-| Personas en el equipo | Sin límite | 3 | Sin límite |
+| | Prueba (14 días) | Básico $299/mes | Estándar $399/mes | Completo $599/mes |
+|---|---|---|---|---|
+| Agenda, reservas, recordatorios, clientes, seguimiento, calificaciones | ✓ | ✓ | ✓ | ✓ |
+| Caja, inventario, corte de caja, comisiones, sellos o puntos | ✓ | ✓ | ✓ | ✓ |
+| Fila virtual, lista de espera, paquetes y membresías | ✓ | — | ✓ | ✓ |
+| Reportes, gastos y utilidad, metas, campañas, bitácora | ✓ | — | — | ✓ |
+| Personas en el equipo | Sin límite | 2 | 5 | Sin límite |
+
+Lo que el plan no incluye: el dueño lo sigue viendo en el menú y, al tocarlo, se le explica desde qué plan viene; al resto del equipo no le aparece. Si baja de plan, los paquetes que sus clientes ya compraron se siguen usando (solo deja de vender nuevos) y nadie del equipo se da de baja solo; únicamente no puede agregar o reactivar personas por encima del límite.
 
 **Cómo se cobra:** con Stripe (`STRIPE_SECRET_KEY`), con tarjeta desde `/suscripcion`. Sin Stripe pero con `COBRO_WHATSAPP` (tu número), el cobro es manual: la prueba vence igual, el botón "Pagar por transferencia" abre un chat contigo y activas el plan desde `/admin` por 30 días. Sin ninguno de los dos, el cobro está apagado y todo es gratis (útil en desarrollo).
 
@@ -107,7 +111,7 @@ Conecta el repositorio en [Vercel](https://vercel.com), copia las variables de t
 
 ### 3. Stripe (suscripciones)
 
-1. Crea dos productos con precio mensual recurrente en MXN (Básico y Pro) y copia sus `price_…` a `STRIPE_PRICE_BASIC` y `STRIPE_PRICE_PRO`.
+1. Crea tres productos con precio mensual recurrente en MXN (Básico, Estándar y Completo) y copia sus `price_…` a `STRIPE_PRICE_BASIC`, `STRIPE_PRICE_STANDARD` y `STRIPE_PRICE_PRO`.
 2. Copia la llave secreta a `STRIPE_SECRET_KEY`.
 3. En *Developers → Webhooks* crea un endpoint `https://tu-dominio/api/stripe/webhook` con los eventos `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated` y `customer.subscription.deleted`. Copia su secreto a `STRIPE_WEBHOOK_SECRET`.
 4. Activa el *Customer portal* en Stripe (para cambiar tarjeta, plan o cancelar).

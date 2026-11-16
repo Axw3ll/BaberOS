@@ -4,6 +4,7 @@ import { payrollInfo } from "@/lib/payroll";
 import { unpaidCommissions } from "@/lib/cash";
 import { CalendarDays, CheckCircle2, ChevronRight, Clock, HandCoins, ListOrdered, MessageCircle, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { canAccess, requireSection, seesOnlyOwnAgenda } from "@/lib/auth";
 import { addDays, dateLabel, localToUtc, timeLabel, today } from "@/lib/time";
 import { noShowCounts } from "@/lib/waitlist";
@@ -70,7 +71,9 @@ export default async function HoyPage() {
   const pending = active.filter((a) => a.status === "PENDING").length;
   // Metas del mes: lo vendido (servicios y productos) desde el día 1
   const monthFrom = localToUtc(`${day.slice(0, 7)}-01`, 0, tz);
-  const goalStaff = await prisma.staff.findMany({ where: { shopId: shop.id, active: true, monthlyGoal: { gt: 0 }, ...(own && { id: me.id }) }, orderBy: { name: "asc" } });
+  const goalStaff = hasFeature(accessFor(shop), "metas")
+    ? await prisma.staff.findMany({ where: { shopId: shop.id, active: true, monthlyGoal: { gt: 0 }, ...(own && { id: me.id }) }, orderBy: { name: "asc" } })
+    : [];
   const goalSales = goalStaff.length ? await prisma.saleItem.groupBy({
     by: ["staffId"], where: { staffId: { in: goalStaff.map((g) => g.id) }, sale: { status: "PAID", createdAt: { gte: monthFrom } } }, _sum: { total: true },
   }) : [];

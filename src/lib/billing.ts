@@ -16,19 +16,38 @@ import type { Plan } from "@/generated/prisma/enums";
 
 export const PLANS = {
   BASIC: {
-    name: "Básico", price: 299, priceId: process.env.STRIPE_PRICE_BASIC,
-    features: ["Agenda y reservas en línea", "Clientes, etiquetas y seguimiento", "Tarjeta de sellos o puntos", "Ventas, inventario y corte de caja", "Recordatorios y confirmaciones", "Hasta 3 personas en el equipo"],
+    name: "Básico", price: 299, priceId: process.env.STRIPE_PRICE_BASIC, staff: 2 as number | null,
+    tagline: "Para el barbero independiente o la barbería chica",
+    features: ["Agenda y reservas en línea", "Recordatorios y confirmaciones por WhatsApp", "Clientes, seguimiento y calificaciones",
+      "Caja, inventario, corte de caja y comisiones", "Tarjeta de sellos o puntos", "Hasta 2 personas en el equipo"],
+  },
+  STANDARD: {
+    name: "Estándar", price: 399, priceId: process.env.STRIPE_PRICE_STANDARD, staff: 5 as number | null,
+    tagline: "Para la barbería con equipo",
+    features: ["Todo lo del Básico", "Fila virtual con QR", "Lista de espera", "Paquetes y membresías", "Hasta 5 personas en el equipo"],
   },
   PRO: {
-    name: "Pro", price: 599, priceId: process.env.STRIPE_PRICE_PRO,
-    features: ["Todo lo del Básico", "Campañas por WhatsApp", "Reportes y comisiones por periodo", "Equipo sin límite"],
+    name: "Completo", price: 599, priceId: process.env.STRIPE_PRICE_PRO, staff: null as number | null,
+    tagline: "Para administrar y hacer crecer tu barbería",
+    features: ["Todo lo del Estándar", "Reportes", "Gastos y utilidad", "Metas por barbero", "Campañas por WhatsApp", "Bitácora de cambios", "Equipo sin límite"],
   },
 } as const;
 export type PaidPlan = keyof typeof PLANS;
+export const PLAN_ORDER: PaidPlan[] = ["BASIC", "STANDARD", "PRO"];
 
-/** Secciones que solo incluye el plan Pro (durante la prueba se puede usar todo). */
-export const PRO_SECTIONS = ["campanas", "reportes"] as const;
-export const BASIC_STAFF_LIMIT = 3;
+/** Funciones que no vienen en todos los planes y el plan mínimo que las incluye. */
+export const FEATURES = {
+  fila: { plan: "STANDARD", label: "la fila virtual" },
+  espera: { plan: "STANDARD", label: "la lista de espera" },
+  paquetes: { plan: "STANDARD", label: "paquetes y membresías" },
+  reportes: { plan: "PRO", label: "los reportes" },
+  gastos: { plan: "PRO", label: "gastos y utilidad" },
+  metas: { plan: "PRO", label: "las metas por barbero" },
+  campanas: { plan: "PRO", label: "las campañas" },
+  bitacora: { plan: "PRO", label: "la bitácora" },
+} as const satisfies Record<string, { plan: PaidPlan; label: string }>;
+export type Feature = keyof typeof FEATURES;
+const RANK: Record<Plan, number> = { TRIAL: 0, BASIC: 1, STANDARD: 2, PRO: 3 };
 
 export const stripeEnabled = () => Boolean(process.env.STRIPE_SECRET_KEY);
 /** Tu WhatsApp para cobro manual (10 dígitos), si no usas Stripe. */
@@ -65,12 +84,21 @@ export function accessFor(shop: Pick<Barbershop, "plan" | "trialEndsAt" | "subsc
 }
 
 export const canUsePanel = (a: Access) => a.state !== "expired";
-/** Durante la prueba y sin cobro se puede todo; con plan Básico, las secciones Pro piden mejorar el plan. */
-export const hasPro = (a: Access) => a.state === "free" || a.state === "trial" || a.plan === "PRO";
+/** ¿Su plan incluye esta función? Durante la prueba y con el cobro apagado se puede todo. */
+export function hasFeature(a: Access, f: Feature) {
+  if (a.state === "free" || a.state === "trial") return true;
+  return RANK[a.plan] >= RANK[FEATURES[f].plan];
+}
+/** Personas activas que permite su plan (null = sin límite). */
+export function staffLimit(a: Access): number | null {
+  if (a.state === "free" || a.state === "trial") return null;
+  return PLANS[a.plan as PaidPlan]?.staff ?? null;
+}
 
 export function planFromPrice(priceId: string | undefined | null): Plan | null {
   if (!priceId) return null;
   if (priceId === PLANS.PRO.priceId) return "PRO";
+  if (priceId === PLANS.STANDARD.priceId) return "STANDARD";
   if (priceId === PLANS.BASIC.priceId) return "BASIC";
   return null;
 }

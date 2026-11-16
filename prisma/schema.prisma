@@ -136,7 +136,11 @@ enum StampReward {
 
 enum Plan {
   TRIAL
+  /// Básico
   BASIC
+  /// Estándar
+  STANDARD
+  /// Completo
   PRO
 }
 

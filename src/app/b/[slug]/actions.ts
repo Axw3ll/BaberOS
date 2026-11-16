@@ -4,7 +4,7 @@ import { book, BookingError, slotsFor } from "@/lib/booking";
 import { addDays, dateLabel, isDate, timeLabel, toLocalDate, today } from "@/lib/time";
 import { allow, clientIp, verifyTurnstile } from "@/lib/guard";
 import * as v from "@/lib/validate";
-import { accessFor, canUsePanel } from "@/lib/billing";
+import { accessFor, canUsePanel, hasFeature } from "@/lib/billing";
 import { joinWaitlist, markWaitlistBooked, noShowFlag, WaitlistError } from "@/lib/waitlist";
 
 const BUSY = "Demasiados intentos. Espera unos minutos y vuelve a intentar.";
@@ -101,6 +101,7 @@ export async function publicWaitlist(input: {
   if (!(await allow(`wait:ip:${await clientIp()}`, 6, 3600))) return { error: BUSY };
   const shop = await shopBySlug(input.slug);
   if (!shop || !isDate(input.date)) return { error: "Esta barbería no existe." };
+  if (!hasFeature(accessFor(shop), "espera")) return { error: "La lista de espera no está disponible." };
   const t = today(shop.timezone);
   if (input.date < t || input.date > addDays(t, shop.maxAdvanceDays)) return { error: "Elige otro día." };
   if (!(await candidates(shop.id, input.serviceId, input.staffId)).length) return { error: "Ese servicio ya no está disponible en línea." };

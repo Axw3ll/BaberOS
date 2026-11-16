@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CalendarPlus, Clock, Scissors, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { activeQueue, withEstimates } from "@/lib/queue";
-import { accessFor, canUsePanel } from "@/lib/billing";
+import { accessFor, canUsePanel, hasFeature } from "@/lib/billing";
 import { JoinForm } from "./join-form";
 
 export const metadata = { title: "Fila" };
@@ -14,7 +14,7 @@ export default async function QueuePublicPage({ params }: { params: Promise<{ sl
   const { slug } = await params;
   const shop = await prisma.barbershop.findUnique({ where: { slug } });
   if (!shop) notFound();
-  const open = shop.queueEnabled && canUsePanel(accessFor(shop));
+  const open = shop.queueEnabled && canUsePanel(accessFor(shop)) && hasFeature(accessFor(shop), "fila");
   const [queue, services, staff] = await Promise.all([
     activeQueue(shop.id).then((q) => withEstimates(shop, q)),
     prisma.service.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ position: "asc" }, { name: "asc" }], select: { id: true, name: true } }),

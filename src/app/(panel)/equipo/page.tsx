@@ -26,7 +26,7 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
 
       {limite && (
         <p role="alert" className="mb-6 rounded-xl bg-warning/10 px-4 py-3 text-sm text-warning">
-          El plan Básico incluye hasta {limite} personas activas. Da de baja a alguien o <Link href="/suscripcion" className="underline">cambia a Pro</Link> para reactivarla.
+          Tu plan incluye hasta {limite} personas activas. Da de baja a alguien o <Link href="/suscripcion" className="underline">cambia de plan</Link> para reactivarla.
         </p>
       )}
       {nuevo && (

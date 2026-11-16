@@ -4,7 +4,7 @@ import { addDays, minuteLabel, today, WEEKDAYS } from "@/lib/time";
 import { AtSign, Clock, MapPin, Phone, Scissors, Star } from "lucide-react";
 import { Booking } from "./booking";
 import { turnstileSiteKey } from "@/lib/guard";
-import { accessFor, canUsePanel } from "@/lib/billing";
+import { accessFor, canUsePanel, hasFeature } from "@/lib/billing";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -86,6 +86,7 @@ export default async function PublicBookingPage({ params, searchParams }: { para
           shopName={shop.name}
           known={me && { name: me.name, phone: me.phone }}
           initial={{ serviceId: servicio, staffId: barbero, date: fecha }}
+          waitlist={hasFeature(accessFor(shop), "espera")}
         />
       )}
       </div>

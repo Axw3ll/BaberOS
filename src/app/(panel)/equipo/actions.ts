@@ -9,7 +9,7 @@ import type { ActionResult } from "@/components/action-form";
 import { audit } from "@/lib/audit";
 import * as v from "@/lib/validate";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { accessFor, BASIC_STAFF_LIMIT, hasPro } from "@/lib/billing";
+import { accessFor, hasFeature, PLANS, staffLimit, type PaidPlan } from "@/lib/billing";
 import { baseUrl } from "@/lib/messages";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -34,8 +34,9 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
   const role = String(data.get("role")) as Role;
   if (!ROLES.includes(role)) return { error: "Elige un rol." };
   if (email && (await prisma.staff.findFirst({ where: { shopId: shop.id, email } }))) return { error: "Ya hay alguien con ese email en el equipo." };
-  if (!hasPro(accessFor(shop)) && (await prisma.staff.count({ where: { shopId: shop.id, active: true } })) >= BASIC_STAFF_LIMIT) {
-    return { error: `El plan Básico incluye hasta ${BASIC_STAFF_LIMIT} personas. Cambia a Pro en Suscripción para agregar más.` };
+  const access = accessFor(shop), limit = staffLimit(access);
+  if (limit !== null && (await prisma.staff.count({ where: { shopId: shop.id, active: true } })) >= limit) {
+    return { error: `Tu plan ${PLANS[access.plan as PaidPlan]?.name ?? ""} incluye hasta ${limit} personas. Cambia de plan en Suscripción para agregar más.` };
   }
 
   const existingUser = email ? await prisma.user.findUnique({ where: { email } }) : null;
@@ -104,7 +105,7 @@ export async function updateStaff(_: ActionResult, data: FormData): Promise<Acti
         ...(!s.userId && { email }),
         takesAppointments: data.get("takesAppointments") === "on",
         serviceCommission: vSvc.value!, productCommission: vProd.value!,
-        monthlyGoal: vGoal.value || null, bio: vBio.value,
+        ...(hasFeature(accessFor(ctx.shop), "metas") && { monthlyGoal: vGoal.value || null }), bio: vBio.value,
       },
     });
     revalidatePath("/equipo");
@@ -177,8 +178,9 @@ export async function toggleStaff(data: FormData) {
   if (s.role === "OWNER") return;
   if (s.id === ctx.me.id) return;
   // Reactivar cuenta para el límite del plan Básico (si no, se podría dar de baja y volver a dar de alta para pasarlo)
-  if (!s.active && !hasPro(accessFor(ctx.shop)) && (await prisma.staff.count({ where: { shopId: ctx.shop.id, active: true } })) >= BASIC_STAFF_LIMIT) {
-    redirect(`/equipo?limite=${BASIC_STAFF_LIMIT}`);
+  const limit = staffLimit(accessFor(ctx.shop));
+  if (!s.active && limit !== null && (await prisma.staff.count({ where: { shopId: ctx.shop.id, active: true } })) >= limit) {
+    redirect(`/equipo?limite=${limit}`);
   }
   await prisma.staff.update({ where: { id: s.id }, data: { active: !s.active } });
   revalidatePath("/equipo");

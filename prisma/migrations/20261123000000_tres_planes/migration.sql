@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "Plan" ADD VALUE 'STANDARD';
+

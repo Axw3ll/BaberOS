@@ -32,10 +32,12 @@ declare global {
   interface Window { turnstile?: { render: (el: HTMLElement, o: { sitekey: string; callback: (t: string) => void }) => void } }
 }
 
-export function Booking({ slug, tz, days, services, staff, captchaKey, shopName, known, initial }: {
+export function Booking({ slug, tz, days, services, staff, captchaKey, shopName, known, initial, waitlist = true }: {
   slug: string; tz: string; days: string[]; services: Svc[]; staff: { id: string; name: string }[];
   captchaKey: string | null; shopName: string; known?: { name: string; phone: string } | null;
   initial?: { serviceId?: string; staffId?: string; date?: string };
+  /** Su plan incluye la lista de espera */
+  waitlist?: boolean;
 }) {
   // Viene del aviso "se liberó un lugar": llega con servicio, barbero y día ya elegidos
   const init = services.find((s) => s.id === initial?.serviceId);
@@ -156,7 +158,7 @@ export function Booking({ slug, tz, days, services, staff, captchaKey, shopName,
             {loading || slots === null ? <p className="text-muted">Buscando horarios…</p> : slots.length === 0 ? (
               <div>
                 <p className="text-muted">No quedan horarios este día. Prueba otro.</p>
-                {waitDone === date ? (
+                {!waitlist ? null : waitDone === date ? (
                   <p role="status" className="mt-4 flex items-start gap-3 rounded-xl bg-success/10 p-4 text-sm">
                     <BellRing className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
                     <span>Listo, estás en la lista de espera del {dayName(date, { weekday: "long", day: "numeric" })}. Si alguien cancela, te avisamos por WhatsApp para que lo apartes.</span>

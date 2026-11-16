@@ -1,6 +1,8 @@
 import { Infinity as InfinityIcon, Ticket } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireSection } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { money } from "@/lib/format";
 import { Empty, Field, PageHeader, SectionTitle } from "@/components/ui";
 import { ActionForm, Submit } from "@/components/action-form";
@@ -10,6 +12,7 @@ export const metadata = { title: "Paquetes y membresías" };
 
 export default async function PaquetesPage() {
   const { shop } = await requireSection("servicios");
+  if (!hasFeature(accessFor(shop), "paquetes")) redirect("/suscripcion?pro=paquetes");
   const [packages, services, sold] = await Promise.all([
     prisma.package.findMany({ where: { shopId: shop.id }, include: { services: true }, orderBy: [{ active: "desc" }, { createdAt: "asc" }] }),
     prisma.service.findMany({ where: { shopId: shop.id, active: true }, orderBy: [{ position: "asc" }, { name: "asc" }] }),

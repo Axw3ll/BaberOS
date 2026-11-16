@@ -4,7 +4,7 @@ import {
   BarChart3, BellRing, CalendarDays, Check, ListOrdered, MessageCircle, Scissors, Smartphone, Stamp, Star, Ticket, Users, Wallet,
 } from "lucide-react";
 import { currentUser } from "@/lib/auth";
-import { PLANS } from "@/lib/billing";
+import { PLAN_ORDER, PLANS } from "@/lib/billing";
 import { demoEnabled } from "@/lib/demo-session";
 import { DemoButton } from "@/components/demo-button";
 
@@ -155,19 +155,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ v
         <section id="precios" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6">
           <h2 className="text-center font-display text-3xl">Precios claros, en pesos</h2>
           <p className="mt-2 text-center text-muted">14 días gratis con todo incluido. Después eliges. Cancela cuando quieras.</p>
-          <div className="mx-auto mt-10 grid max-w-3xl gap-6 md:grid-cols-2">
-            {(["BASIC", "PRO"] as const).map((k) => {
+          <div className="mx-auto mt-10 grid max-w-5xl gap-6 md:grid-cols-3">
+            {PLAN_ORDER.map((k) => {
               const p = PLANS[k];
-              const pro = k === "PRO";
+              const star = k === "STANDARD";
               return (
-                <div key={k} className={`card relative flex flex-col p-6 ${pro ? "border-brand ring-1 ring-brand" : ""}`}>
-                  {pro && <span className="absolute -top-3 left-6 rounded-full bg-brand px-3 py-0.5 text-xs font-semibold text-on-brand">El más elegido</span>}
+                <div key={k} className={`card relative flex flex-col p-6 ${star ? "border-brand ring-1 ring-brand" : ""}`}>
+                  {star && <span className="absolute -top-3 left-6 rounded-full bg-brand px-3 py-0.5 text-xs font-semibold text-on-brand">El más elegido</span>}
                   <h3 className="font-display text-xl">{p.name}</h3>
-                  <p className="mt-2"><span className="font-display text-4xl tnum">${p.price}</span> <span className="text-muted">MXN al mes</span></p>
+                  <p className="mt-1 text-sm text-muted">{p.tagline}</p>
+                  <p className="mt-3"><span className="font-display text-4xl tnum">${p.price}</span> <span className="text-muted">MXN al mes</span></p>
                   <ul className="mt-6 flex-1 space-y-2.5 text-sm">
                     {p.features.map((f) => <li key={f} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-success" aria-hidden />{f}</li>)}
                   </ul>
-                  <Link href="/registro" className={`${pro ? "btn-primary" : "btn-quiet"} mt-6 w-full py-2.5`}>Probar gratis</Link>
+                  <Link href="/registro" className={`${star ? "btn-primary" : "btn-quiet"} mt-6 w-full py-2.5`}>Probar gratis</Link>
                 </div>
               );
             })}

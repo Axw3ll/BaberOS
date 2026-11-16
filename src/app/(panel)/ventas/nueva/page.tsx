@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { accessFor, hasFeature } from "@/lib/billing";
 import { requireSection } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { Pos, type PosLine } from "./pos";
@@ -17,7 +18,8 @@ export default async function NewSalePage({ searchParams }: { searchParams: Prom
     cita
       ? prisma.appointment.findFirst({ where: { id: cita, shopId: shop.id, sale: null }, include: { services: true, customer: true } })
       : null,
-    prisma.package.findMany({ where: { shopId: shop.id, active: true }, orderBy: { price: "asc" } }),
+    // Vender paquetes es del plan Estándar en adelante (usar los ya vendidos funciona en cualquier plan)
+    hasFeature(accessFor(shop), "paquetes") ? prisma.package.findMany({ where: { shopId: shop.id, active: true }, orderBy: { price: "asc" } }) : [],
   ]);
   const apptPackages = appt ? await prisma.customerPackage.findMany({
     where: { customerId: appt.customerId, status: "ACTIVE", expiresAt: { gt: new Date() }, OR: [{ usesLeft: null }, { usesLeft: { gt: 0 } }] },
