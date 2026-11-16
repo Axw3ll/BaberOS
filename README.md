@@ -24,7 +24,7 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 
 **Botón "Ver demo":** en la página de inicio, cualquiera entra a una barbería de ejemplo sin registrarse (los mismos datos de arriba, en `src/lib/demo-data.ts`). Cada visitante tiene la suya, así que nadie ve los cambios de otro, y se borra sola a las 24 horas. En una demo no salen WhatsApp automáticos, invitaciones por correo ni cobros, y no aparece en `/admin`. En producción necesita `DEMO_SECRET`; máximo 6 demos por hora desde la misma conexión.
 
-**Sin Supabase Auth:** con `DEV_AUTH_EMAIL="tu@email.com"` en `.env`, `npm run dev` entra directo con ese usuario. En producción se ignora. La página de venta (`/`) se ve igual con `/?ver=1`.
+**Sin Supabase Auth:** con `DEV_AUTH_EMAIL="tu@email.com"` en `.env`, `npm run dev` entra directo con ese usuario. En producción se ignora. En ese modo, en **Equipo → (una persona) → Entrar como…** ves el sistema exactamente como lo ve ese barbero, recepcionista o encargado; un aviso arriba te regresa a tu cuenta. La página de venta (`/`) se ve igual con `/?ver=1`.
 
 **Pruebas:** `npm test` corre las pruebas de `tests/`: validaciones, horarios, fechas, días de pago y premios (sin base de datos) y cobros reales (total, comisión, efectivo insuficiente, topes de descuento, inventario, paquetes y cancelación). Las de cobro usan `DATABASE_URL`, crean una barbería de prueba y la borran al terminar; córrelas contra tu base local o de desarrollo, no la de producción.
 

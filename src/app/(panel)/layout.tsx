@@ -12,9 +12,10 @@ import { signOut } from "../(auth)/actions";
 import { switchShop } from "./actions";
 import { exitSupport } from "../admin/actions";
 import { exitDemo } from "../demo/actions";
+import { stopViewAs } from "./ver-como/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  const { me, shop, shops, support } = await currentContext();
+  const { me, shop, shops, support, viewingAs } = await currentContext();
   const sections = sectionsFor(me.role);
   // Prepara recordatorios y avisos después de responder, sin hacer esperar a la página
   const base = await baseUrl();
@@ -96,6 +97,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
             <form action={exitSupport} className="mb-6 flex items-center justify-between gap-3 rounded-xl bg-danger px-4 py-3 text-sm font-medium text-white">
               <span>Modo soporte: estás dentro de la cuenta de {shop.name}. Lo que hagas queda a nombre de su dueño.</span>
               <button className="shrink-0 underline">Salir</button>
+            </form>
+          )}
+          {viewingAs && (
+            <form action={stopViewAs} className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-warning px-4 py-3 text-sm font-medium text-white print:hidden">
+              <span>Estás viendo el sistema como {me.name} ({ROLE_LABEL[me.role].toLowerCase()}). Solo en desarrollo.</span>
+              <button className="shrink-0 rounded-lg bg-white/20 px-3 py-1.5 hover:bg-white/30">Volver a mi cuenta</button>
             </form>
           )}
           {shop.isDemo && (

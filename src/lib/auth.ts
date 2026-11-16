@@ -56,6 +56,8 @@ export async function requireUser() {
 }
 
 export const SHOP_COOKIE = "barberos_shop";
+/** Solo en desarrollo: "Entrar como" otro miembro del equipo para ver el sistema con su rol. */
+export const VIEW_AS_COOKIE = "barberos_ver_como";
 export const SUPPORT_COOKIE = "barberos_soporte";
 
 /** Correos con acceso a /admin (tú, como dueño de BarberOS). */
@@ -84,17 +86,27 @@ export const currentContext = cache(async () => {
     memberships = await membershipsQuery();
   }
 
+  // Solo en desarrollo: el dueño o encargado entra como alguien de su equipo (con aviso visible en el panel)
+  if (devAuth) {
+    const asId = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+    const mine = memberships.filter((m) => m.role === "OWNER" || m.role === "MANAGER").map((m) => m.shopId);
+    if (asId && mine.length) {
+      const as = await prisma.staff.findFirst({ where: { id: asId, active: true, shopId: { in: mine } }, include: { shop: true } });
+      if (as) return { user, me: as, shop: as.shop, shops: [as.shop], support: false, viewingAs: true };
+    }
+  }
+
   // Modo soporte: un superadmin ve la barbería como su dueño (con aviso visible en el panel)
   const support = (await cookies()).get(SUPPORT_COOKIE)?.value;
   if (support && isSuperadmin(s.email)) {
     const owner = await prisma.staff.findFirst({ where: { shopId: support, role: "OWNER" }, include: { shop: true }, orderBy: { createdAt: "asc" } });
-    if (owner) return { user, me: owner, shop: owner.shop, shops: [owner.shop], support: true };
+    if (owner) return { user, me: owner, shop: owner.shop, shops: [owner.shop], support: true, viewingAs: false };
   }
   if (memberships.length === 0) redirect("/onboarding");
 
   const wanted = (await cookies()).get(SHOP_COOKIE)?.value;
   const me = memberships.find((m) => m.shopId === wanted) ?? memberships[0];
-  return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop), support: false };
+  return { user, me, shop: me.shop, shops: memberships.map((m) => m.shop), support: false, viewingAs: false };
 });
 
 export type Section =

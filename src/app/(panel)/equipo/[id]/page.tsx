@@ -5,7 +5,8 @@ import { CopyButton } from "@/components/copy-button";
 import { whatsappUrl } from "@/lib/crm";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireSection, ROLE_LABEL } from "@/lib/auth";
+import { devAuth, requireSection, ROLE_LABEL } from "@/lib/auth";
+import { viewAs } from "../../ver-como/actions";
 import { toEditor } from "@/lib/schedule";
 import { dateTimeLabel, today } from "@/lib/time";
 import { minutesLabel } from "@/lib/format";
@@ -38,11 +39,18 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
     <>
       <PageHeader back={{ href: "/equipo", label: "Equipo" }} title={s.name}
         subtitle={`${ROLE_LABEL[s.role]}${s.userId ? "" : s.email ? `. Falta que cree su cuenta con ${s.email}` : ". Sin cuenta para entrar"}`}
-        actions={s.role !== "OWNER" && s.id !== me.id && (
-          <form action={toggleStaff}><input type="hidden" name="id" value={s.id} />
-            <button className={s.active ? "btn-ghost text-danger" : "btn-quiet"}>{s.active ? "Dar de baja" : "Reactivar"}</button>
-          </form>
-        )} />
+        actions={<>
+          {devAuth && s.id !== me.id && s.active && (
+            <form action={viewAs}><input type="hidden" name="staffId" value={s.id} />
+              <button className="btn-quiet" title="Solo en desarrollo: ves el sistema exactamente como lo ve esta persona">Entrar como {s.name.split(" ")[0]}</button>
+            </form>
+          )}
+          {s.role !== "OWNER" && s.id !== me.id && (
+            <form action={toggleStaff}><input type="hidden" name="id" value={s.id} />
+              <button className={s.active ? "btn-ghost text-danger" : "btn-quiet"}>{s.active ? "Dar de baja" : "Reactivar"}</button>
+            </form>
+          )}
+        </>} />
 
       {!s.userId && s.email && !locked && (() => {
         const signup = `${origin}/registro?email=${encodeURIComponent(s.email)}`;
