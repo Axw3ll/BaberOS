@@ -1,6 +1,7 @@
 import { Scissors } from "lucide-react";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth";
+import { devAuth, requireUser } from "@/lib/auth";
+import { signOut } from "../(auth)/actions";
 import { prisma } from "@/lib/prisma";
 import { ActionForm, Submit } from "@/components/action-form";
 import { Field } from "@/components/ui";
@@ -16,7 +17,14 @@ export default async function Onboarding({ searchParams }: { searchParams: Promi
   if (!nueva && (await prisma.staff.count({ where: { userId: user.id, active: true } })) > 0) redirect("/hoy");
   return (
     <main className="card mx-4 my-10 p-6 sm:mx-auto sm:max-w-2xl sm:p-10">
-      <span className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-xl bg-brand text-on-brand"><Scissors className="size-5" /></span><span className="font-display text-lg">BarberOS</span></span>
+      <div className="flex items-center justify-between gap-4">
+        <span className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-xl bg-brand text-on-brand"><Scissors className="size-5" /></span><span className="font-display text-lg">BarberOS</span></span>
+        {!devAuth && (
+          <form action={signOut} className="text-right text-sm text-muted">
+            <span className="hidden sm:inline">{user.email} · </span><button className="link">Cerrar sesión</button>
+          </form>
+        )}
+      </div>
       <h1 className="mt-8 font-display text-3xl leading-tight">Hola, {user.name.split(" ")[0]}. Registra tu barbería.</h1>
       <p className="mt-3 text-muted">Podrás cambiar todo después en Ajustes. Empezamos con horario de lunes a sábado, de 10:00 a 20:00.</p>
 

@@ -6,7 +6,7 @@ import { prisma } from "./prisma";
 import { supabaseServer } from "./supabase/server";
 import type { Role } from "@/generated/prisma/enums";
 import { accessFor, canUsePanel, hasPro, PRO_SECTIONS } from "./billing";
-import { DEMO_COOKIE, demoEmail, verifyDemo } from "./demo-session";
+import { DEMO_COOKIE, DEMO_EMAIL_DOMAIN, demoEmail, verifyDemo } from "./demo-session";
 
 const DEV_EMAIL = process.env.NODE_ENV !== "production" ? process.env.DEV_AUTH_EMAIL : undefined;
 const DEV_ID = "00000000-0000-4000-8000-000000000001";
@@ -46,6 +46,8 @@ export const currentUser = cache(async () => {
     prisma.staff.findFirst({ where: { email: s.email, userId: null, shop: { isDemo: false } }, select: { id: true } }),
   ]);
   if (user && !invite) return user;
+  // Demo que ya se borró (venció o se vació la base): se sale de la demo en vez de crear un usuario vacío
+  if (!user && s.email.endsWith(`@${DEMO_EMAIL_DOMAIN}`)) redirect("/demo/salir");
   return ensureUser(s, Boolean(user), Boolean(invite));
 });
 
@@ -81,6 +83,7 @@ export const currentContext = cache(async () => {
     prisma.staff.findFirst({ where: { email: s.email, userId: null, shop: { isDemo: false } }, select: { id: true } }),
     membershipsQuery(),
   ]);
+  if (!user && s.email.endsWith(`@${DEMO_EMAIL_DOMAIN}`)) redirect("/demo/salir");
   if (!user || invite) {
     user = await ensureUser(s, Boolean(user), Boolean(invite));
     memberships = await membershipsQuery();
