@@ -57,6 +57,11 @@ async function publicDay(dayIndex: number) {
 }
 
 test.beforeAll(async ({ browser }) => {
+  if (!process.env.DEV_AUTH_EMAIL) {
+    throw new Error(
+      "Falta DEV_AUTH_EMAIL en tu archivo .env. Las pruebas entran sin contraseña con ese usuario.\n" +
+      "Agrega una línea como:  DEV_AUTH_EMAIL=\"tu@email.com\"  y reinicia npm run dev (ciérralo con Ctrl+C y vuelve a abrirlo).");
+  }
   await cleanupShops(); // restos de una corrida anterior que se interrumpió
   // Los límites de intentos de la página pública (por IP y teléfono) se llenarían al correr las pruebas varias veces
   await sql(`DELETE FROM rate_limits`);
@@ -71,6 +76,11 @@ test.afterAll(async () => {
 
 test("1. crear la barbería desde cero", async () => {
   await page.goto("/onboarding?nueva=1");
+  if (page.url().includes("/login")) {
+    throw new Error(
+      "La app pidió iniciar sesión: el servidor no está usando DEV_AUTH_EMAIL.\n" +
+      "Revisa que esté en .env y reinicia npm run dev (Ctrl+C y otra vez npm run dev) para que lo lea.");
+  }
   await page.getByLabel("Nombre de la barbería").fill(NAME);
   await page.getByLabel("Teléfono").fill("3120001111");
   await page.getByRole("button", { name: "Crear barbería" }).click();
