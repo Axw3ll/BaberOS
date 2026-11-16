@@ -13,7 +13,9 @@ import type { MessageKind } from "@/generated/prisma/enums";
 
 export const metadata = { title: "Mensajes por enviar" };
 
-const ORDER: MessageKind[] = ["REMINDER_2H", "CONFIRMATION", "REMINDER_24H", "NO_SHOW", "REVIEW", "STAMP_WELCOME", "STAMP_REWARD", "STAMP_ALMOST", "BIRTHDAY", "REBOOK"];
+// Lo más urgente primero (la fila y la lista de espera caducan en minutos). Cualquier tipo nuevo se agrega al final solo.
+const FIRST: MessageKind[] = ["QUEUE_NEXT", "WAITLIST_OPEN", "REMINDER_2H", "CONFIRMATION", "REMINDER_24H", "NO_SHOW", "REVIEW", "STAMP_WELCOME", "STAMP_REWARD", "STAMP_ALMOST", "BIRTHDAY", "REBOOK"];
+const ORDER: MessageKind[] = [...FIRST, ...(Object.keys(KIND) as MessageKind[]).filter((k) => !FIRST.includes(k))];
 
 export default async function MensajesPage() {
   const { shop, me } = await requireSection("seguimiento");

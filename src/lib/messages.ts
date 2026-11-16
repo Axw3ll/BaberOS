@@ -228,6 +228,8 @@ export async function syncOutbox(shop: Barbershop, baseOverride?: string) {
        OR (m.kind IN ('CONFIRMATION', 'REMINDER_24H', 'REMINDER_2H') AND EXISTS (
              SELECT 1 FROM appointments a WHERE a.id = m."appointmentId"
                 AND (a.status IN ('CANCELLED', 'NO_SHOW', 'COMPLETED') OR a."startsAt" < now())))
+       -- "Confírmala aquí" ya no hace falta si el cliente confirmó desde su enlace
+       OR (m.kind = 'CONFIRMATION' AND EXISTS (SELECT 1 FROM appointments a WHERE a.id = m."appointmentId" AND a."confirmedAt" IS NOT NULL))
        -- Avisos de la tarjeta que ya no aplican (canceló la venta, ya usó el premio, cambió el programa)
        OR (m.kind = 'STAMP_ALMOST' AND EXISTS (SELECT 1 FROM customers c WHERE c.id = m."customerId"
              AND (c.stamps <> ${shop.stampsRequired - 1} OR ${shop.loyaltyMode}::text <> 'STAMPS')))

@@ -26,6 +26,8 @@ CRM y sistema de gestión para barberías, listo para venderse como servicio (Sa
 
 **Pruebas:** `npm test` corre las pruebas de `tests/`: validaciones, horarios, fechas, días de pago y premios (sin base de datos) y cobros reales (total, comisión, efectivo insuficiente, topes de descuento, inventario, paquetes y cancelación). Las de cobro usan `DATABASE_URL`, crean una barbería de prueba y la borran al terminar; córrelas contra tu base local o de desarrollo, no la de producción.
 
+**Pruebas de punta a punta:** `npm run test:e2e` abre un navegador y recorre la app completa como lo haría una barbería: crea una barbería desde cero, un cliente reserva en línea, confirma y cambia su hora, un día lleno con lista de espera y aviso al cancelar, fila con QR hasta la silla y el cobro en efectivo, sellos y premio, venta y uso de un paquete, gastos, corte de caja, comisiones, reportes, bitácora, calificación y la página del cliente. Usa una barbería “E2E …” que borra al terminar (con `E2E_KEEP=1` la deja para revisarla). Necesita `DEV_AUTH_EMAIL` en `.env` y la base de desarrollo; si `npm run dev` no está corriendo, lo arranca. La primera vez instala el navegador con `npx playwright install chromium`.
+
 ## Qué hace
 
 | Sección | Para qué sirve |
@@ -178,7 +180,7 @@ src/
     page.tsx                    página de venta
     (auth)/  onboarding/  (panel)/  b/[slug]/  c/[token]/  f/[slug]/  mi/[token]/  suscripcion/  admin/
     api/cron/mensajes  api/stripe/webhook
-tests/                          npm test
+tests/                          npm test (lógica y cobros) · tests/e2e: npm run test:e2e
 ```
 
 **Doble reserva imposible.** Una restricción `EXCLUDE USING gist` en Postgres impide que dos citas activas del mismo barbero se encimen, aunque se reserven al mismo tiempo.
