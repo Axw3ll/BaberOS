@@ -13,12 +13,17 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: proc
 
 async function main() {
   if (process.env.NODE_ENV === "production") throw new Error("No se vacía una base de producción.");
-  const host = (() => { try { return new URL(process.env.DATABASE_URL!).host; } catch { return "?"; } })();
+  // En Supabase el usuario es "postgres.<proyecto>": mostramos el proyecto para no confundir pruebas con producción
+  const { host, project } = (() => {
+    try { const u = new URL(process.env.DATABASE_URL!); return { host: u.host, project: u.username.split(".")[1] ?? u.username }; }
+    catch { return { host: "?", project: "?" }; }
+  })();
   const counts = await prisma.$queryRaw<{ shops: number; customers: number; sales: number; users: number }[]>`
     SELECT (SELECT count(*)::int FROM barbershops) AS shops, (SELECT count(*)::int FROM customers) AS customers,
            (SELECT count(*)::int FROM sales) AS sales, (SELECT count(*)::int FROM users) AS users`;
   const c = counts[0];
-  console.log(`Base: ${host}`);
+  console.log(`Base: ${host}  ·  proyecto: ${project}`);
+  console.log("Revisa que sea tu proyecto de PRUEBAS, nunca el de producción.");
   console.log(`Se borrará: ${c.shops} barberías, ${c.customers} clientes, ${c.sales} ventas y ${c.users} usuarios.`);
 
   if (!process.argv.includes("--si")) {
