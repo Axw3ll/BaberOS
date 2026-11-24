@@ -66,6 +66,8 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
             </p>
             {invitacion === "enviada" && <p className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Le enviamos el correo de invitación a {s.email}.</p>}
             {invitacion === "error" && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">No se pudo enviar el correo. Mándale el enlace por WhatsApp o cópialo: funciona igual.</p>}
+            {invitacion === "limite" && <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">Se alcanzó el límite de correos por hora, así que no se mandó. Mándale el enlace por WhatsApp o cópialo: funciona igual.</p>}
+            {invitacion === "registrado" && <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">No se mandó correo porque {s.email} ya está registrado. Mándale su enlace por WhatsApp: si ya tiene contraseña, solo tiene que entrar con ella y queda en tu equipo.</p>}
             <div className="mt-4 flex flex-wrap gap-2">
               {canEmailInvites() && (
                 <form action={resendInvite}><input type="hidden" name="id" value={s.id} />

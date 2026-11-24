@@ -59,7 +59,7 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
   revalidatePath("/equipo");
   // En la demo no se mandan correos: alguien podría escribir el de otra persona
   const sent = email && !existingUser && !shop.isDemo ? await sendInvite(email, name, s.inviteToken) : null;
-  redirect(`/equipo/${s.id}${sent === null ? "" : sent ? "?invitacion=enviada" : "?invitacion=error"}`);
+  redirect(`/equipo/${s.id}${sent ? `?invitacion=${sent}` : ""}`);
 }
 
 /**
@@ -74,9 +74,12 @@ async function sendInvite(email: string, name: string, token: string | null) {
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { name, ...(token && { invite_url: `${base}/unirse/${token}` }) }, redirectTo: `${base}/auth/confirm`,
   });
-  if (error) console.error("[invitación] Supabase no mandó el correo:", error.status, error.message);
-  // Si ya tenía cuenta en Supabase, basta con que entre: se liga solo al equipo
-  return !error || /already|registered|exists/i.test(error.message);
+  if (!error) return "enviada";
+  // El correo ya está registrado (cuenta propia o invitación anterior): Supabase no manda nada.
+  // Con su enlace elige contraseña si no tenía; si ya tenía, solo entra y se liga solo al equipo.
+  if (error.status === 422 || /already|registered|exists/i.test(error.message)) return "registrado";
+  console.error("[invitación] Supabase no mandó el correo:", error.status, error.message);
+  return error.status === 429 ? "limite" : "error";
 }
 
 export async function resendInvite(data: FormData) {
@@ -84,7 +87,7 @@ export async function resendInvite(data: FormData) {
   const s = await prisma.staff.findFirst({ where: { id: String(data.get("id")), shopId: shop.id, userId: null } });
   if (!s?.email || shop.isDemo) return;
   const sent = await sendInvite(s.email, s.name, s.inviteToken);
-  redirect(`/equipo/${s.id}?invitacion=${sent ? "enviada" : "error"}`);
+  redirect(`/equipo/${s.id}${sent ? `?invitacion=${sent}` : ""}`);
 }
 
 export async function updateStaff(_: ActionResult, data: FormData): Promise<ActionResult> {
