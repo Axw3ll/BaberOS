@@ -33,7 +33,7 @@ export default async function EquipoPage({ searchParams }: { searchParams: Promi
         <section className="mb-8 rounded-lg border border-line p-6 sm:p-8">
           <h2 className="font-display text-xl">Nueva persona</h2>
           <p className="mt-1 mb-6 text-sm text-muted">Si escribes su email, podrá entrar con su propia cuenta.{" "}
-            {canEmailInvites() ? "Le llega un correo de invitación para elegir su contraseña; también te damos un enlace para mandárselo por WhatsApp." : "Solo tiene que registrarse en BarberOS con ese mismo email; te damos un enlace para mandárselo por WhatsApp."}</p>
+            Te damos su enlace de invitación para mandárselo por WhatsApp{canEmailInvites() ? " (y también le llega por correo)" : ""}: lo abre, elige su contraseña y entra.</p>
           <ActionForm action={addStaff}>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Nombre"><input name="name" required className="field" /></Field>

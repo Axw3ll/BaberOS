@@ -105,10 +105,10 @@ Conecta el repositorio en [Vercel](https://vercel.com), copia las variables de t
   | Plantilla | Enlace |
   |---|---|
   | Confirm signup | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup` |
-  | Invite user | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite` |
+  | Invite user | `{{ .Data.invite_url }}` (el enlace propio de la app, que no vence ni se invalida al reenviar) |
   | Reset password | `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery` |
 
-- Para invitar al equipo por correo, agrega `SUPABASE_SERVICE_ROLE_KEY`. Sin ella, el dueño comparte un enlace de registro (copiar o WhatsApp).
+- Agrega `SUPABASE_SERVICE_ROLE_KEY` (la llave secreta `sb_secret_…`, nunca en una variable `NEXT_PUBLIC_`): con ella el invitado crea su cuenta desde su enlace `/unirse/…` sin esperar ningún correo, y además se intenta mandar el correo de invitación. El dueño ve el enlace en el perfil de la persona para copiarlo o mandarlo por WhatsApp.
 - Apaga la *Data API* de Supabase si no la usas: la app solo entra a la base desde el servidor con Prisma, y cada consulta filtra por la barbería activa.
 
 ### 3. Stripe (suscripciones)

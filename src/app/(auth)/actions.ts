@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { DEMO_COOKIE } from "@/lib/demo-session";
 import { supabaseServer } from "@/lib/supabase/server";
+import { prisma } from "@/lib/prisma";
 import type { ActionResult } from "@/components/action-form";
 
 export async function signIn(_: ActionResult, data: FormData): Promise<ActionResult> {
@@ -31,7 +32,14 @@ export async function signUp(_: ActionResult, data: FormData): Promise<ActionRes
     email, password,
     options: { data: { name }, emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback` },
   });
-  if (error) return { error: error.message.includes("registered") ? "Ese email ya tiene cuenta. Inicia sesión." : "No se pudo crear la cuenta. Revisa el email." };
+  if (error) {
+    if (!error.message.includes("registered")) return { error: "No se pudo crear la cuenta. Revisa el email." };
+    // El correo de invitación de Supabase deja la cuenta creada sin contraseña: su camino es el enlace de invitación
+    const invited = await prisma.staff.findFirst({ where: { email: email.toLowerCase(), userId: null, shop: { isDemo: false } }, select: { id: true } });
+    return { error: invited
+      ? "Te invitaron a un equipo con este correo. Abre el enlace que te mandó tu barbería (por WhatsApp o correo) para elegir tu contraseña."
+      : "Ese email ya tiene cuenta. Inicia sesión." };
+  }
   if (!res.session) return { ok: "Te enviamos un correo para confirmar tu cuenta. Ábrelo y vuelve a entrar." };
   // /hoy decide: si ya lo agregaron a un equipo entra directo; si no, lo manda a registrar su barbería
   redirect("/hoy");

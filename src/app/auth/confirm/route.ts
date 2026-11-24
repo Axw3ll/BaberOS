@@ -21,5 +21,5 @@ export async function GET(request: NextRequest) {
     const { error } = await sb.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) return NextResponse.redirect(new URL(target, request.url));
   }
-  return NextResponse.redirect(new URL("/login?enlace=vencido", request.url));
+  return NextResponse.redirect(new URL(`/login?enlace=${type === "invite" ? "invitacion" : "vencido"}`, request.url));
 }
