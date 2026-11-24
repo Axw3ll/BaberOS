@@ -105,7 +105,8 @@ export const currentContext = cache(async () => {
     const owner = await prisma.staff.findFirst({ where: { shopId: support, role: "OWNER" }, include: { shop: true }, orderBy: { createdAt: "asc" } });
     if (owner) return { user, me: owner, shop: owner.shop, shops: [owner.shop], support: true, viewingAs: false };
   }
-  if (memberships.length === 0) redirect("/onboarding");
+  // Sin barbería: el administrador de BarberOS va a su panel; los demás, a registrar la suya
+  if (memberships.length === 0) redirect(isSuperadmin(s.email) ? "/admin" : "/onboarding");
 
   const wanted = (await cookies()).get(SHOP_COOKIE)?.value;
   const me = memberships.find((m) => m.shopId === wanted) ?? memberships[0];

@@ -22,6 +22,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const user = await requireUser();
   if (!isSuperadmin(user.email)) notFound();
   const { q = "" } = await searchParams;
+  const hasShop = (await prisma.staff.count({ where: { userId: user.id, active: true } })) > 0;
 
   const shops = await prisma.barbershop.findMany({
     where: { isDemo: false, ...(q && { OR: [{ name: { contains: q, mode: "insensitive" } }, { owner: { email: { contains: q, mode: "insensitive" } } }] }) },
@@ -56,7 +57,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </div>
           <div className="flex flex-wrap gap-2">
             <form><input name="q" defaultValue={q} placeholder="Buscar barbería o correo" className="field w-64" /></form>
-            <Link href="/hoy" className="btn-quiet">Ir a mi barbería</Link>
+            {hasShop && <Link href="/hoy" className="btn-quiet">Ir a mi barbería</Link>}
           </div>
         </div>
         <Figures>
