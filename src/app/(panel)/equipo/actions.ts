@@ -11,6 +11,7 @@ import * as v from "@/lib/validate";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { accessFor, hasFeature, PLANS, staffLimit, type PaidPlan } from "@/lib/billing";
 import { baseUrl } from "@/lib/messages";
+import { newInviteToken } from "@/lib/invite";
 import type { Role } from "@/generated/prisma/enums";
 
 const ROLES: Role[] = ["MANAGER", "BARBER", "RECEPTIONIST"];
@@ -48,6 +49,7 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
     data: {
       shopId: shop.id, name, email, role, phone: vPhone.value,
       userId: existingUser?.id ?? null, takesAppointments: takes,
+      inviteToken: email && !existingUser ? newInviteToken() : null,
       ...(takes && {
         schedule: { create: hours.map((h) => ({ weekday: h.weekday, startMinute: h.startMinute, endMinute: h.endMinute })) },
         services: { create: services.map((x) => ({ serviceId: x.id })) },
@@ -56,17 +58,23 @@ export async function addStaff(_: ActionResult, data: FormData): Promise<ActionR
   });
   revalidatePath("/equipo");
   // En la demo no se mandan correos: alguien podría escribir el de otra persona
-  const sent = email && !existingUser && !shop.isDemo ? await sendInvite(email, name) : null;
+  const sent = email && !existingUser && !shop.isDemo ? await sendInvite(email, name, s.inviteToken) : null;
   redirect(`/equipo/${s.id}${sent === null ? "" : sent ? "?invitacion=enviada" : "?invitacion=error"}`);
 }
 
-/** Correo de invitación de Supabase. Devuelve null si no está configurado. */
-async function sendInvite(email: string, name: string) {
+/**
+ * Correo de invitación de Supabase. Devuelve null si no está configurado.
+ * Lleva el enlace propio (/unirse/<token>) en {{ .Data.invite_url }} para la plantilla "Invite user":
+ * así el correo sigue sirviendo aunque llegue tarde o se reenvíe.
+ */
+async function sendInvite(email: string, name: string, token: string | null) {
   const admin = supabaseAdmin();
   if (!admin) return null;
+  const base = await baseUrl();
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: { name }, redirectTo: `${await baseUrl()}/auth/confirm`,
+    data: { name, ...(token && { invite_url: `${base}/unirse/${token}` }) }, redirectTo: `${base}/auth/confirm`,
   });
+  if (error) console.error("[invitación] Supabase no mandó el correo:", error.status, error.message);
   // Si ya tenía cuenta en Supabase, basta con que entre: se liga solo al equipo
   return !error || /already|registered|exists/i.test(error.message);
 }
@@ -75,7 +83,7 @@ export async function resendInvite(data: FormData) {
   const { shop } = await requireSection("equipo");
   const s = await prisma.staff.findFirst({ where: { id: String(data.get("id")), shopId: shop.id, userId: null } });
   if (!s?.email || shop.isDemo) return;
-  const sent = await sendInvite(s.email, s.name);
+  const sent = await sendInvite(s.email, s.name, s.inviteToken);
   redirect(`/equipo/${s.id}?invitacion=${sent ? "enviada" : "error"}`);
 }
 
@@ -102,7 +110,8 @@ export async function updateStaff(_: ActionResult, data: FormData): Promise<Acti
       where: { id: s.id },
       data: {
         name, role, phone: vPhone.value,
-        ...(!s.userId && { email }),
+        // Si cambia el correo, el enlace anterior deja de servir
+        ...(!s.userId && { email, ...(email !== s.email && { inviteToken: email ? newInviteToken() : null }) }),
         takesAppointments: data.get("takesAppointments") === "on",
         serviceCommission: vSvc.value!, productCommission: vProd.value!,
         ...(hasFeature(accessFor(ctx.shop), "metas") && { monthlyGoal: vGoal.value || null }), bio: vBio.value,

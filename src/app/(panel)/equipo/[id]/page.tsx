@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { accessFor, hasFeature } from "@/lib/billing";
 import { devAuth, requireSection, ROLE_LABEL } from "@/lib/auth";
+import { inviteTokenFor } from "@/lib/invite";
 import { viewAs } from "../../ver-como/actions";
 import { toEditor } from "@/lib/schedule";
 import { dateTimeLabel, today } from "@/lib/time";
@@ -53,18 +54,18 @@ export default async function StaffPage({ params, searchParams }: { params: Prom
           )}
         </>} />
 
-      {!s.userId && s.email && !locked && (() => {
-        const signup = `${origin}/registro?email=${encodeURIComponent(s.email)}`;
-        const msg = `Hola ${s.name.split(" ")[0]}, te agregué al equipo de ${shop.name} en BarberOS. Crea tu cuenta con este correo (${s.email}) aquí: ${signup}`;
+      {!s.userId && s.email && !locked && await (async () => {
+        const signup = `${origin}/unirse/${await inviteTokenFor(s.id, s.inviteToken)}`;
+        const msg = `Hola ${s.name.split(" ")[0]}, te agregué al equipo de ${shop.name} en BarberOS. Entra a este enlace, elige tu contraseña y listo: ${signup}`;
         return (
           <div className="mb-6 max-w-2xl rounded-2xl border border-warning/30 bg-warning/5 p-5">
             <p className="flex items-center gap-2 font-semibold"><MailQuestion className="size-5 text-warning" aria-hidden />Todavía no tiene cuenta</p>
             <p className="mt-1.5 text-sm text-muted">
-              {canEmailInvites() ? "Mándale la invitación por correo o comparte el enlace" : "Comparte este enlace"}: en cuanto se registre con <strong className="text-fg">{s.email}</strong>,
-              queda ligado a tu equipo y entra directo a su agenda. Si se registró con otro correo, cambia aquí el email por el que usó.
+              Mándale su enlace por WhatsApp{canEmailInvites() ? " o por correo" : ""}: lo abre, elige su contraseña y entra directo a su agenda con <strong className="text-fg">{s.email}</strong>.
+              El enlace sirve hasta que cree su cuenta. Si ya tenía cuenta con otro correo, cambia aquí el email por el que usa.
             </p>
             {invitacion === "enviada" && <p className="mt-3 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">Le enviamos el correo de invitación a {s.email}.</p>}
-            {invitacion === "error" && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">No se pudo enviar el correo. Comparte el enlace por WhatsApp.</p>}
+            {invitacion === "error" && <p className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">No se pudo enviar el correo. Mándale el enlace por WhatsApp o cópialo: funciona igual.</p>}
             <div className="mt-4 flex flex-wrap gap-2">
               {canEmailInvites() && (
                 <form action={resendInvite}><input type="hidden" name="id" value={s.id} />

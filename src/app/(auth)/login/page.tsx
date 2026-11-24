@@ -11,6 +11,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <>
       <h1 className="font-display text-3xl">Entrar</h1>
       <p className="mt-2 text-muted">Con el email de tu cuenta.</p>
+      {enlace === "invitacion" && <p role="alert" className="mt-4 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">Ese enlace de invitación ya no sirve. Pide a tu barbería que te mande tu enlace por WhatsApp: con ese eliges tu contraseña y entras.</p>}
       {enlace === "vencido" && <p role="alert" className="mt-4 rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning">Ese enlace ya venció o ya se usó. Pide uno nuevo.</p>}
       <ActionForm action={signIn} className="mt-10 space-y-5">
         <Field label="Email"><input name="email" type="email" required autoComplete="email" className="field" /></Field>

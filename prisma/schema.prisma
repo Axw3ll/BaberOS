@@ -340,6 +340,8 @@ model Staff {
   /// Meta de ventas del mes (servicios + productos)
   monthlyGoal       Decimal? @db.Decimal(10, 2)
   bio               String?
+  /// Enlace para que cree su cuenta (/unirse/<token>); se borra al ligarse
+  inviteToken       String?  @unique
   createdAt         DateTime @default(now())
 
   shop          Barbershop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
