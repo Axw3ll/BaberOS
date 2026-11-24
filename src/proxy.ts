@@ -33,6 +33,8 @@ export async function proxy(request: NextRequest) {
   if (!data?.claims && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // Al entrar, vuelve a la página que quería abrir (p. ej. /admin)
+    url.search = path === "/" ? "" : `?next=${encodeURIComponent(path)}`;
     return NextResponse.redirect(url);
   }
   return response;

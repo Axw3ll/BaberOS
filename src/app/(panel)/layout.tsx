@@ -1,9 +1,9 @@
 import { after } from "next/server";
 import Link from "next/link";
-import { CreditCard, LogOut, Scissors } from "lucide-react";
+import { CreditCard, LogOut, Scissors, ShieldCheck } from "lucide-react";
 import { accessFor, billingEnabled, hasFeature } from "@/lib/billing";
 import { baseUrl, syncSoon } from "@/lib/messages";
-import { currentContext, devAuth, ROLE_LABEL, SECTION_FEATURE, sectionsFor } from "@/lib/auth";
+import { currentContext, devAuth, isSuperadmin, ROLE_LABEL, SECTION_FEATURE, sectionsFor } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/time";
 import { initials } from "@/lib/format";
@@ -15,7 +15,8 @@ import { exitDemo } from "../demo/actions";
 import { stopViewAs } from "./ver-como/actions";
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
-  const { me, shop, shops, support, viewingAs } = await currentContext();
+  const { me, shop, shops, support, viewingAs, user: account } = await currentContext();
+  const admin = isSuperadmin(account.email) && !shop.isDemo;
   // Secciones fuera del plan: el dueño las ve (al tocarlas le explicamos el plan); el resto del equipo no
   const planAccess = accessFor(shop);
   const sections = sectionsFor(me.role).filter((s) => me.role === "OWNER" || !SECTION_FEATURE[s] || hasFeature(planAccess, SECTION_FEATURE[s]!));
@@ -56,6 +57,12 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     </form>
   ) : null;
   const user = (
+    <>
+    {admin && (
+      <Link href="/admin" className="mb-3 flex items-center gap-2 rounded-lg border border-brand/25 bg-brand-soft px-3 py-2 text-sm font-medium text-brand hover:bg-brand/15">
+        <ShieldCheck className="size-4" aria-hidden />Administración
+      </Link>
+    )}
     <div className="flex items-center gap-3">
       <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">{initials(me.name)}</span>
       <span className="min-w-0 flex-1">
@@ -68,6 +75,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </form>
       )}
     </div>
+    </>
   );
 
   return (

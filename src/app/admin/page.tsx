@@ -54,7 +54,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <h1 className="font-display text-3xl">Administración de BarberOS</h1>
             <p className="text-muted">Todas las barberías, su plan y su uso.</p>
           </div>
-          <form><input name="q" defaultValue={q} placeholder="Buscar barbería o correo" className="field w-64" /></form>
+          <div className="flex flex-wrap gap-2">
+            <form><input name="q" defaultValue={q} placeholder="Buscar barbería o correo" className="field w-64" /></form>
+            <Link href="/hoy" className="btn-quiet">Ir a mi barbería</Link>
+          </div>
         </div>
         <Figures>
           <Figure icon={Building2} value={shops.length} label="Barberías" />

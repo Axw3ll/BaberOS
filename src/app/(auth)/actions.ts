@@ -4,16 +4,19 @@ import { cookies } from "next/headers";
 import { DEMO_COOKIE } from "@/lib/demo-session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
+import { isSuperadmin } from "@/lib/auth";
 import type { ActionResult } from "@/components/action-form";
 
 export async function signIn(_: ActionResult, data: FormData): Promise<ActionResult> {
   const sb = await supabaseServer();
-  const { error } = await sb.auth.signInWithPassword({
-    email: String(data.get("email") ?? "").trim(),
-    password: String(data.get("password") ?? ""),
-  });
+  const email = String(data.get("email") ?? "").trim();
+  const { error } = await sb.auth.signInWithPassword({ email, password: String(data.get("password") ?? "") });
   if (error) return { error: "Email o contraseña incorrectos." };
-  redirect("/hoy");
+  // Solo rutas internas (nada de "//otro-sitio")
+  const next = String(data.get("next") ?? "");
+  if (next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")) redirect(next);
+  // El administrador de BarberOS entra directo a su panel
+  redirect(isSuperadmin(email) ? "/admin" : "/hoy");
 }
 
 export async function signUp(_: ActionResult, data: FormData): Promise<ActionResult> {
